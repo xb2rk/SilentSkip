@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Craftland QA</title>
+    <script>
+      // Prevent a theme flash before React mounts: apply the persisted theme
+      // (or the dark-first default) to <html> as the very first thing the page runs.
+      // Keep the storage key in sync with web/src/lib/theme.ts.
+      (() => {
+        try {
+          const stored = window.localStorage.getItem("craftland-qa:theme");
+          const theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark";
+          document.documentElement.classList.toggle("dark", theme === "dark");
+        } catch {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-background text-foreground antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

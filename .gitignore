@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.turbo/
+coverage/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
