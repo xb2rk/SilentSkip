@@ -19,4 +19,5 @@ export * from "./csv/index.js";
 export * from "./delta/index.js";
 export * from "./facts/index.js";
 export * from "./journey/index.js";
+export * from "./profile/index.js";
 export * from "./relations/index.js";

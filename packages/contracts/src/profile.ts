@@ -1,0 +1,104 @@
+/**
+ * Project Profile contracts — the per-project knowledge that is *data*, not code.
+ *
+ * The engine assumes only FC grammar, CSV shape and git; everything a project
+ * does differently (binding styles, read API families, naming hints, pinned
+ * bindings, entity notes) lives here, pinned by the user. Stored as JSON in the
+ * `project_profiles` table; the AI Discovery pass (E4) proposes entries with
+ * `source: "discovery"` and only the user flips them into accepted knowledge.
+ */
+
+import { z } from "zod";
+
+/** How a convention entered the profile: typed by the user or proposed by Discovery. */
+export const ConventionSourceSchema = z.enum(["user", "discovery"]);
+
+/** What a convention is about. */
+export const ConventionKindSchema = z.enum(["binding", "layout", "naming", "api-family", "other"]);
+
+/** Evidence attached to a convention — a file plus an optional human note. */
+export const ConventionEvidenceSchema = z.object({
+  file: z.string().min(1),
+  note: z.string().min(1).optional(),
+});
+
+/** One user-approved (or Discovery-proposed) project convention. */
+export const ConventionEntrySchema = z.object({
+  id: z.string().min(1),
+  kind: ConventionKindSchema,
+  /** Human-readable statement, e.g. "CSV tables are read via CSVIndex enums". */
+  statement: z.string().min(1),
+  evidence: z.array(ConventionEvidenceSchema),
+  source: ConventionSourceSchema,
+  createdAt: z.string().min(1),
+});
+
+/** What an override does. */
+export const OverrideKindSchema = z.enum(["pin-binding", "suppress-finding", "entity-note"]);
+
+/** Target selector of an override; callers use whichever fields identify the target. */
+export const OverrideTargetSchema = z.object({
+  file: z.string().min(1).optional(),
+  symbolId: z.string().min(1).optional(),
+  csvPath: z.string().min(1).optional(),
+  rowKey: z.string().min(1).optional(),
+});
+
+/** One manual override / pin / entity note. */
+export const OverrideEntrySchema = z.object({
+  id: z.string().min(1),
+  kind: OverrideKindSchema,
+  target: OverrideTargetSchema,
+  /** Override value (e.g. the pinned binding target); free-form by design. */
+  value: z.string().optional(),
+  note: z.string().optional(),
+  createdAt: z.string().min(1),
+});
+
+/** Engine-computed coverage snapshot of the last index run. */
+export const CoverageSchema = z.object({
+  scriptFiles: z.number().int().nonnegative(),
+  csvFiles: z.number().int().nonnegative(),
+  generatedAt: z.string().min(1),
+  note: z.string().min(1).optional(),
+});
+
+/** The full project profile (the DB JSON columns merged into one shape). */
+export const ProjectProfileSchema = z.object({
+  projectId: z.string().min(1),
+  conventions: z.array(ConventionEntrySchema),
+  /** Read API families observed or pinned, e.g. `["Strings", "ConfigManager"]`. */
+  readApiFamily: z.array(z.string().min(1)),
+  overrides: z.array(OverrideEntrySchema),
+  coverage: CoverageSchema.nullable(),
+  editorGenIndex: z.boolean(),
+  updatedAt: z.string().min(1),
+});
+
+/**
+ * Builds the empty profile for a project that has never been configured.
+ *
+ * @param projectId - Project row id.
+ * @param updatedAt - ISO timestamp supplied by the caller (no clock in contracts).
+ */
+export function emptyProjectProfile(projectId: string, updatedAt: string): ProjectProfile {
+  return {
+    projectId,
+    conventions: [],
+    readApiFamily: [],
+    overrides: [],
+    coverage: null,
+    editorGenIndex: false,
+    updatedAt,
+  };
+}
+
+export type ConventionSource = z.infer<typeof ConventionSourceSchema>;
+export type ConventionKind = z.infer<typeof ConventionKindSchema>;
+export type ConventionEvidence = z.infer<typeof ConventionEvidenceSchema>;
+export type ConventionEntry = z.infer<typeof ConventionEntrySchema>;
+export type OverrideKind = z.infer<typeof OverrideKindSchema>;
+export type OverrideTarget = z.infer<typeof OverrideTargetSchema>;
+export type OverrideEntry = z.infer<typeof OverrideEntrySchema>;
+export type Coverage = z.infer<typeof CoverageSchema>;
+export type ProjectProfile = z.infer<typeof ProjectProfileSchema>;

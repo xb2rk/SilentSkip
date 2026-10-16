@@ -34,6 +34,11 @@ eventually findings.
   containers, each node with a raw-faithful span, step confidence and derivation; cycles are
   skipped, budgets enforced with a truthful `truncated` flag, and dead values carry an explicit
   "consider pinning" note. Guarded by engineered fixtures (`test/journey.test.ts`).
+- **Profile store + Discovery collector (E2.7)** — `ProjectProfileSchema` (contracts) owns the
+  JSON shapes for conventions, overrides, read API families, coverage and the editorGen flag;
+  `collectDiscoveryCandidates(bundle, relations)` produces the deterministic proposals the AI
+  Discovery pass will review later — CSV-naming literals and import paths, each with evidence
+  and no scoring. Guarded by fixture tests (`test/profile.test.ts`).
 
 ## Dev probes
 

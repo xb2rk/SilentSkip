@@ -14,6 +14,7 @@ the schemas, never hand-written duplicates.
 | `project.ts` | Project registry DTOs (`ProjectSummary`, list, add request) |
 | `git.ts` | A/B contracts: refs, head, `WORKTREE_REF` pseudo-ref, diff summary |
 | `fs.ts` | Folder-picker contracts (`GET /api/fs/list`) |
+| `profile.ts` | Project Profile schemas — conventions, overrides, coverage, `emptyProjectProfile` factory |
 
 ## Rules
 

@@ -22,7 +22,7 @@ import type {
   RefFact,
   SymbolFact,
 } from "../facts/index.js";
-import type { Relation, RelationSet } from "../relations/index.js";
+import type { Relation } from "../relations/index.js";
 import type { Journey, JourneyChain, JourneyInput, JourneyNode } from "./types.js";
 import { JOURNEY_SCHEMA_VERSION } from "./types.js";
 
