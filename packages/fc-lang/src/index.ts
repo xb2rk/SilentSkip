@@ -1,9 +1,20 @@
 /**
- * Placeholder entry point for the vendored fc-lang toolchain.
+ * fc-format-v4: Next-Generation FC Language Toolchain & Formatter.
  *
- * The real implementation (lexer/parser/AST/visitor) is vendor-copied from
- * `fc-format-v4` in Phase 1 / E2 — see the package README for the vendoring checklist.
+ * @packageDocumentation
  */
 
-/** Marker so consumers can detect (in tests) that the toolchain is not yet vendored. */
-export const FC_LANG_VENDORED = false;
+export * from "./grammar/index.js";
+export * from "./lex/index.js";
+export * from "./syntax/index.js";
+export * from "./parser/index.js";
+export * from "./imports/index.js";
+export * from "./format/index.js";
+
+import { formatSource, type FormatOptions, type FormatResult } from "./format/index.js";
+
+/**
+ * Convenient shorthand alias for `formatSource`.
+ */
+export const format = formatSource;
+export default formatSource;

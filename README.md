@@ -8,7 +8,8 @@ Primary audience: **game designers** — the UI is Vietnamese and i18n-ready. Se
 technical docs are English.
 
 > Status: **Phase 1 — Knowledge core & AI review**. E0 (skeleton) and E1 (project registry +
-> read-only git A/B preview) are complete; E2 (vendored `fc-lang` + fact extraction) is next.
+> read-only git A/B preview) are complete; E2 (knowledge core) is in progress — `fc-lang` is
+> vendored (v0.4.0) and guarded by a 245-file corpus gate.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > and the per-package READMEs.
 
@@ -48,7 +49,7 @@ packages/contracts Zod schemas + inferred types — single source of truth for e
 packages/db        Drizzle schema, node:sqlite client, migrations
 packages/engine    Deterministic analysis engine (E2+: facts, relations, journeys, checks)
 packages/ai        Insea client, prompt passes, citation verifier (E4+)
-packages/fc-lang   Vendored fc-format-v4 toolchain for `.fcc`/`.fcg` (E2)
+packages/fc-lang   Vendored fc-format-v4 toolchain for `.fcc`/`.fcg` (v0.4.0)
 ```
 
 Each app/package has its own README covering purpose, extension points and testing.

@@ -1,19 +1,46 @@
-# @craftland-qa/fc-lang (placeholder)
+# @craftland-qa/fc-lang
 
-This package will contain the **vendored** `fc-format-v4` toolchain from the Craftland Studio
-workspace (`tools/fc-format-v4`): lossless lexer, AST parser, visitor, formatter for the FC
-language (`.fcc`/`.fcg`).
+Vendored **FC language toolchain** (`fc-format-v4`): lossless lexer, AST parser with guards,
+visitor, import sorter and formatter for Craftland Studio scripts (`.fcc`/`.fcg`).
 
-## Why vendored
+This is the only place in the repo that understands FC syntax. The engine (`packages/engine`)
+builds its facts, relations and journeys *on top of* this package — it must never re-implement
+lexing or parsing.
 
-The upstream toolchain is the authority on the FC grammar; vendoring pins the exact behavior we
-build on, keeps the tool free of a dependency on the Studio installation, and makes drift
-reviewable.
+## Layout
 
-## Vendoring checklist (Phase 1 / E2)
+| Path | What |
+| --- | --- |
+| `src/**` | Vendored upstream `fc-format-v4` source — byte-identical, never edited in place |
+| `src/vendored.ts` | Runtime provenance marker (`FC_LANG_VENDORED`, upstream revision) |
+| `test/corpus/**` | Checked-in copy of the sample project's FC sources (245 files) |
+| `test/formatter-corpus.test.ts` | Corpus gate: parse + format + reparse + semantic fingerprint |
+| `PROVENANCE.md` | Upstream path, revision, what was copied, deviations |
+| `scripts/sync-fc-lang.mjs` | Re-sync from upstream (`pnpm --filter @craftland-qa/fc-lang sync:fc-lang`) |
 
-- `PROVENANCE.md` — upstream path, version/commit/date, list of local modifications (if any)
-- `sync:fc-lang` script to re-copy from upstream deterministically
-- the upstream corpus test (164 checked-in FC files) wired into CI
+## Entry points
 
-Until then this package is an empty shell so the workspace layout is final.
+```ts
+import { lex, parseGraphFile, parseHeaderFile, formatSource } from "@craftland-qa/fc-lang";
+import { FC_LANG_UPSTREAM } from "@craftland-qa/fc-lang/vendored";
+```
+
+Subpath exports (`/grammar`, `/lex`, `/syntax`, `/parser`, `/imports`, `/format`) mirror the
+upstream barrels for consumers that want a narrower surface.
+
+## Rules
+
+- **Never edit `src/**` in place.** Fixes belong upstream first; then re-sync and update
+  `PROVENANCE.md`. The corpus gate must stay green.
+- `.fcc` = header file (`parseHeaderFile`), `.fcg` = graph file (`parseGraphFile`) — pick by
+  extension, exactly like the corpus gate does.
+- The corpus is deliberately checked in: it is the clean-machine CI proof that the parser
+  handles every real-world file of the sample project.
+
+## Commands
+
+```sh
+pnpm --filter @craftland-qa/fc-lang typecheck   # strict TS over src + test
+pnpm --filter @craftland-qa/fc-lang test        # includes the 245-file corpus gate
+pnpm --filter @craftland-qa/fc-lang sync:fc-lang # re-copy from upstream (env FC_LANG_UPSTREAM overrides path)
+```

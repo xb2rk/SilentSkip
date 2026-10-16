@@ -1,16 +1,25 @@
 {
   "name": "@craftland-qa/fc-lang",
-  "version": "0.0.0-vendored-later",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./vendored": "./src/vendored.ts",
+    "./grammar": "./src/grammar/index.ts",
+    "./lex": "./src/lex/index.ts",
+    "./syntax": "./src/syntax/index.ts",
+    "./parser": "./src/parser/index.ts",
+    "./imports": "./src/imports/index.ts",
+    "./format": "./src/format/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "sync:fc-lang": "node scripts/sync-fc-lang.mjs"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }
