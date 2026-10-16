@@ -5,6 +5,7 @@ import { ComparePage } from "@/pages/compare-page";
 import { HistoryPage } from "@/pages/history-page";
 import { OverviewPage } from "@/pages/overview-page";
 import { SettingsPage } from "@/pages/settings-page";
+import { StatusPage } from "@/pages/status-page";
 import { ToolsPage } from "@/pages/tools-page";
 import { WhatIfPage } from "@/pages/what-if-page";
 
@@ -43,6 +44,11 @@ const settingsRoute = createRoute({
   path: "/settings",
   component: SettingsPage,
 });
+const statusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/status",
+  component: StatusPage,
+});
 
 const routeTree = rootRoute.addChildren([
   overviewRoute,
@@ -51,6 +57,7 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   toolsRoute,
   settingsRoute,
+  statusRoute,
 ]);
 
 /**

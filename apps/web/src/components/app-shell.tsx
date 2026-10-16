@@ -3,6 +3,7 @@ import {
   Activity,
   GitCompareArrows,
   History,
+  LayoutDashboard,
   MessageCircleQuestion,
   Settings,
   Wrench,
@@ -11,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV_ITEMS = [
-  { to: "/", labelKey: "app.nav.overview", icon: Activity },
+  { to: "/", labelKey: "app.nav.overview", icon: LayoutDashboard },
   { to: "/compare", labelKey: "app.nav.compare", icon: GitCompareArrows },
   { to: "/what-if", labelKey: "app.nav.whatIf", icon: MessageCircleQuestion },
   { to: "/history", labelKey: "app.nav.history", icon: History },
@@ -53,7 +54,14 @@ export function AppShell() {
           ))}
         </nav>
         <div className="border-t border-border px-4 py-3">
-          <div className="text-xs text-muted-foreground">{t("app.phase.label")}</div>
+          <Link
+            to="/status"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <Activity className="size-3.5" />
+            {t("app.statusLink")}
+          </Link>
+          <div className="mt-2 text-xs text-muted-foreground">{t("app.phase.label")}</div>
           <div className="text-xs">{t("app.phase.value")}</div>
         </div>
       </aside>

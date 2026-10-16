@@ -21,21 +21,55 @@ const resources = {
           settings: "Cài đặt",
         },
         theme: { label: "Chế độ hiển thị", system: "Theo hệ thống", light: "Sáng", dark: "Tối" },
+        statusLink: "Trạng thái hệ thống",
         phase: { label: "Giai đoạn", value: "Phase 1 · nền tảng + AI review" },
       },
       common: {
         loading: "Đang tải…",
+        refresh: "Làm mới",
+        comingSoonAt: "Sắp có · {{phase}}",
       },
       overview: {
         title: "Tổng quan",
-        description: "Trạng thái kết nối giữa web, API và cơ sở dữ liệu.",
+        description:
+          "So sánh hai mốc A/B của dự án Craftland — đọc code, CSV và diff để chỉ ra cấu hình lệch nhau, kèm trích dẫn kiểm chứng được.",
+        start: "Bắt đầu so sánh",
+        ask: "Hỏi thêm (What-If)",
+        steps: {
+          title: "Cách hoạt động",
+          one: {
+            title: "1 · Thêm dự án",
+            description: "Trỏ tới thư mục dự án Craftland; có thể thêm nhiều dự án.",
+          },
+          two: {
+            title: "2 · Chọn A và B",
+            description: "Chọn hai mốc (branch/commit) rồi chạy phân tích.",
+          },
+          three: {
+            title: "3 · Đọc báo cáo",
+            description: "Kết quả có trích dẫn nguồn; hỏi tiếp bằng What-If khi cần.",
+          },
+        },
+        projects: {
+          title: "Dự án",
+          empty: "Chưa có dự án nào. Chức năng thêm dự án ra mắt ở bước xây dựng E1 kế tiếp.",
+        },
+        runs: {
+          title: "Lần chạy gần đây",
+          empty: "Chưa có lần phân tích nào. Kết quả sẽ được lưu và hiển thị ở đây.",
+        },
+      },
+      status: {
+        title: "Trạng thái hệ thống",
+        description: "Chuỗi web → API → cơ sở dữ liệu, dùng để chẩn đoán khi có sự cố.",
         connection: "Kết nối hệ thống",
         version: "Phiên bản",
         apiVersion: "Phiên bản API",
         uptime: "Thời gian chạy",
+        lastUpdated: "Cập nhật lúc",
         database: { label: "Cơ sở dữ liệu", ok: "Hoạt động", error: "Lỗi kết nối" },
         apiDown: "Không kết nối được API. Server backend đang chạy chứ?",
-        roadmapHint: "Tính năng chọn dự án và so sánh A/B sẽ có từ giai đoạn E1; AI review từ E4.",
+        note: "Trang này chỉ dành cho chẩn đoán — luồng công việc thường ngày bắt đầu từ Tổng quan.",
       },
       compare: {
         title: "So sánh A/B",
@@ -68,16 +102,28 @@ const resources = {
       },
       settings: {
         title: "Cài đặt",
-        description: "Cấu hình chung của ứng dụng và kết nối AI.",
-        language: { label: "Ngôn ngữ", value: "Tiếng Việt" },
-        themeNote: "Giao diện mặc định là tối; nút đổi giao diện ở góc phải trên.",
+        description: "Tuỳ chỉnh giao diện và cấu hình kết nối của ứng dụng.",
+        appearance: {
+          title: "Giao diện",
+          description: "Chế độ hiển thị áp dụng ngay và được ghi nhớ cho lần mở sau.",
+        },
+        language: {
+          label: "Ngôn ngữ",
+          value: "Tiếng Việt",
+          note: "Các ngôn ngữ khác sẽ được thêm qua i18n khi cần.",
+        },
+        diagnostics: {
+          title: "Chẩn đoán",
+          description: "Kiểm tra kết nối web → API → cơ sở dữ liệu.",
+          open: "Xem trạng thái hệ thống",
+        },
         ai: {
           title: "Kết nối AI (Insea)",
-          description: "URL workflow và API key sẽ được cấu hình ở đây (E4).",
+          description: "URL workflow, API key và nút kiểm tra kết nối.",
         },
         paths: {
           title: "Dự án được phép",
-          description: "Danh sách thư mục gốc server được phép đọc (E1).",
+          description: "Danh sách thư mục gốc server được phép đọc.",
         },
         editorGen: {
           title: "Chỉ mục editorGen",
