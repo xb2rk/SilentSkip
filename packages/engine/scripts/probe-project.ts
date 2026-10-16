@@ -11,7 +11,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildFactBundle, parseCsv } from "../src/index.js";
+import { buildFactBundle, buildRelations, parseCsv } from "../src/index.js";
 
 /** Directories that are never project source. */
 const EXCLUDED_DIRS = new Set([".git", "node_modules"]);
@@ -114,6 +114,21 @@ for (const file of csvFiles) {
   endings[table.lineEnding] += 1;
 }
 
+// ---- Relations ----
+const relationSet = buildRelations(bundle, { csvPaths: csvFiles.map(relativePath) });
+const relationsDeterministic =
+  JSON.stringify(relationSet) ===
+  JSON.stringify(buildRelations(bundle, { csvPaths: csvFiles.map(relativePath) }));
+const relationsByRule = new Map<string, number>();
+const relationsByConfidence = new Map<string, number>();
+for (const relation of relationSet.relations) {
+  relationsByRule.set(relation.ruleId, (relationsByRule.get(relation.ruleId) ?? 0) + 1);
+  relationsByConfidence.set(
+    relation.confidence,
+    (relationsByConfidence.get(relation.confidence) ?? 0) + 1,
+  );
+}
+
 // ---- Report ----
 console.log(`=== probe: ${root} ===`);
 console.log(`FC files: ${fcFiles.length} (built in ${elapsedMs}ms)`);
@@ -133,12 +148,15 @@ console.log(
   `Refs resolution: resolved=${resolved} ambiguous=${ambiguous} unresolved=${unresolved}`,
 );
 console.log(
+  `Relations: total=${relationSet.relations.length} byRule=${JSON.stringify(Object.fromEntries([...relationsByRule.entries()].sort()))} byConfidence=${JSON.stringify(Object.fromEntries([...relationsByConfidence.entries()].sort()))}`,
+);
+console.log(
   `CSV: files=${csvFiles.length} anomalies=${csvAnomalies} bom=${bomTables} endings=${JSON.stringify(endings)}` +
     (csvProblemFiles.length > 0
       ? ` — problems:\n    ${csvProblemFiles.slice(0, 20).join("\n    ")}`
       : ""),
 );
-console.log(`Deterministic: ${deterministic}`);
+console.log(`Deterministic: facts=${deterministic} relations=${relationsDeterministic}`);
 
-const failed = problemFiles.length > 0 || !deterministic;
+const failed = problemFiles.length > 0 || !deterministic || !relationsDeterministic;
 process.exit(failed ? 1 : 0);

@@ -17,6 +17,13 @@ eventually findings.
   comments attached to the declaration that follows them. Every span is raw-faithful
   (slice == fact) and 1-based-lined; parse problems are surfaced in `parse`, never hidden.
   Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
+- **Relations (E2.5)** — `buildRelations(bundle, { csvPaths })`: derives `name-refers-to-symbol`,
+  `name-refers-to-import`, `call-name-resolves`, `call-receiver-import`, `import-statement`,
+  `import-path-matches-file` and `string-names-csv` edges — each with exact spans, a confidence
+  class (same-container/top-level bindings and literal facts are `exact`; cross-container
+  fallback, import receivers and path-suffix matching are `inferred`) and a human-readable
+  derivation chain. Unresolved or ambiguous sites produce no relation at all. Guarded by
+  engineered fixtures plus the 245-file corpus gate (`test/relations*.test.ts`).
 
 ## Dev probes
 
@@ -29,10 +36,9 @@ eventually findings.
 ## Planned scope
 
 - **Delta (E2.4, next)**: `DeltaBundle` between ref A and B built from those facts (+ git diff).
-- **Relations v1 (E2)**: `refers_to`, `calls`, `imports`, `names_csv` — each marked
-  `exact` / `inferred` / `unknown` with a confidence score.
-- **Value Journey (E2)**: two-layer propagation walk (config value → code → runtime effect).
-- **Project Profile + Discovery (E2)**: per-project conventions as *data* (pinned by the user).
+- **Value Journey (E2.6)**: two-layer propagation walk over the relations (config value → code
+  → runtime effect).
+- **Project Profile + Discovery (E2.7)**: per-project conventions as *data* (pinned by the user).
 - **Checks (E7/E8)**: structural (`STRUCT-*`, `TYPE-01`, PK inference) and semantic
   (`BIND-*`, `DRIFT-*`, `REF-*`, silent-skip) — see plan §4/§10.
 
