@@ -12,5 +12,7 @@
  *   `exact` may create hard findings.
  */
 
-/** Package version marker — replaced by real engine exports as E2 lands. */
+/** Package version marker — kept in lockstep with the package manifest. */
 export const ENGINE_VERSION = "0.1.0";
+
+export * from "./csv/index.js";
