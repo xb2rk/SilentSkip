@@ -18,6 +18,14 @@ eventually findings.
   (slice == fact) and 1-based-lined; parse problems are surfaced in `parse`, never hidden.
   Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
 
+## Dev probes
+
+- `pnpm --filter @craftland-qa/engine probe:project <projectRoot>` — runs the fact + CSV
+  pipeline over a real project folder: parse problems, fact totals, resolution stats, CSV
+  anomalies, determinism, timing. Exits 1 on parse problems or non-determinism.
+- `pnpm --filter @craftland-qa/engine exec tsx scripts/diag-file.ts <file>` — prints the
+  first parse diagnostics of one file with the exact source line for each.
+
 ## Planned scope
 
 - **Delta (E2.4, next)**: `DeltaBundle` between ref A and B built from those facts (+ git diff).
