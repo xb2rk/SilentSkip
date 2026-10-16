@@ -1,78 +1,160 @@
-import { Link, Outlet } from "@tanstack/react-router";
+import { PRODUCT_VERSION } from "@craftland-qa/contracts";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   GitCompareArrows,
   History,
   LayoutDashboard,
-  MessageCircleQuestion,
-  Settings,
+  Search,
+  Settings as SettingsIcon,
+  Sparkles,
   Wrench,
 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandPalette } from "@/components/command-palette";
+import { StatusIndicator } from "@/components/status-indicator";
+import { Button } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const NAV_ITEMS = [
-  { to: "/", labelKey: "app.nav.overview", icon: LayoutDashboard },
-  { to: "/compare", labelKey: "app.nav.compare", icon: GitCompareArrows },
-  { to: "/what-if", labelKey: "app.nav.whatIf", icon: MessageCircleQuestion },
-  { to: "/history", labelKey: "app.nav.history", icon: History },
-  { to: "/tools", labelKey: "app.nav.tools", icon: Wrench },
-  { to: "/settings", labelKey: "app.nav.settings", icon: Settings },
+const NAV_GROUPS = [
+  {
+    labelKey: "nav.group.main",
+    items: [
+      { to: "/", labelKey: "nav.overview", icon: LayoutDashboard },
+      { to: "/compare", labelKey: "nav.compare", icon: GitCompareArrows },
+      { to: "/what-if", labelKey: "nav.whatIf", icon: Sparkles },
+    ],
+  },
+  {
+    labelKey: "nav.group.library",
+    items: [{ to: "/history", labelKey: "nav.history", icon: History }],
+  },
+  {
+    labelKey: "nav.group.system",
+    items: [
+      { to: "/tools", labelKey: "nav.tools", icon: Wrench },
+      { to: "/status", labelKey: "nav.status", icon: Activity },
+      { to: "/settings", labelKey: "nav.settings", icon: SettingsIcon },
+    ],
+  },
 ] as const;
 
 /**
- * Application shell: fixed sidebar navigation + header + main column.
- * The right-hand evidence/What-If panel (E5) will dock into this layout — keeping the
- * shell in one place guarantees every screen inherits it.
+ * App shell: collapsible sidebar (icon rail, Sheet on mobile — Ctrl+B toggles), a nearly
+ * empty sticky header (search + What-If icons, plus a status alert that only appears when
+ * something is wrong), and the routed page centered at a 1152px max width.
  */
 export function AppShell() {
   const { t } = useTranslation();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
-    <div className="flex min-h-dvh bg-background">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card/40">
-        <div className="flex items-center gap-2.5 px-4 py-4">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            QA
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">{t("app.product")}</div>
-            <div className="text-xs text-muted-foreground">{t("app.tagline")}</div>
-          </div>
-        </div>
-        <nav className="flex-1 space-y-1 px-2 py-2">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              activeOptions={{ exact: item.to === "/" }}
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground data-[status=active]:bg-accent data-[status=active]:text-accent-foreground"
-            >
-              <item.icon className="size-4" />
-              {t(item.labelKey)}
-            </Link>
+    <SidebarProvider>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to="/">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-sm font-semibold">{t("app.product")}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      v{PRODUCT_VERSION} · {t("app.tagline")}
+                    </span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          {NAV_GROUPS.map((group) => (
+            <SidebarGroup key={group.labelKey}>
+              <SidebarGroupLabel>{t(group.labelKey)}</SidebarGroupLabel>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const isActive =
+                    item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.labelKey)}>
+                        <Link to={item.to}>
+                          <item.icon />
+                          <span>{t(item.labelKey)}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroup>
           ))}
-        </nav>
-        <div className="border-t border-border px-4 py-3">
-          <Link
-            to="/status"
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <Activity className="size-3.5" />
-            {t("app.statusLink")}
-          </Link>
-          <div className="mt-2 text-xs text-muted-foreground">{t("app.phase.label")}</div>
-          <div className="text-xs">{t("app.phase.value")}</div>
-        </div>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-border px-6">
-          <ThemeToggle />
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="px-2 py-1 text-[11px] leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden">
+            {t("app.phase")}
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur">
+          <SidebarTrigger className="-ml-1" />
+          <div className="ml-auto flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("header.searchTooltip")}
+                  onClick={() => setPaletteOpen(true)}
+                >
+                  <Search className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("header.searchTooltip")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild variant="ghost" size="icon" className="size-8">
+                  <Link to="/what-if" aria-label={t("header.whatIfTooltip")}>
+                    <Sparkles className="size-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("header.whatIfTooltip")}</TooltipContent>
+            </Tooltip>
+            <StatusIndicator />
+          </div>
         </header>
-        <main className="min-w-0 flex-1 overflow-y-auto p-6">
-          <Outlet />
+        <main className="flex-1">
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 lg:px-8">
+            <Outlet />
+          </div>
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </SidebarProvider>
   );
 }

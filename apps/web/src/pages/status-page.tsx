@@ -1,97 +1,147 @@
-import { RefreshCw } from "lucide-react";
+import { cn } from "cn";
+import { Info, RefreshCw, TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { formatUptime } from "@/lib/format";
 import { useHealth } from "@/lib/use-health";
-import { cn } from "@/lib/utils";
 
-/** Format seconds as a compact Vietnamese duration, e.g. "2 phút 18 giây". */
-function formatUptime(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = Math.floor(totalSeconds % 60);
-  const parts: string[] = [];
-  if (hours > 0) {
-    parts.push(`${hours} giờ`);
-  }
-  if (minutes > 0) {
-    parts.push(`${minutes} phút`);
-  }
-  parts.push(`${seconds} giây`);
-  return parts.join(" ");
+interface RowProps {
+  readonly label: string;
+  readonly children: ReactNode;
+}
+
+/** One key/value line in the connection card. */
+function Row({ label, children }: RowProps) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2.5">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{children}</span>
+    </div>
+  );
+}
+
+/** Green/red status dot with a text label; never color-only. */
+function StatusValue({
+  ok,
+  okText,
+  errorText,
+}: {
+  readonly ok: boolean;
+  readonly okText: string;
+  readonly errorText: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span
+        className={cn("inline-block size-2 rounded-full", ok ? "bg-emerald-500" : "bg-rose-500")}
+        aria-hidden="true"
+      />
+      {ok ? okText : errorText}
+    </span>
+  );
 }
 
 /**
- * System status (diagnostics): the web → API → database chain. Deliberately not the
- * home page — designers land on `/`, this screen exists for troubleshooting, and the
- * sidebar footer links to it.
+ * Diagnostics screen: connection card polling /api/health (auto-refresh toggle, manual
+ * refresh) plus a placeholder for the future log viewer.
  */
 export function StatusPage() {
   const { t } = useTranslation();
-  const health = useHealth(5000);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const health = useHealth(autoRefresh ? 5000 : undefined);
+  const data = health.data;
+
+  const apiOk = data?.ok === true;
+  const dbOk = data?.database === "ok";
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">{t("status.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("status.description")}</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => void health.refetch()}
-        >
-          <RefreshCw className="size-3.5" />
-          {t("common.refresh")}
-        </Button>
+    <div className="space-y-6">
+      <PageHeader
+        title={t("status.title")}
+        description={t("status.description")}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={health.isFetching}
+            onClick={() => void health.refetch()}
+          >
+            <RefreshCw className={cn("size-4", health.isFetching && "animate-spin")} />
+            {t("common.refresh")}
+          </Button>
+        }
+      />
+      {health.isError ? (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" />
+          <AlertTitle>{t("status.errorTitle")}</AlertTitle>
+          <AlertDescription>{t("status.errorDescription")}</AlertDescription>
+        </Alert>
+      ) : null}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-1">
+            <h2 className="pb-1 text-sm font-semibold">{t("status.connectionTitle")}</h2>
+            {health.isPending ? (
+              <div className="space-y-3 py-2">
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-5 w-2/3" />
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60 text-[13px]">
+                <Row label={t("status.apiLabel")}>
+                  <StatusValue
+                    ok={apiOk}
+                    okText={t("status.online")}
+                    errorText={t("status.offline")}
+                  />
+                </Row>
+                <Row label={t("status.databaseLabel")}>
+                  <StatusValue
+                    ok={dbOk}
+                    okText={t("status.online")}
+                    errorText={t("status.offline")}
+                  />
+                </Row>
+                <Row label={t("status.versionLabel")}>
+                  {data ? `${data.product} v${data.version}` : "—"}
+                </Row>
+                <Row label={t("status.apiVersionLabel")}>{data?.apiVersion ?? "—"}</Row>
+                <Row label={t("status.uptimeLabel")}>
+                  {data ? formatUptime(data.uptimeSeconds) : "—"}
+                </Row>
+                <Row label={t("status.lastUpdatedLabel")}>
+                  {data ? new Date(data.timestamp).toLocaleTimeString("vi-VN") : "—"}
+                </Row>
+              </div>
+            )}
+            <Separator className="my-3" />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12.5px] text-muted-foreground">{t("status.autoRefresh")}</span>
+              <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-3">
+            <h2 className="text-sm font-semibold">{t("status.diagnosticsTitle")}</h2>
+            <EmptyState compact icon={Info} title={t("status.diagnosticsEmpty")} />
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              {t("status.diagnosticsNote")}
+            </p>
+          </CardContent>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("status.connection")}</CardTitle>
-          {health.data ? (
-            <CardDescription>
-              {t("status.lastUpdated")}:{" "}
-              {new Date(health.data.timestamp).toLocaleTimeString("vi-VN")}
-            </CardDescription>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          {health.isPending ? (
-            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-          ) : null}
-          {health.isError ? (
-            <p className="text-sm text-destructive">{t("status.apiDown")}</p>
-          ) : null}
-          {health.data ? (
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <dt className="text-muted-foreground">{t("status.version")}</dt>
-              <dd className="font-mono">{health.data.version}</dd>
-              <dt className="text-muted-foreground">{t("status.apiVersion")}</dt>
-              <dd className="font-mono">{health.data.apiVersion}</dd>
-              <dt className="text-muted-foreground">{t("status.uptime")}</dt>
-              <dd className="font-mono">{formatUptime(health.data.uptimeSeconds)}</dd>
-              <dt className="text-muted-foreground">{t("status.database.label")}</dt>
-              <dd>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs",
-                    health.data.database === "ok"
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                      : "bg-destructive/15 text-destructive",
-                  )}
-                >
-                  {t(`status.database.${health.data.database}`)}
-                </span>
-              </dd>
-            </dl>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <p className="text-xs text-muted-foreground">{t("status.note")}</p>
     </div>
   );
 }

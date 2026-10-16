@@ -1,151 +1,327 @@
+import { PRODUCT_VERSION } from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
-import { type LucideIcon, Monitor, Moon, Sun } from "lucide-react";
+import { cn } from "cn";
+import {
+  Activity,
+  Copy,
+  FileCode2,
+  FolderCog,
+  Info,
+  Monitor,
+  Moon,
+  Palette,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
+import { PhaseBadge } from "@/components/phase-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTheme } from "@/contexts/theme-context";
-import type { Theme } from "@/lib/theme";
+import { applyDensity, type Density, persistDensity, readStoredDensity } from "@/lib/density";
 import { useHealth } from "@/lib/use-health";
-import { cn } from "@/lib/utils";
 
-const THEME_OPTIONS: ReadonlyArray<{ value: Theme; icon: LucideIcon; labelKey: string }> = [
-  { value: "system", icon: Monitor, labelKey: "app.theme.system" },
-  { value: "light", icon: Sun, labelKey: "app.theme.light" },
-  { value: "dark", icon: Moon, labelKey: "app.theme.dark" },
-];
+const SECTIONS = [
+  { id: "appearance", labelKey: "settings.navAppearance", icon: Palette },
+  { id: "ai", labelKey: "settings.navAi", icon: Sparkles },
+  { id: "paths", labelKey: "settings.navPaths", icon: FolderCog },
+  { id: "editorGen", labelKey: "settings.navEditorGen", icon: FileCode2 },
+  { id: "advanced", labelKey: "settings.navAdvanced", icon: SlidersHorizontal },
+  { id: "about", labelKey: "settings.navAbout", icon: Info },
+] as const;
 
-/** Small "coming in phase X" chip used on cards whose feature is not built yet. */
-function ComingSoonBadge({ phase }: { readonly phase: string }) {
-  const { t } = useTranslation();
-  return (
-    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
-      {t("common.comingSoonAt", { phase })}
-    </span>
-  );
-}
+type SettingsSection = (typeof SECTIONS)[number]["id"];
+
+/** Display-only path; the real value arrives with the settings API (E4). */
+const DB_PATH = "%LOCALAPPDATA%\\CraftlandQA\\data.sqlite";
 
 /**
- * Settings: theme control (applies immediately via the theme context), language info,
- * diagnostics shortcut, and the phase-labeled placeholders for AI connection, allowed
- * project roots and the editorGen index — wired for real as E1/E4/E8 land.
+ * Settings screen: vertical section nav + working appearance controls (theme, density)
+ * that apply immediately and persist locally. AI/paths/editorGen sections are laid out
+ * but disabled until their roadmap phases wire the backend.
  */
 export function SettingsPage() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
+  const [section, setSection] = useState<SettingsSection>("appearance");
+  const [density, setDensity] = useState<Density>(() => readStoredDensity());
   const health = useHealth();
 
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("settings.description")}</p>
-      </div>
+  function handleThemeChange(value: string): void {
+    if (value === "light" || value === "dark" || value === "system") {
+      setTheme(value);
+      toast.success(t("common.saved"));
+    }
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("settings.appearance.title")}</CardTitle>
-          <CardDescription>{t("settings.appearance.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex max-w-sm gap-1 rounded-lg border border-border bg-muted/40 p-1">
-            {THEME_OPTIONS.map((option) => {
-              const active = theme === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setTheme(option.value)}
-                  className={cn(
-                    "inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
-                    active
-                      ? "bg-background font-medium text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <option.icon className="size-4" />
-                  {t(option.labelKey)}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+  function handleDensityChange(value: string): void {
+    if (value === "compact" || value === "comfortable") {
+      setDensity(value);
+      applyDensity(value);
+      persistDensity(value);
+      toast.success(t("common.saved"));
+    }
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("settings.language.label")}</CardTitle>
-          <CardDescription>{t("settings.language.value")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground">{t("settings.language.note")}</p>
-        </CardContent>
-      </Card>
+  async function handleCopyPath(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(DB_PATH);
+      toast.success(t("common.copied"));
+    } catch {
+      toast.error(t("common.copyFailed"));
+    }
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("settings.diagnostics.title")}</CardTitle>
-          <CardDescription>{t("settings.diagnostics.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {health.data ? (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-              <span className="inline-flex items-center gap-1.5">
-                <span
-                  className={cn(
-                    "size-2 rounded-full",
-                    health.data.database === "ok" ? "bg-emerald-500" : "bg-destructive",
-                  )}
-                />
-                {t("status.database.label")}: {t(`status.database.${health.data.database}`)}
-              </span>
-              <span className="text-muted-foreground">
-                {t("status.version")}: <span className="font-mono">{health.data.version}</span> ·{" "}
-                {health.data.apiVersion}
+  let content: ReactNode;
+  switch (section) {
+    case "appearance":
+      content = (
+        <Card>
+          <CardContent className="space-y-5">
+            <div className="space-y-1">
+              <Label className="text-[13px] font-semibold">{t("settings.themeTitle")}</Label>
+              <p className="text-[12px] text-muted-foreground">{t("settings.themeDescription")}</p>
+            </div>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={theme}
+              onValueChange={handleThemeChange}
+              className="w-fit"
+            >
+              <ToggleGroupItem value="system" className="gap-1.5 px-3 text-[12.5px]">
+                <Monitor className="size-3.5" />
+                {t("settings.themeSystem")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="light" className="gap-1.5 px-3 text-[12.5px]">
+                <Sun className="size-3.5" />
+                {t("settings.themeLight")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="dark" className="gap-1.5 px-3 text-[12.5px]">
+                <Moon className="size-3.5" />
+                {t("settings.themeDark")}
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Separator />
+            <div className="space-y-1">
+              <Label className="text-[13px] font-semibold">{t("settings.densityTitle")}</Label>
+              <p className="text-[12px] text-muted-foreground">
+                {t("settings.densityDescription")}
+              </p>
+            </div>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={density}
+              onValueChange={handleDensityChange}
+              className="w-fit"
+            >
+              <ToggleGroupItem value="comfortable" className="px-3 text-[12.5px]">
+                {t("settings.densityComfortable")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="compact" className="px-3 text-[12.5px]">
+                {t("settings.densityCompact")}
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Separator />
+            <div className="space-y-1">
+              <Label className="text-[13px] font-semibold">{t("settings.languageTitle")}</Label>
+              <p className="text-[12px] text-muted-foreground">
+                {t("settings.languageDescription")}
+              </p>
+            </div>
+            <div className="flex w-fit items-center gap-3 rounded-md border border-border/60 px-3 py-2">
+              <span className="text-[13px]">{t("settings.languageVi")}</span>
+              <Badge variant="secondary" className="font-normal text-muted-foreground">
+                {t("settings.languageEn")} · {t("common.comingSoon")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      );
+      break;
+    case "ai":
+      content = (
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-[13px] font-semibold">{t("settings.aiTitle")}</Label>
+              <PhaseBadge phase="E4" />
+            </div>
+            <p className="text-[12px] text-muted-foreground">{t("settings.aiDescription")}</p>
+            <div className="space-y-2">
+              <Label htmlFor="ai-url" className="text-[12.5px]">
+                {t("settings.aiUrlLabel")}
+              </Label>
+              <Input
+                id="ai-url"
+                disabled
+                placeholder={t("settings.aiUrlPlaceholder")}
+                className="font-mono text-[12.5px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-key" className="text-[12.5px]">
+                {t("settings.aiKeyLabel")}
+              </Label>
+              <Input id="ai-key" type="password" disabled placeholder="••••••••••••" />
+            </div>
+            <Button variant="outline" size="sm" disabled>
+              {t("settings.aiTest")}
+            </Button>
+          </CardContent>
+        </Card>
+      );
+      break;
+    case "paths":
+      content = (
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-[13px] font-semibold">{t("settings.pathsTitle")}</Label>
+              <PhaseBadge phase="E1" />
+            </div>
+            <p className="text-[12px] text-muted-foreground">{t("settings.pathsDescription")}</p>
+            <div className="flex gap-2">
+              <Input
+                disabled
+                placeholder={t("settings.pathsPlaceholder")}
+                className="flex-1 font-mono text-[12.5px]"
+              />
+              <Button variant="outline" disabled>
+                {t("common.add")}
+              </Button>
+            </div>
+            <p className="text-[12px] text-muted-foreground">{t("settings.pathsEmpty")}</p>
+          </CardContent>
+        </Card>
+      );
+      break;
+    case "editorGen":
+      content = (
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-[13px] font-semibold">{t("settings.editorGenTitle")}</Label>
+              <PhaseBadge phase="E8" />
+            </div>
+            <p className="text-[12px] text-muted-foreground">
+              {t("settings.editorGenDescription")}
+            </p>
+            <div className="flex items-center gap-3">
+              <Switch id="editor-gen" disabled />
+              <Label htmlFor="editor-gen" className="text-[12.5px] text-muted-foreground">
+                {t("settings.editorGenToggle")}
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+      );
+      break;
+    case "advanced":
+      content = (
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-[13px] font-semibold">{t("settings.advancedDataTitle")}</Label>
+              <p className="text-[12px] text-muted-foreground">
+                {t("settings.advancedDataDescription")}
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/40 px-3 py-2">
+              <code className="truncate font-mono text-[12px]">{DB_PATH}</code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0"
+                aria-label={t("common.copy")}
+                onClick={() => void handleCopyPath()}
+              >
+                <Copy className="size-3.5" />
+              </Button>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-[13px] font-semibold">{t("settings.advancedDelete")}</Label>
+              <p className="text-[12px] text-muted-foreground">
+                {t("settings.advancedDeleteDescription")}
+              </p>
+              <Button variant="outline" size="sm" className="text-destructive" disabled>
+                {t("settings.advancedDelete")}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+      break;
+    case "about":
+      content = (
+        <Card>
+          <CardContent className="space-y-1">
+            <div className="flex items-center justify-between py-2 text-[13px]">
+              <span className="text-muted-foreground">{t("settings.aboutVersion")}</span>
+              <span className="font-medium tabular-nums">
+                {health.data?.version ?? PRODUCT_VERSION}
               </span>
             </div>
-          ) : health.isError ? (
-            <p className="text-sm text-destructive">{t("status.apiDown")}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-          )}
-          <div>
-            <Link to="/status" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              {t("settings.diagnostics.open")}
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            <Separator />
+            <div className="flex items-center justify-between py-2 text-[13px]">
+              <span className="text-muted-foreground">{t("settings.aboutApi")}</span>
+              <span className="font-mono text-[12px]">{health.data?.apiVersion ?? "—"}</span>
+            </div>
+            <Separator />
+            <div className="pt-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/status">
+                  <Activity className="size-4" />
+                  {t("settings.aboutStatus")}
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+      break;
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            {t("settings.ai.title")}
-            <ComingSoonBadge phase="E4" />
-          </CardTitle>
-          <CardDescription>{t("settings.ai.description")}</CardDescription>
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            {t("settings.paths.title")}
-            <ComingSoonBadge phase="E1" />
-          </CardTitle>
-          <CardDescription>{t("settings.paths.description")}</CardDescription>
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            {t("settings.editorGen.title")}
-            <ComingSoonBadge phase="E8" />
-          </CardTitle>
-          <CardDescription>{t("settings.editorGen.description")}</CardDescription>
-        </CardHeader>
-      </Card>
+  return (
+    <div className="space-y-6">
+      <PageHeader title={t("settings.title")} />
+      <div className="grid gap-6 md:grid-cols-[200px_1fr]">
+        <nav
+          aria-label={t("settings.title")}
+          className="flex gap-1 overflow-x-auto md:sticky md:top-20 md:flex-col md:self-start"
+        >
+          {SECTIONS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-[13px] transition-colors",
+                section === item.id
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+              )}
+            >
+              <item.icon className="size-4" />
+              {t(item.labelKey)}
+            </button>
+          ))}
+        </nav>
+        <div className="min-w-0">{content}</div>
+      </div>
     </div>
   );
 }
