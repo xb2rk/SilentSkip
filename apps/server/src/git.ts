@@ -1,4 +1,6 @@
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { type Dirent, readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import {
   AppError,
@@ -13,9 +15,11 @@ import {
   type ProjectRefsResponse,
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
+import type { SourceInput } from "@craftland-qa/engine";
 
 /**
- * Read-only git access (E1).
+ * Read-only git access (E1) plus source content readers (E3): all FC/CSV files at a ref
+ * via one `cat-file --batch` pass, and the same set from disk for the worktree side.
  *
  * Invariants:
  * - `execFile` with array arguments only — never a shell; nothing here can mutate a repo.
@@ -290,4 +294,94 @@ function classifyKind(path: string): DiffFileKind {
   if (lower.endsWith(".csv") || lower.endsWith(".tsv")) return "csv";
   if (lower.endsWith(".fcc") || lower.endsWith(".fcg")) return "script";
   return "other";
+}
+
+const SOURCE_EXTENSIONS = /\.(fcc|fcg|csv|tsv)$/iu;
+
+/**
+ * Read every FC/CSV source file at a ref in one `cat-file --batch` pass.
+ *
+ * Paths come from `ls-tree -r -z` (raw, unquoted); contents are decoded as UTF-8 text and
+ * returned sorted by path for deterministic downstream bundles.
+ */
+export async function readFilesAtRef(rootPath: string, ref: string): Promise<SourceInput[]> {
+  const listed = await runGit(rootPath, ["ls-tree", "-r", "-z", "--name-only", ref]);
+  const paths = listed
+    .split("\0")
+    .filter((path) => path !== "" && SOURCE_EXTENSIONS.test(path))
+    .sort();
+  if (paths.length === 0) return [];
+
+  const input = `${paths.map((path) => `${ref}:${path}`).join("\n")}\n`;
+  const result = spawnSync("git", ["-C", rootPath, "cat-file", "--batch"], {
+    input,
+    maxBuffer: GIT_MAX_BUFFER,
+    timeout: GIT_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    throw new AppError(ErrorCodes.gitFailed, "git cat-file thất bại", {
+      cause: result.error,
+      details: result.stderr.toString("utf8").trim().slice(0, 2000),
+    });
+  }
+
+  const buffer = result.stdout;
+  const files: SourceInput[] = [];
+  let offset = 0;
+  let index = 0;
+  while (offset < buffer.length && index < paths.length) {
+    const newline = buffer.indexOf(0x0a, offset);
+    if (newline === -1) break;
+    const header = buffer.subarray(offset, newline).toString("utf8");
+    const path = paths[index];
+    if (path === undefined) break;
+    if (header.endsWith(" missing")) {
+      offset = newline + 1;
+      index += 1;
+      continue;
+    }
+    const sizeRaw = header.split(" ")[2];
+    const size = sizeRaw === undefined ? Number.NaN : Number(sizeRaw);
+    if (!Number.isFinite(size)) break;
+    const contentStart = newline + 1;
+    files.push({
+      path,
+      source: buffer.subarray(contentStart, contentStart + size).toString("utf8"),
+    });
+    offset = contentStart + size + 1; // skip the trailing newline after the content
+    index += 1;
+  }
+  return files;
+}
+
+/**
+ * Read every FC/CSV source file from disk — the worktree side of a comparison.
+ *
+ * Skips `.git` and `node_modules`; paths are project-relative with forward slashes,
+ * sorted for deterministic downstream bundles.
+ */
+export function readProjectFilesFromDisk(rootPath: string): SourceInput[] {
+  const files: SourceInput[] = [];
+  const walk = (dir: string): void => {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (entry.name === ".git" || entry.name === "node_modules") continue;
+        walk(join(dir, entry.name));
+      } else if (entry.isFile() && SOURCE_EXTENSIONS.test(entry.name)) {
+        const absolute = join(dir, entry.name);
+        const relativePath = relative(rootPath, absolute).split(sep).join("/");
+        files.push({ path: relativePath, source: readFileSync(absolute, "utf8") });
+      }
+    }
+  };
+  walk(rootPath);
+  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return files;
 }

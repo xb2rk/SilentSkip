@@ -11,6 +11,7 @@
   "dependencies": {
     "@craftland-qa/contracts": "workspace:*",
     "@craftland-qa/db": "workspace:*",
+    "@craftland-qa/engine": "workspace:*",
     "@hono/node-server": "^2.1.5",
     "drizzle-orm": "1.0.0-rc.4",
     "hono": "^4.13.13",

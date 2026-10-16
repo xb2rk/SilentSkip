@@ -2,14 +2,23 @@ import {
   AddProjectRequestSchema,
   AppError,
   DiffSummarySchema,
+  DigestBundleSchema,
   ErrorCodes,
   ProjectListResponseSchema,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
+  WORKTREE_REF,
 } from "@craftland-qa/contracts";
 import type { AppDatabase } from "@craftland-qa/db";
+import { buildDigest } from "@craftland-qa/engine";
 import { Hono } from "hono";
-import { diffSummary, projectRefs } from "../git";
+import {
+  diffSummary,
+  projectRefs,
+  readFilesAtRef,
+  readProjectFilesFromDisk,
+  resolveCommit,
+} from "../git";
 import { addProject, getProject, listProjects, removeProject } from "../projects";
 import { readJsonBody } from "./utils";
 
@@ -56,6 +65,36 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
     }
     const summary = await diffSummary(project.rootPath, base, current);
     return c.json(DiffSummarySchema.parse(summary));
+  });
+
+  /** Digest v1 (E3): the deterministic fact sheet for an A/B range, computed on demand. */
+  app.get("/:id/digest", async (c) => {
+    const project = getProject(deps.db, c.req.param("id"));
+    const base = c.req.query("base");
+    const current = c.req.query("current");
+    if (base === undefined || base === "" || current === undefined || current === "") {
+      throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `base` hoặc `current`");
+    }
+    if (base === WORKTREE_REF) {
+      throw new AppError(
+        ErrorCodes.badRequest,
+        "Bản gốc (A) phải là ref thật — không thể là bản đang làm",
+      );
+    }
+    const baseCommit = await resolveCommit(project.rootPath, base);
+    const currentIsWorktree = current === WORKTREE_REF;
+    const currentCommit = currentIsWorktree ? null : await resolveCommit(project.rootPath, current);
+    const [baseSources, currentSources] = await Promise.all([
+      readFilesAtRef(project.rootPath, base),
+      currentIsWorktree
+        ? Promise.resolve(readProjectFilesFromDisk(project.rootPath))
+        : readFilesAtRef(project.rootPath, current),
+    ]);
+    const digest = buildDigest({
+      base: { ref: base, commitHash: baseCommit, sources: baseSources },
+      current: { ref: current, commitHash: currentCommit, sources: currentSources },
+    });
+    return c.json(DigestBundleSchema.parse(digest));
   });
 
   return app;
