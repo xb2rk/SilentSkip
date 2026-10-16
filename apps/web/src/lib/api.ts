@@ -1,15 +1,26 @@
 import { AppError, type ErrorCode, ErrorCodes, ErrorEnvelopeSchema } from "@craftland-qa/contracts";
+import i18n from "@/i18n";
 
 /**
  * Typed fetch helper. Understands the shared error envelope and rethrows `AppError`,
  * so react-query error states and toasts all consume one consistent error type.
  * Every API call in the web app must go through this helper (direct `fetch` is a bug).
+ *
+ * Transport failures are normalized here too: network errors become a friendly `AppError`
+ * (the server may simply not be running), while aborts are rethrown untouched so
+ * react-query keeps ownership of cancellation.
  */
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { accept: "application/json", ...init?.headers },
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      headers: { accept: "application/json", ...init?.headers },
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new AppError(ErrorCodes.internal, i18n.t("errors.network"), { cause: error });
+  }
 
   const payload: unknown = await response.json().catch(() => undefined);
 

@@ -18,6 +18,7 @@ export const ErrorCodes = {
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
+/** Wire shape of every non-2xx response; `details` is engineer-facing, never rendered raw. */
 export const ErrorEnvelopeSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -38,6 +39,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   INTERNAL: 500,
 };
 
+/** Construction options for `AppError`. */
 export interface AppErrorOptions {
   /** Override the default HTTP status derived from the code. */
   readonly status?: number;

@@ -144,6 +144,7 @@ function ProjectCard({ project, isActive, onSelect }: ProjectCardProps) {
                   onClick={() =>
                     remove.mutate(project.id, {
                       onSuccess: () => toast.success(t("projects.removed")),
+                      onError: () => toast.error(t("projects.removeFailed")),
                     })
                   }
                 >

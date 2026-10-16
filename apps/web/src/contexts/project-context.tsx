@@ -28,6 +28,7 @@ interface ProjectContextValue {
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
+/** Holds active-project state for the whole app; must wrap the shell and every page. */
 export function ProjectProvider({ children }: { readonly children: ReactNode }) {
   const { data, isPending } = useProjects();
   const projects = useMemo(() => data?.projects ?? [], [data]);

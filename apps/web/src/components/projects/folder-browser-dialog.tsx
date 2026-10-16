@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronUp, Folder, HardDrive } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -97,7 +98,10 @@ export function FolderBrowserDialog({
                 key={entry.path}
                 type="button"
                 onClick={() => setPath(entry.path)}
-                className="flex w-full items-center gap-2 border-b border-border/40 px-3 py-2 text-left text-[12.5px] transition-colors last:border-0 hover:bg-accent/40"
+                className={cn(
+                  "flex w-full items-center gap-2 border-b border-border/40 px-3 py-2 text-left text-[12.5px] transition-colors last:border-0 hover:bg-accent/40",
+                  entry.hidden && "opacity-60",
+                )}
               >
                 {atDrives ? (
                   <HardDrive className="size-4 shrink-0 text-muted-foreground" />

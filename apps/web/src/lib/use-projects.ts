@@ -12,24 +12,37 @@ import { fetchJson } from "@/lib/api";
 /**
  * Project + filesystem browsing queries (E1). Every queryFn parses through its contract
  * schema, so components always receive validated shapes and server drift fails loudly in dev.
+ *
+ * Freshness windows are tuned for a local tool: long enough that window focus and route
+ * changes don't re-run git on every glance, short enough that a fresh commit shows up
+ * quickly (Compare also exposes an explicit refresh button for the impatient case).
  */
 
+const PROJECTS_STALE_MS = 15_000;
+const GIT_STALE_MS = 15_000;
+const FS_STALE_MS = 10_000;
+
+/** All registered projects, newest first. */
 export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
+    staleTime: PROJECTS_STALE_MS,
     queryFn: async () => ProjectListResponseSchema.parse(await fetchJson<unknown>("/api/projects")),
   });
 }
 
+/** Head commit + refs + dirty flag for one project; disabled until a project is chosen. */
 export function useProjectRefs(projectId: string | null) {
   return useQuery({
     queryKey: ["projects", projectId, "refs"],
     enabled: projectId !== null,
+    staleTime: GIT_STALE_MS,
     queryFn: async () =>
       ProjectRefsResponseSchema.parse(await fetchJson<unknown>(`/api/projects/${projectId}/refs`)),
   });
 }
 
+/** Real file-level diff between two refs; the `current` side may be the WORKTREE pseudo-ref. */
 export function useDiffSummary(
   projectId: string | null,
   baseRef: string | null,
@@ -38,6 +51,7 @@ export function useDiffSummary(
   return useQuery({
     queryKey: ["projects", projectId, "diff-summary", baseRef, currentRef],
     enabled: projectId !== null && baseRef !== null && currentRef !== null,
+    staleTime: GIT_STALE_MS,
     queryFn: async () =>
       DiffSummarySchema.parse(
         await fetchJson<unknown>(
@@ -51,6 +65,7 @@ export function useDiffSummary(
 export function useFsList(path: string | null) {
   return useQuery({
     queryKey: ["fs", path],
+    staleTime: FS_STALE_MS,
     queryFn: async () =>
       FsListResponseSchema.parse(
         await fetchJson<unknown>(
@@ -60,6 +75,7 @@ export function useFsList(path: string | null) {
   });
 }
 
+/** Register a project folder (absolute path); refreshes the project list on success. */
 export function useAddProject() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -82,6 +98,7 @@ export function useAddProject() {
   });
 }
 
+/** Unregister a project; refreshes the project list on success. */
 export function useRemoveProject() {
   const queryClient = useQueryClient();
   return useMutation({

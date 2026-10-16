@@ -8,6 +8,7 @@ import { AppError, ErrorCodes } from "@craftland-qa/contracts";
  * the real process environment.
  */
 
+/** Boot configuration derived once from the environment; passed explicitly so runtime code never reads `process.env`. */
 export interface ServerConfig {
   readonly nodeEnv: string;
   readonly host: string;
@@ -18,6 +19,7 @@ export interface ServerConfig {
 
 const DEFAULT_PORT = 3000;
 
+/** Load and validate configuration from `env`; throws on invalid values instead of limping along. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const nodeEnv = env.NODE_ENV ?? "development";
   return {

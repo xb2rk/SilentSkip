@@ -26,6 +26,7 @@ import { createApp } from "../src/app";
 let workspace: string;
 let fakeGame: string;
 let plainFolder: string;
+let namedFolder: string;
 let app: Hono;
 
 function git(cwd: string, args: readonly string[]): void {
@@ -58,6 +59,10 @@ beforeAll(() => {
   plainFolder = join(workspace, "PlainFolder");
   mkdirSync(plainFolder, { recursive: true });
 
+  // Folder used by the display-name normalization test.
+  namedFolder = join(workspace, "NamedFolder");
+  mkdirSync(namedFolder, { recursive: true });
+
   const db = openDatabase(":memory:");
   migrateDatabase(db);
   app = createApp({ db, log: pino({ level: "silent" }) });
@@ -76,6 +81,30 @@ describe("E1 project + git routes", () => {
 
     const list = ProjectListResponseSchema.parse(await (await app.request("/api/projects")).json());
     expect(list.projects.map((candidate) => candidate.name)).toContain("PlainFolder");
+  });
+
+  it("normalizes the display name: trimmed input, folder name as default, length cap", async () => {
+    const padded = await postJson("/api/projects", { rootPath: `  ${namedFolder}  ` });
+    expect(padded.status).toBe(201);
+    expect(ProjectSummarySchema.parse(await padded.json()).name).toBe("NamedFolder");
+
+    const renamed = join(workspace, "RenamedFolder");
+    mkdirSync(renamed, { recursive: true });
+    const custom = await postJson("/api/projects", { rootPath: renamed, name: "  Game X  " });
+    expect(custom.status).toBe(201);
+    expect(ProjectSummarySchema.parse(await custom.json()).name).toBe("Game X");
+
+    const blankName = await postJson("/api/projects", {
+      rootPath: join(workspace, "Blank"),
+      name: "   ",
+    });
+    expect(blankName.status).toBe(400);
+
+    const tooLong = await postJson("/api/projects", {
+      rootPath: join(workspace, "LongName"),
+      name: "x".repeat(81),
+    });
+    expect(tooLong.status).toBe(400);
   });
 
   it("rejects non-absolute paths, drive roots and the home directory", async () => {

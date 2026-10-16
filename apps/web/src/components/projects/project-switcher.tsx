@@ -1,4 +1,5 @@
-import { Check, ChevronsUpDown, FolderGit2, Plus } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Check, ChevronsUpDown, FolderGit2, LayoutDashboard, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
@@ -44,7 +45,12 @@ export function ProjectSwitcher() {
                 <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-64" align="start" side="right" sideOffset={8}>
+            <DropdownMenuContent
+              className="max-h-96 w-64 overflow-y-auto"
+              align="start"
+              side="right"
+              sideOffset={8}
+            >
               <DropdownMenuLabel>{t("projects.switcherLabel")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {projects.map((project) => (
@@ -53,9 +59,16 @@ export function ProjectSwitcher() {
                   onClick={() => setActiveProjectId(project.id)}
                   className="gap-2"
                 >
-                  <FolderGit2 className="size-4 text-muted-foreground" />
-                  <span className="flex-1 truncate">{project.name}</span>
-                  {project.id === activeProject?.id && <Check className="size-4 text-primary" />}
+                  <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">{project.name}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {project.rootPath}
+                    </span>
+                  </span>
+                  {project.id === activeProject?.id && (
+                    <Check className="size-4 shrink-0 text-primary" />
+                  )}
                 </DropdownMenuItem>
               ))}
               {projects.length === 0 && (
@@ -67,6 +80,12 @@ export function ProjectSwitcher() {
               <DropdownMenuItem onClick={() => setAddOpen(true)}>
                 <Plus className="size-4" />
                 {t("projects.addProject")}
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/" className="gap-2">
+                  <LayoutDashboard className="size-4" />
+                  {t("projects.viewAll")}
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

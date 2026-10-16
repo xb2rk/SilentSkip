@@ -1,4 +1,4 @@
-import { HealthResponseSchema } from "@craftland-qa/contracts";
+import { ErrorEnvelopeSchema, HealthResponseSchema } from "@craftland-qa/contracts";
 import { migrateDatabase, openDatabase } from "@craftland-qa/db";
 import { type ServerType, serve } from "@hono/node-server";
 import { pino } from "pino";
@@ -31,5 +31,19 @@ describe("@hono/node-server integration", () => {
     expect(res.status).toBe(200);
     const body = HealthResponseSchema.parse(await res.json());
     expect(body.ok).toBe(true);
+  });
+
+  it("returns the shared error envelope for malformed bodies and unknown routes", async () => {
+    const malformed = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
+    expect(malformed.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await malformed.json()).error.code).toBe("BAD_REQUEST");
+
+    const unknown = await fetch(`${baseUrl}/api/definitely-not-a-route`);
+    expect(unknown.status).toBe(404);
+    expect(ErrorEnvelopeSchema.parse(await unknown.json()).error.code).toBe("NOT_FOUND");
   });
 });

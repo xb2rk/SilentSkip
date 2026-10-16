@@ -30,6 +30,7 @@ interface AddProjectDialogProps {
   readonly onAdded?: (project: ProjectSummary) => void;
 }
 
+/** Adds one project and reports it back via `onAdded` so callers can select it immediately. */
 export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDialogProps) {
   const { t } = useTranslation();
   const add = useAddProject();
@@ -76,7 +77,10 @@ export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDial
                 <Input
                   id="project-root"
                   value={rootPath}
-                  onChange={(event) => setRootPath(event.target.value)}
+                  onChange={(event) => {
+                    setRootPath(event.target.value);
+                    setErrorMessage(null);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && rootPath.trim() !== "") handleAdd();
                   }}
@@ -112,8 +116,15 @@ export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDial
               <Input
                 id="project-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setErrorMessage(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && rootPath.trim() !== "") handleAdd();
+                }}
                 placeholder={t("projects.namePlaceholder")}
+                maxLength={80}
               />
             </div>
 
@@ -141,7 +152,10 @@ export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDial
       <FolderBrowserDialog
         open={browserOpen}
         onOpenChange={setBrowserOpen}
-        onSelect={setRootPath}
+        onSelect={(selected) => {
+          setRootPath(selected);
+          setErrorMessage(null);
+        }}
         initialPath={rootPath.trim() === "" ? undefined : rootPath.trim()}
       />
     </>

@@ -8,12 +8,15 @@ import { z } from "zod";
  * valid `current` side only; the `base` side must resolve to a real commit.
  */
 
+/** Pseudo-ref meaning "the working tree as it is on disk"; valid only as the compare `current` side. */
 export const WORKTREE_REF = "WORKTREE";
 
+/** Where a ref lives: local branch, remote-tracking branch, or tag. */
 export const GitRefKindSchema = z.enum(["branch", "remote", "tag"]);
 
 export type GitRefKind = z.infer<typeof GitRefKindSchema>;
 
+/** One selectable version: its ref name plus the commit it currently points at. */
 export const GitRefSchema = z.object({
   name: z.string(),
   kind: GitRefKindSchema,
@@ -24,6 +27,7 @@ export const GitRefSchema = z.object({
 
 export type GitRef = z.infer<typeof GitRefSchema>;
 
+/** Current HEAD commit; `branch` is `null` when HEAD is detached. */
 export const GitHeadSchema = z.object({
   branch: z.string().nullable(),
   commitHash: z.string(),
@@ -32,6 +36,7 @@ export const GitHeadSchema = z.object({
 
 export type GitHead = z.infer<typeof GitHeadSchema>;
 
+/** Everything the A/B picker needs for one project: head, dirty flag and all refs. */
 export const ProjectRefsResponseSchema = z.object({
   head: GitHeadSchema.nullable(),
   dirty: z.boolean(),
@@ -40,6 +45,7 @@ export const ProjectRefsResponseSchema = z.object({
 
 export type ProjectRefsResponse = z.infer<typeof ProjectRefsResponseSchema>;
 
+/** Per-file change status. Git copies (`C`) collapse into `R` — the preview treats both as "new path". */
 export const DiffFileStatusSchema = z.enum(["A", "M", "D", "R", "U"]);
 
 export type DiffFileStatus = z.infer<typeof DiffFileStatusSchema>;
@@ -49,6 +55,7 @@ export const DiffFileKindSchema = z.enum(["csv", "script", "other"]);
 
 export type DiffFileKind = z.infer<typeof DiffFileKindSchema>;
 
+/** One changed file: status, coarse kind, rename origin, and line counts (`null` = binary/untracked). */
 export const DiffFileEntrySchema = z.object({
   path: z.string(),
   oldPath: z.string().nullable(),
@@ -60,6 +67,7 @@ export const DiffFileEntrySchema = z.object({
 
 export type DiffFileEntry = z.infer<typeof DiffFileEntrySchema>;
 
+/** File-level A/B preview: aggregate counters plus the full changed-file list. */
 export const DiffSummarySchema = z.object({
   baseRef: z.string(),
   currentRef: z.string(),

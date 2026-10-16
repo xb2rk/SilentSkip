@@ -4,9 +4,15 @@ This package will contain the **vendored** `fc-format-v4` toolchain from the Cra
 workspace (`tools/fc-format-v4`): lossless lexer, AST parser, visitor, formatter for the FC
 language (`.fcc`/`.fcg`).
 
-Vendoring happens in **Phase 1 / E2** and must include:
+## Why vendored
 
-- `PROVENANCE.md` (upstream path, version, commit/date, what was modified)
+The upstream toolchain is the authority on the FC grammar; vendoring pins the exact behavior we
+build on, keeps the tool free of a dependency on the Studio installation, and makes drift
+reviewable.
+
+## Vendoring checklist (Phase 1 / E2)
+
+- `PROVENANCE.md` — upstream path, version/commit/date, list of local modifications (if any)
 - `sync:fc-lang` script to re-copy from upstream deterministically
 - the upstream corpus test (164 checked-in FC files) wired into CI
 

@@ -26,6 +26,8 @@ beforeAll(() => {
   mkdirSync(join(root, "Alpha"), { recursive: true });
   mkdirSync(join(root, "beta"), { recursive: true });
   mkdirSync(join(root, "zeta"), { recursive: true });
+  mkdirSync(join(root, ".cache"), { recursive: true });
+  mkdirSync(join(root, "$sys"), { recursive: true });
   writeFileSync(join(root, "notes.txt"), "x");
 
   const db = openDatabase(":memory:");
@@ -38,12 +40,17 @@ afterAll(() => {
 });
 
 describe("GET /api/fs/list", () => {
-  it("lists directories only, sorted case-insensitively", async () => {
+  it("lists directories only: visible before hidden, each sorted case-insensitively", async () => {
     const res = await list(root);
     expect(res.status).toBe(200);
     const body = FsListResponseSchema.parse(await res.json());
     expect(body.path?.toLowerCase()).toBe(root.toLowerCase());
-    expect(body.directories.map((entry) => entry.name)).toEqual(["Alpha", "beta", "zeta"]);
+
+    const names = body.directories.map((entry) => entry.name);
+    expect(names.slice(0, 3)).toEqual(["Alpha", "beta", "zeta"]);
+    expect(names.slice(3).sort()).toEqual(["$sys", ".cache"]);
+    expect(body.directories[0]?.hidden).toBe(false);
+    expect(body.directories[3]?.hidden).toBe(true);
   });
 
   it("navigates up via the parent pointer", async () => {

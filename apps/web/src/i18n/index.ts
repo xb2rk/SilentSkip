@@ -53,6 +53,8 @@ const resources = {
           "Chỉ xoá khỏi công cụ — không đụng file trên máy. Lịch sử chạy của dự án cũng bị xoá.",
         remove: "Xoá",
         removed: "Đã xoá dự án khỏi danh sách",
+        removeFailed: "Không xoá được dự án",
+        viewAll: "Xem tất cả dự án",
       },
       folderBrowser: {
         title: "Chọn thư mục dự án",
@@ -62,6 +64,9 @@ const resources = {
         select: "Chọn thư mục này",
         empty: "Không có thư mục con nào.",
         backToDrives: "Về danh sách ổ đĩa",
+      },
+      errors: {
+        network: "Không kết nối được server cục bộ — kiểm tra server đang chạy rồi thử lại.",
       },
       common: {
         comingSoon: "Sắp có",
@@ -122,6 +127,11 @@ const resources = {
         projectTitle: "Dự án",
         projectPlaceholder: "Chưa có dự án — thêm ở Tổng quan",
         versionsTitle: "Chọn phiên bản",
+        dirtyBadge: "Có thay đổi chưa commit",
+        swap: "Hoán đổi A/B",
+        refGroupBranch: "Nhánh",
+        refGroupRemote: "Remote",
+        refGroupTag: "Tag",
         presetWorktree: "Chưa commit",
         presetVsMain: "So với main",
         presetCustom: "Tuỳ chọn",
@@ -266,4 +276,5 @@ void i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
+/** Initialized i18next instance; importing this module registers the resources as a side effect. */
 export default i18n;

@@ -5,12 +5,21 @@ import {
   ErrorCodes,
   type GitHead,
   type GitRef,
+  type GitRefKind,
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { TFunction } from "i18next";
-import { GitCompareArrows, History, Info, Play, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeftRight,
+  GitCompareArrows,
+  History,
+  Info,
+  Play,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/page-header";
@@ -23,7 +32,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -69,15 +80,42 @@ interface RefOption {
   readonly label: string;
 }
 
-function buildRefOptions(refs: readonly GitRef[], head: GitHead | null, t: TFunction): RefOption[] {
-  const options: RefOption[] = [];
-  if (head !== null) {
-    options.push({ value: "HEAD", label: t("compare.headOption") });
+interface RefGroup {
+  readonly labelKey: string;
+  readonly options: readonly RefOption[];
+}
+
+interface RefGroups {
+  readonly head: RefOption | null;
+  readonly groups: readonly RefGroup[];
+}
+
+const KIND_GROUP_ORDER: readonly GitRefKind[] = ["branch", "remote", "tag"];
+
+const KIND_GROUP_LABEL_KEYS: Record<GitRefKind, string> = {
+  branch: "compare.refGroupBranch",
+  remote: "compare.refGroupRemote",
+  tag: "compare.refGroupTag",
+};
+
+/**
+ * Group refs by kind (branch → remote → tag) so long ref lists stay scannable; HEAD is
+ * hoisted above the groups. Refs keep their exact git names as values — no rewriting.
+ */
+function buildRefGroups(refs: readonly GitRef[], head: GitHead | null, t: TFunction): RefGroups {
+  const groups: RefGroup[] = [];
+  for (const kind of KIND_GROUP_ORDER) {
+    const options = refs
+      .filter((ref) => ref.kind === kind)
+      .map((ref) => ({ value: ref.name, label: ref.name }));
+    if (options.length > 0) {
+      groups.push({ labelKey: KIND_GROUP_LABEL_KEYS[kind], options });
+    }
   }
-  for (const ref of refs) {
-    options.push({ value: ref.name, label: ref.name });
-  }
-  return options;
+  return {
+    head: head === null ? null : { value: "HEAD", label: t("compare.headOption") },
+    groups,
+  };
 }
 
 interface RefInfo {
@@ -89,39 +127,51 @@ interface VersionPanelProps {
   readonly label: string;
   readonly value: string | null;
   readonly onValueChange: (value: string) => void;
-  readonly options: readonly RefOption[];
+  readonly leading: readonly RefOption[];
+  readonly refGroups: RefGroups;
   readonly placeholder: string;
   readonly disabled: boolean;
   readonly info: RefInfo | null;
 }
 
-/** One side of the A/B picker: a ref select plus the resolved commit info box. */
+/** One side of the A/B picker: a grouped ref select plus the resolved commit info box. */
 function VersionPanel({
   label,
   value,
   onValueChange,
-  options,
+  leading,
+  refGroups,
   placeholder,
   disabled,
   info,
 }: VersionPanelProps) {
   const { t } = useTranslation();
+  const hasOptions = leading.length > 0 || refGroups.head !== null || refGroups.groups.length > 0;
   return (
     <div className="space-y-2">
       <Label className="text-[12.5px]">{label}</Label>
-      <Select
-        value={value ?? undefined}
-        onValueChange={onValueChange}
-        disabled={disabled || options.length === 0}
-      >
+      <Select value={value ?? ""} onValueChange={onValueChange} disabled={disabled || !hasOptions}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option) => (
+          {leading.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
+          ))}
+          {refGroups.head !== null && (
+            <SelectItem value={refGroups.head.value}>{refGroups.head.label}</SelectItem>
+          )}
+          {refGroups.groups.map((group) => (
+            <SelectGroup key={group.labelKey}>
+              <SelectLabel>{t(group.labelKey)}</SelectLabel>
+              {group.options.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           ))}
         </SelectContent>
       </Select>
@@ -262,11 +312,23 @@ export function ComparePage() {
   const notGit = refsErrorCode === ErrorCodes.notAGitRepo;
   const noCommits = refsQuery.data !== undefined && refsQuery.data.head === null;
 
-  const baseOptions = buildRefOptions(refs, head, t);
-  const currentOptions: RefOption[] = [
+  const refGroups = useMemo(() => buildRefGroups(refs, head, t), [refs, head, t]);
+  const worktreeLeading: RefOption[] = [
     { value: WORKTREE_REF, label: t("compare.worktreeOption") },
-    ...buildRefOptions(refs, head, t),
   ];
+
+  /** A/B swap only makes sense with two explicit refs — the WORKTREE side can't be the base. */
+  const canSwap =
+    preset === "custom" &&
+    customBase !== null &&
+    customCurrent !== null &&
+    customCurrent !== WORKTREE_REF;
+
+  function handleSwap(): void {
+    if (!canSwap) return;
+    setCustomBase(customCurrent);
+    setCustomCurrent(customBase);
+  }
 
   function selectionInfo(value: string | null): RefInfo | null {
     if (value === null) return null;
@@ -318,7 +380,7 @@ export function ComparePage() {
               </Link>
             </p>
           ) : (
-            <Select value={activeProjectId ?? undefined} onValueChange={setActiveProjectId}>
+            <Select value={activeProjectId ?? ""} onValueChange={setActiveProjectId}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("compare.projectPlaceholder")} />
               </SelectTrigger>
@@ -335,8 +397,36 @@ export function ComparePage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("compare.versionsTitle")}</CardTitle>
+        <CardHeader className="flex-row items-center justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <CardTitle className="text-base">{t("compare.versionsTitle")}</CardTitle>
+            {refsQuery.data?.dirty === true && (
+              <Badge variant="secondary" className="font-normal text-amber-600 dark:text-amber-400">
+                {t("compare.dirtyBadge")}
+              </Badge>
+            )}
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={activeProjectId === null || refsQuery.isFetching}
+                  aria-label={t("common.refresh")}
+                  onClick={() => {
+                    void refsQuery.refetch();
+                    void diffQuery.refetch();
+                  }}
+                >
+                  <RefreshCw className={cn("size-4", refsQuery.isFetching && "animate-spin")} />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t("common.refresh")}</TooltipContent>
+          </Tooltip>
         </CardHeader>
         <CardContent className="space-y-5">
           <ToggleGroup
@@ -384,17 +474,40 @@ export function ComparePage() {
                 label={t("compare.baseLabel")}
                 value={baseRef}
                 onValueChange={(value) => setCustomBase(value)}
-                options={baseOptions}
+                leading={[]}
+                refGroups={refGroups}
                 placeholder={t("compare.refPlaceholder")}
                 disabled={preset !== "custom"}
                 info={selectionInfo(baseRef)}
               />
-              <GitCompareArrows className="mx-auto hidden size-4 text-muted-foreground md:block" />
+              {preset === "custom" ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="mx-auto inline-flex">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        disabled={!canSwap}
+                        aria-label={t("compare.swap")}
+                        onClick={handleSwap}
+                      >
+                        <ArrowLeftRight className="size-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("compare.swap")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <GitCompareArrows className="mx-auto hidden size-4 text-muted-foreground md:block" />
+              )}
               <VersionPanel
                 label={t("compare.currentLabel")}
                 value={currentRef}
                 onValueChange={(value) => setCustomCurrent(value)}
-                options={currentOptions}
+                leading={worktreeLeading}
+                refGroups={refGroups}
                 placeholder={t("compare.refPlaceholder")}
                 disabled={preset !== "custom"}
                 info={selectionInfo(currentRef)}

@@ -4,6 +4,7 @@
  * Density is applied by setting `data-density` on <html>; globals.css shrinks rem-based
  * sizes so every component scales uniformly — no second spacing system to maintain.
  */
+/** Display density value; "comfortable" is the default product look. */
 export type Density = "comfortable" | "compact";
 
 /** localStorage key, shared with the pre-hydration script in index.html. */

@@ -221,6 +221,10 @@ export async function diffSummary(
   };
 }
 
+/**
+ * Parse `--name-status` output into newPath → status. Copies (`C`) are reported as renames:
+ * the preview only needs "this file appears under a new path" for both cases.
+ */
 function parseNameStatus(raw: string): Map<string, ParsedStatus> {
   const result = new Map<string, ParsedStatus>();
   for (const line of raw.split("\n")) {
@@ -256,11 +260,18 @@ function parseNumstat(
     const rawPath = parts.slice(2).join("\t");
     if (rawPath === "") continue;
     result.set(resolveNumstatPath(rawPath), {
-      additions: additionsRaw === "-" ? null : Number(additionsRaw),
-      deletions: deletionsRaw === "-" ? null : Number(deletionsRaw),
+      additions: toLineCount(additionsRaw),
+      deletions: toLineCount(deletionsRaw),
     });
   }
   return result;
+}
+
+/** numstat prints `-` for binary files; anything non-finite degrades to `null` (unknown). */
+function toLineCount(raw: string): number | null {
+  if (raw === "-") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
 /** numstat compacts rename paths as `old => new` or `dir/{old => new}.ext` — recover the new path. */
