@@ -1,8 +1,6 @@
 import {
   AddProjectRequestSchema,
   AppError,
-  DetectProjectsRequestSchema,
-  DetectProjectsResponseSchema,
   DiffSummarySchema,
   ErrorCodes,
   ProjectListResponseSchema,
@@ -12,46 +10,29 @@ import {
 import type { AppDatabase } from "@craftland-qa/db";
 import { Hono } from "hono";
 import { diffSummary, projectRefs } from "../git";
-import {
-  addProject,
-  detectProjectCandidates,
-  getProject,
-  listProjects,
-  removeProject,
-} from "../projects";
-import { getSettings } from "../settings";
+import { addProject, getProject, listProjects, removeProject } from "../projects";
 import { readJsonBody } from "./utils";
 
-/** Dependencies of the project routes (db + allowed-roots seed). */
+/** Dependencies of the project routes. */
 export interface ProjectsRoutesDeps {
   readonly db: AppDatabase;
-  readonly defaultAllowedRoots: readonly string[];
 }
 
 /**
- * Project + git read routes (E1). Every filesystem/git access goes through the allowed-roots
- * boundary: detection and registration reject paths outside `allowedRoots`.
+ * Project + git read routes (E1). Registration is manual: the user supplies an absolute
+ * folder path and the server only checks protective filesystem facts — no detection.
  */
 export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
   const app = new Hono();
-
-  const allowedRoots = (): string[] =>
-    getSettings(deps.db, { allowedRoots: [...deps.defaultAllowedRoots] }).allowedRoots;
 
   app.get("/", (c) => {
     const body = ProjectListResponseSchema.parse({ projects: listProjects(deps.db) });
     return c.json(body);
   });
 
-  app.post("/detect", async (c) => {
-    const input = await readJsonBody(c.req.raw, DetectProjectsRequestSchema);
-    const candidates = detectProjectCandidates(input.rootPath, allowedRoots());
-    return c.json(DetectProjectsResponseSchema.parse({ candidates }));
-  });
-
   app.post("/", async (c) => {
     const input = await readJsonBody(c.req.raw, AddProjectRequestSchema);
-    const project = addProject(deps.db, input.rootPath, allowedRoots(), input.name);
+    const project = addProject(deps.db, input.rootPath, input.name);
     return c.json(ProjectSummarySchema.parse(project), 201);
   });
 

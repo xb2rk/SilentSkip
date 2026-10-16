@@ -5,16 +5,13 @@ import {
   Activity,
   Copy,
   FileCode2,
-  FolderCog,
   Info,
-  Loader2,
   Monitor,
   Moon,
   Palette,
   SlidersHorizontal,
   Sparkles,
   Sun,
-  Trash2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -28,18 +25,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTheme } from "@/contexts/theme-context";
 import { applyDensity, type Density, persistDensity, readStoredDensity } from "@/lib/density";
 import { useHealth } from "@/lib/use-health";
-import { useSettings, useUpdateSettings } from "@/lib/use-projects";
 
 const SECTIONS = [
   { id: "appearance", labelKey: "settings.navAppearance", icon: Palette },
   { id: "ai", labelKey: "settings.navAi", icon: Sparkles },
-  { id: "paths", labelKey: "settings.navPaths", icon: FolderCog },
   { id: "editorGen", labelKey: "settings.navEditorGen", icon: FileCode2 },
   { id: "advanced", labelKey: "settings.navAdvanced", icon: SlidersHorizontal },
   { id: "about", labelKey: "settings.navAbout", icon: Info },
@@ -52,8 +46,8 @@ const DB_PATH = "%LOCALAPPDATA%\\CraftlandQA\\data.sqlite";
 
 /**
  * Settings screen: vertical section nav + working appearance controls (theme, density)
- * that apply immediately and persist locally. AI/paths/editorGen sections are laid out
- * but disabled until their roadmap phases wire the backend.
+ * that apply immediately and persist locally. AI/editorGen sections are laid out but
+ * disabled until their roadmap phases wire the backend.
  */
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -61,9 +55,6 @@ export function SettingsPage() {
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [density, setDensity] = useState<Density>(() => readStoredDensity());
   const health = useHealth();
-  const settingsQuery = useSettings();
-  const updateSettings = useUpdateSettings();
-  const [rootInput, setRootInput] = useState("");
 
   function handleThemeChange(value: string): void {
     if (value === "light" || value === "dark" || value === "system") {
@@ -88,33 +79,6 @@ export function SettingsPage() {
     } catch {
       toast.error(t("common.copyFailed"));
     }
-  }
-
-  function handleAddRoot(): void {
-    const value = rootInput.trim();
-    if (value === "") return;
-    const current = settingsQuery.data?.allowedRoots ?? [];
-    updateSettings.mutate(
-      { allowedRoots: [...current, value] },
-      {
-        onSuccess: () => {
-          setRootInput("");
-          toast.success(t("settings.pathsAdded"));
-        },
-        onError: (error) => toast.error(error instanceof Error ? error.message : String(error)),
-      },
-    );
-  }
-
-  function handleRemoveRoot(root: string): void {
-    const current = settingsQuery.data?.allowedRoots ?? [];
-    updateSettings.mutate(
-      { allowedRoots: current.filter((item) => item !== root) },
-      {
-        onSuccess: () => toast.success(t("settings.pathsRemoved")),
-        onError: (error) => toast.error(error instanceof Error ? error.message : String(error)),
-      },
-    );
   }
 
   let content: ReactNode;
@@ -218,66 +182,6 @@ export function SettingsPage() {
         </Card>
       );
       break;
-    case "paths": {
-      const roots = settingsQuery.data?.allowedRoots ?? [];
-      content = (
-        <Card>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <Label className="text-[13px] font-semibold">{t("settings.pathsTitle")}</Label>
-              <p className="text-[12px] text-muted-foreground">{t("settings.pathsDescription")}</p>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                value={rootInput}
-                onChange={(event) => setRootInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") handleAddRoot();
-                }}
-                placeholder={t("settings.pathsPlaceholder")}
-                className="flex-1 font-mono text-[12.5px]"
-              />
-              <Button
-                variant="outline"
-                onClick={handleAddRoot}
-                disabled={rootInput.trim() === "" || updateSettings.isPending}
-              >
-                {updateSettings.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("common.add")}
-              </Button>
-            </div>
-            {settingsQuery.isPending ? (
-              <Skeleton className="h-10" />
-            ) : roots.length === 0 ? (
-              <p className="text-[12px] text-muted-foreground">{t("settings.pathsEmpty")}</p>
-            ) : (
-              <ul className="space-y-2">
-                {roots.map((root) => (
-                  <li
-                    key={root}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/40 px-3 py-2"
-                  >
-                    <code className="truncate font-mono text-[12px]">{root}</code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 shrink-0"
-                      aria-label={t("settings.pathsRemove")}
-                      onClick={() => handleRemoveRoot(root)}
-                      disabled={updateSettings.isPending}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-[12px] text-muted-foreground">{t("settings.pathsNote")}</p>
-          </CardContent>
-        </Card>
-      );
-      break;
-    }
     case "editorGen":
       content = (
         <Card>

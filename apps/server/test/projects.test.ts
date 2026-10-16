@@ -1,14 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  AppSettingsSchema,
-  DetectProjectsResponseSchema,
   DiffSummarySchema,
   ErrorEnvelopeSchema,
   ProjectListResponseSchema,
   ProjectRefsResponseSchema,
+  ProjectSummarySchema,
 } from "@craftland-qa/contracts";
 import { migrateDatabase, openDatabase } from "@craftland-qa/db";
 import type { Hono } from "hono";
@@ -16,12 +15,17 @@ import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 
-/** HTTP-level tests for E1 project registration + git preview, against real temp folders. */
+/**
+ * HTTP-level tests for E1 project registration + git preview.
+ *
+ * Registration is manual: any real folder can be added (no detection heuristics), and the
+ * only rejections are protective facts — non-absolute paths, missing folders, files, drive
+ * roots, the home directory and duplicates.
+ */
 
 let workspace: string;
 let fakeGame: string;
-let emptyDir: string;
-let outside: string;
+let plainFolder: string;
 let app: Hono;
 
 function git(cwd: string, args: readonly string[]): void {
@@ -39,86 +43,66 @@ async function postJson(path: string, body: unknown): Promise<Response> {
   });
 }
 
-async function putJson(path: string, body: unknown): Promise<Response> {
-  return app.request(path, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 beforeAll(() => {
   workspace = mkdtempSync(join(tmpdir(), "cqa-ws-"));
-  outside = mkdtempSync(join(tmpdir(), "cqa-outside-"));
 
-  // A fake project directly under the workspace (gproj + Assets/CSV + Assets/Script + git).
+  // A git-backed fake project with a CSV the diff preview can see.
   fakeGame = join(workspace, "FakeGame");
   mkdirSync(join(fakeGame, "Assets", "CSV"), { recursive: true });
-  mkdirSync(join(fakeGame, "Assets", "Script"), { recursive: true });
-  writeFileSync(join(fakeGame, "Main.gproj"), "{}");
   writeFileSync(join(fakeGame, "Assets", "CSV", "Item.csv"), "id,name\n1,Sword\n");
-  writeFileSync(join(fakeGame, "Assets", "Script", "Loader.fcg"), "static graph Loader\n");
   git(fakeGame, ["init"]);
   git(fakeGame, ["add", "-A"]);
   git(fakeGame, ["commit", "-m", "init"]);
 
-  // A project nested two levels deep (wrapper folder), CSV-only marker.
-  const deepGame = join(workspace, "Wrapper", "DeepGame");
-  mkdirSync(join(deepGame, "Assets", "CSV"), { recursive: true });
-  writeFileSync(join(deepGame, "Assets", "CSV", "Level.csv"), "id\n1\n");
-
-  emptyDir = join(workspace, "NoMarkers");
-  mkdirSync(emptyDir, { recursive: true });
+  // A folder with no Craftland markers at all — still registrable by design.
+  plainFolder = join(workspace, "PlainFolder");
+  mkdirSync(plainFolder, { recursive: true });
 
   const db = openDatabase(":memory:");
   migrateDatabase(db);
-  app = createApp({ db, log: pino({ level: "silent" }), defaultAllowedRoots: [workspace] });
+  app = createApp({ db, log: pino({ level: "silent" }) });
 });
 
 afterAll(() => {
   rmSync(workspace, { recursive: true, force: true });
-  rmSync(outside, { recursive: true, force: true });
 });
 
 describe("E1 project + git routes", () => {
-  it("detects candidates with marker evidence", async () => {
-    const res = await postJson("/api/projects/detect", { rootPath: workspace });
-    expect(res.status).toBe(200);
-    const body = DetectProjectsResponseSchema.parse(await res.json());
-    const names = body.candidates.map((candidate) => candidate.name);
-    expect(names).toContain("FakeGame");
-    expect(names).toContain("DeepGame");
-    const fake = body.candidates.find((candidate) => candidate.name === "FakeGame");
-    expect(fake?.markers.gprojFiles).toEqual(["Main.gproj"]);
-    expect(fake?.markers.hasCsvDir).toBe(true);
-    expect(fake?.markers.isGitRepo).toBe(true);
-  });
-
-  it("rejects detection outside allowed roots", async () => {
-    const res = await postJson("/api/projects/detect", { rootPath: outside });
-    expect(res.status).toBe(403);
-    expect(ErrorEnvelopeSchema.parse(await res.json()).error.code).toBe("PATH_NOT_ALLOWED");
-  });
-
-  it("adds a project, lists it, rejects duplicates and non-projects", async () => {
-    const res = await postJson("/api/projects", { rootPath: fakeGame });
+  it("adds a plain folder — registration is manual, no markers required", async () => {
+    const res = await postJson("/api/projects", { rootPath: plainFolder });
     expect(res.status).toBe(201);
+    const project = ProjectSummarySchema.parse(await res.json());
+    expect(project.name).toBe("PlainFolder");
 
     const list = ProjectListResponseSchema.parse(await (await app.request("/api/projects")).json());
-    expect(list.projects.map((project) => project.name)).toContain("FakeGame");
-
-    const duplicate = await postJson("/api/projects", { rootPath: fakeGame });
-    expect(duplicate.status).toBe(409);
-
-    const notProject = await postJson("/api/projects", { rootPath: emptyDir });
-    expect(notProject.status).toBe(422);
+    expect(list.projects.map((candidate) => candidate.name)).toContain("PlainFolder");
   });
 
-  it("serves refs and a worktree diff summary", async () => {
-    const list = ProjectListResponseSchema.parse(await (await app.request("/api/projects")).json());
-    const project = list.projects.find((candidate) => candidate.name === "FakeGame");
-    expect(project).toBeDefined();
-    const id = project?.id ?? "";
+  it("rejects non-absolute paths, drive roots and the home directory", async () => {
+    const relative = await postJson("/api/projects", { rootPath: "relative/folder" });
+    expect(relative.status).toBe(400);
+
+    const driveRoot = await postJson("/api/projects", { rootPath: "C:\\" });
+    expect(driveRoot.status).toBe(400);
+
+    const home = await postJson("/api/projects", { rootPath: homedir() });
+    expect(home.status).toBe(400);
+  });
+
+  it("rejects missing folders and files", async () => {
+    const missing = await postJson("/api/projects", { rootPath: join(workspace, "missing-dir") });
+    expect(missing.status).toBe(404);
+
+    const filePath = join(workspace, "notes.txt");
+    writeFileSync(filePath, "x");
+    const asFile = await postJson("/api/projects", { rootPath: filePath });
+    expect(asFile.status).toBe(400);
+  });
+
+  it("adds the game folder, serves refs and a worktree diff summary", async () => {
+    const created = await postJson("/api/projects", { rootPath: fakeGame });
+    expect(created.status).toBe(201);
+    const id = ProjectSummarySchema.parse(await created.json()).id;
 
     const refs = ProjectRefsResponseSchema.parse(
       await (await app.request(`/api/projects/${id}/refs`)).json(),
@@ -135,21 +119,12 @@ describe("E1 project + git routes", () => {
     expect(summary.filesChanged).toBe(1);
     expect(summary.files[0]?.path).toBe("Assets/CSV/Item.csv");
     expect(summary.files[0]?.kind).toBe("csv");
-    expect(summary.csvFiles).toBe(1);
   });
 
-  it("round-trips settings and validates roots", async () => {
-    const initial = AppSettingsSchema.parse(await (await app.request("/api/settings")).json());
-    expect(initial.allowedRoots).toEqual([workspace]);
-
-    const invalid = await putJson("/api/settings", {
-      allowedRoots: [join(workspace, "missing-dir")],
-    });
-    expect(invalid.status).toBe(400);
-
-    const ok = await putJson("/api/settings", { allowedRoots: [workspace, outside] });
-    expect(ok.status).toBe(200);
-    expect(AppSettingsSchema.parse(await ok.json()).allowedRoots).toEqual([workspace, outside]);
+  it("rejects duplicate registrations", async () => {
+    const duplicate = await postJson("/api/projects", { rootPath: fakeGame });
+    expect(duplicate.status).toBe(409);
+    expect(ErrorEnvelopeSchema.parse(await duplicate.json()).error.code).toBe("CONFLICT");
   });
 
   it("removes a project", async () => {

@@ -1,20 +1,17 @@
 import {
   AddProjectRequestSchema,
-  type AppSettings,
-  AppSettingsSchema,
-  DetectProjectsResponseSchema,
   DiffSummarySchema,
+  FsListResponseSchema,
   ProjectListResponseSchema,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
-  UpdateSettingsRequestSchema,
 } from "@craftland-qa/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api";
 
 /**
- * Project + settings queries (E1). Every queryFn parses through its contract schema, so
- * components always receive validated shapes and server drift fails loudly in dev.
+ * Project + filesystem browsing queries (E1). Every queryFn parses through its contract
+ * schema, so components always receive validated shapes and server drift fails loudly in dev.
  */
 
 export function useProjects() {
@@ -50,41 +47,15 @@ export function useDiffSummary(
   });
 }
 
-export function useSettings() {
+/** One directory level for the folder picker; `null` lists the drive roots. */
+export function useFsList(path: string | null) {
   return useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => AppSettingsSchema.parse(await fetchJson<unknown>("/api/settings")),
-  });
-}
-
-export function useUpdateSettings() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (next: Pick<AppSettings, "allowedRoots">) => {
-      const body = UpdateSettingsRequestSchema.parse(next);
-      return AppSettingsSchema.parse(
-        await fetchJson<unknown>("/api/settings", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-      );
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["settings"], data);
-    },
-  });
-}
-
-export function useDetectProjects() {
-  return useMutation({
-    mutationFn: async (rootPath: string) =>
-      DetectProjectsResponseSchema.parse(
-        await fetchJson<unknown>("/api/projects/detect", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ rootPath }),
-        }),
+    queryKey: ["fs", path],
+    queryFn: async () =>
+      FsListResponseSchema.parse(
+        await fetchJson<unknown>(
+          path === null ? "/api/fs/list" : `/api/fs/list?path=${encodeURIComponent(path)}`,
+        ),
       ),
   });
 }

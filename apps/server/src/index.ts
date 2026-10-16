@@ -15,7 +15,7 @@ const db = openDatabase(config.sqlitePath);
 migrateDatabase(db);
 log.info({ sqlitePath: config.sqlitePath }, "database ready");
 
-const app = createApp({ db, log, defaultAllowedRoots: config.analyzedRoots });
+const app = createApp({ db, log });
 
 const server = serve({ fetch: app.fetch, hostname: config.host, port: config.port }, (info) => {
   log.info({ url: `http://${config.host}:${info.port}` }, "server listening");

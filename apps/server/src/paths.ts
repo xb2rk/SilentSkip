@@ -1,14 +1,15 @@
 import { type Stats, statSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, parse, resolve } from "node:path";
 import { AppError, ErrorCodes } from "@craftland-qa/contracts";
 
 /**
- * Path normalization + the allowed-roots boundary.
+ * Path normalization + registration guards.
  *
- * Product invariant: the tool only reads inside folders the user explicitly allowed
- * (Settings → Dự án được phép). Every user-supplied path passes through here before any
- * filesystem or git call. Comparison is case-insensitive on Windows; symlinks are not
- * resolved (kept simple and predictable).
+ * There is no allowed-roots boundary: the user may register any folder. Registration is
+ * still guarded by filesystem facts — the path must be absolute, must exist as a directory,
+ * and must not be a drive root or the home directory, which are never project folders and
+ * would make later indexing scan far more than intended.
  */
 
 /** Resolve to an absolute path and strip trailing separators (drive roots like `C:\` kept). */
@@ -28,26 +29,30 @@ function compareKey(path: string): string {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
-/** True when `child` is `parent` itself or lives under it. */
-export function isPathInside(child: string, parent: string): boolean {
-  const rel = relative(compareKey(parent), compareKey(child));
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
-
-/** True when the path is inside at least one allowed root. */
-export function isWithinAnyRoot(path: string, roots: readonly string[]): boolean {
-  return roots.some((root) => isPathInside(path, root));
-}
-
-/** Throw PATH_NOT_ALLOWED unless the path is inside one of the allowed roots. */
-export function assertWithinAllowedRoots(path: string, roots: readonly string[]): void {
-  if (!isWithinAnyRoot(path, roots)) {
+/** Validate a project folder registration and return the normalized absolute path. */
+export function assertAddableProjectPath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === "") {
+    throw new AppError(ErrorCodes.badRequest, "Đường dẫn không được để trống");
+  }
+  if (!isAbsolute(trimmed)) {
+    throw new AppError(ErrorCodes.badRequest, "Cần đường dẫn tuyệt đối (ví dụ C:\\…\\TenGame)");
+  }
+  const normalized = normalizePath(trimmed);
+  if (isRootPath(normalized)) {
     throw new AppError(
-      ErrorCodes.pathNotAllowed,
-      `Đường dẫn nằm ngoài thư mục được phép: ${path}`,
-      { details: { allowedRoots: [...roots] } },
+      ErrorCodes.badRequest,
+      "Không thể thêm gốc ổ đĩa — hãy chọn thư mục dự án cụ thể",
     );
   }
+  if (samePath(normalized, homedir())) {
+    throw new AppError(
+      ErrorCodes.badRequest,
+      "Không thể thêm thư mục home — hãy chọn thư mục dự án cụ thể",
+    );
+  }
+  assertDirectoryExists(normalized);
+  return normalized;
 }
 
 /** Throw unless the path exists and is a directory. */
@@ -61,4 +66,10 @@ export function assertDirectoryExists(path: string): void {
   if (!stats.isDirectory()) {
     throw new AppError(ErrorCodes.badRequest, `Không phải thư mục: ${path}`);
   }
+}
+
+/** True when `input` is a drive root (`C:\`) or the filesystem root (`/`). */
+function isRootPath(input: string): boolean {
+  const parsed = parse(resolve(input.trim()));
+  return samePath(normalizePath(parsed.root), input);
 }

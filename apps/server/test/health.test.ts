@@ -9,7 +9,7 @@ const log = pino({ level: "silent" });
 function appForTest() {
   const db = openDatabase(":memory:");
   migrateDatabase(db);
-  return createApp({ db, log, defaultAllowedRoots: [] });
+  return createApp({ db, log });
 }
 
 describe("GET /api/health (in-process)", () => {
