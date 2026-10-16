@@ -1,0 +1,282 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  AppError,
+  type DiffFileEntry,
+  type DiffFileKind,
+  type DiffFileStatus,
+  type DiffSummary,
+  ErrorCodes,
+  type GitHead,
+  type GitRef,
+  type GitRefKind,
+  type ProjectRefsResponse,
+  WORKTREE_REF,
+} from "@craftland-qa/contracts";
+
+/**
+ * Read-only git access (E1).
+ *
+ * Invariants:
+ * - `execFile` with array arguments only — never a shell; nothing here can mutate a repo.
+ * - Refs are resolved (`rev-parse --verify <ref>^{commit}`) before being used in diff calls,
+ *   so a ref string can never reach git as an option.
+ * - `core.quotepath=false` keeps non-ASCII paths readable in output.
+ */
+
+const execFileAsync = promisify(execFile);
+
+const GIT_TIMEOUT_MS = 20_000;
+const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
+async function runGit(cwd: string, args: readonly string[]): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
+      cwd,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    return stdout;
+  } catch (error) {
+    throw mapGitError(error, args);
+  }
+}
+
+function mapGitError(error: unknown, args: readonly string[]): AppError {
+  const candidate = error as { stderr?: unknown };
+  const stderr = typeof candidate.stderr === "string" ? candidate.stderr : "";
+  if (/not a git repository/i.test(stderr)) {
+    return new AppError(ErrorCodes.notAGitRepo, "Thư mục không phải git repository", {
+      cause: error,
+    });
+  }
+  return new AppError(ErrorCodes.gitFailed, `git ${args[0] ?? ""} thất bại`, {
+    cause: error,
+    details: stderr.trim().slice(0, 2000),
+  });
+}
+
+const KIND_ORDER: Record<GitRefKind, number> = { branch: 0, remote: 1, tag: 2 };
+
+/** Current branch (null when detached) + HEAD commit; `null` for a repository without commits. */
+export async function getHead(rootPath: string): Promise<GitHead | null> {
+  let logRaw: string;
+  try {
+    logRaw = await runGit(rootPath, ["log", "-1", "--format=%H%x00%cI%x00%s"]);
+  } catch (error) {
+    if (error instanceof AppError && error.code === ErrorCodes.notAGitRepo) throw error;
+    return null; // unborn branch — repository exists but has no commits yet
+  }
+  const branchRaw = (await runGit(rootPath, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+  const [commitHash = "", , subject = ""] = logRaw.trim().split("\x00");
+  return { branch: branchRaw === "HEAD" ? null : branchRaw, commitHash, subject };
+}
+
+/** All local branches, remotes and tags, with the commit each currently points at. */
+export async function listRefs(rootPath: string): Promise<GitRef[]> {
+  const format =
+    "%(refname)%09%(refname:short)%09%(objectname)%09%(creatordate:iso-strict)%09%(subject)";
+  const raw = await runGit(rootPath, [
+    "for-each-ref",
+    `--format=${format}`,
+    "refs/heads",
+    "refs/remotes",
+    "refs/tags",
+  ]);
+  const refs: GitRef[] = [];
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") continue;
+    const [full = "", name = "", commitHash = "", committedAt = "", ...subjectParts] =
+      line.split("\t");
+    if (full === "" || name === "" || commitHash === "" || full.endsWith("/HEAD")) continue;
+    const kind: GitRefKind = full.startsWith("refs/tags/")
+      ? "tag"
+      : full.startsWith("refs/remotes/")
+        ? "remote"
+        : "branch";
+    refs.push({
+      name,
+      kind,
+      commitHash,
+      subject: subjectParts.join("\t"),
+      committedAt: committedAt === "" ? null : committedAt,
+    });
+  }
+  return refs.sort(
+    (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name),
+  );
+}
+
+/** Head, dirty flag and refs in one call — the payload the A/B picker reads. */
+export async function projectRefs(rootPath: string): Promise<ProjectRefsResponse> {
+  const head = await getHead(rootPath);
+  const dirty = (await runGit(rootPath, ["status", "--porcelain"])).trim().length > 0;
+  const refs = head === null ? [] : await listRefs(rootPath);
+  return { head, dirty, refs };
+}
+
+/** Resolve a ref to a commit hash. Throws UNKNOWN_REF when it does not resolve. */
+export async function resolveCommit(rootPath: string, ref: string): Promise<string> {
+  if (ref === "" || ref.startsWith("-")) {
+    throw new AppError(ErrorCodes.unknownRef, `Ref không hợp lệ: ${ref}`);
+  }
+  try {
+    return (await runGit(rootPath, ["rev-parse", "--verify", `${ref}^{commit}`])).trim();
+  } catch (error) {
+    if (error instanceof AppError && error.code === ErrorCodes.notAGitRepo) throw error;
+    throw new AppError(ErrorCodes.unknownRef, `Không tìm thấy ref: ${ref}`, { cause: error });
+  }
+}
+
+interface ParsedStatus {
+  readonly status: DiffFileStatus;
+  readonly oldPath: string | null;
+}
+
+/**
+ * A/B file-level diff summary with per-file line counts — the preview designers see before
+ * running an analysis. `currentRef = WORKTREE_REF` diffs against the files on disk
+ * (untracked files included, reported with status `U`).
+ */
+export async function diffSummary(
+  rootPath: string,
+  baseRef: string,
+  currentRef: string,
+): Promise<DiffSummary> {
+  if (baseRef === WORKTREE_REF) {
+    throw new AppError(
+      ErrorCodes.badRequest,
+      "Bản gốc (A) phải là ref thật — không thể là bản đang làm",
+    );
+  }
+  const baseCommit = await resolveCommit(rootPath, baseRef);
+  const currentIsWorktree = currentRef === WORKTREE_REF;
+  const currentCommit = currentIsWorktree ? null : await resolveCommit(rootPath, currentRef);
+  const revArgs = currentCommit === null ? [baseCommit] : [baseCommit, currentCommit];
+
+  const [nameStatusRaw, numstatRaw, untrackedRaw] = await Promise.all([
+    runGit(rootPath, ["diff", "--name-status", "-M", ...revArgs]),
+    runGit(rootPath, ["diff", "--numstat", "-M", ...revArgs]),
+    currentIsWorktree
+      ? runGit(rootPath, ["ls-files", "--others", "--exclude-standard"])
+      : Promise.resolve(""),
+  ]);
+
+  const statuses = parseNameStatus(nameStatusRaw);
+  const counts = parseNumstat(numstatRaw);
+
+  const entries: DiffFileEntry[] = [];
+  for (const [path, status] of statuses) {
+    const count = counts.get(path);
+    entries.push({
+      path,
+      oldPath: status.oldPath,
+      status: status.status,
+      kind: classifyKind(path),
+      additions: count?.additions ?? null,
+      deletions: count?.deletions ?? null,
+    });
+  }
+  const untrackedFiles = untrackedRaw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  for (const path of untrackedFiles) {
+    entries.push({
+      path,
+      oldPath: null,
+      status: "U",
+      kind: classifyKind(path),
+      additions: null,
+      deletions: null,
+    });
+  }
+  entries.sort((a, b) => a.path.localeCompare(b.path));
+
+  let additions = 0;
+  let deletions = 0;
+  let csvFiles = 0;
+  let scriptFiles = 0;
+  for (const entry of entries) {
+    additions += entry.additions ?? 0;
+    deletions += entry.deletions ?? 0;
+    if (entry.kind === "csv") csvFiles += 1;
+    if (entry.kind === "script") scriptFiles += 1;
+  }
+
+  return {
+    baseRef,
+    currentRef,
+    baseCommit,
+    currentCommit,
+    filesChanged: entries.length,
+    additions,
+    deletions,
+    untrackedFiles: untrackedFiles.length,
+    csvFiles,
+    scriptFiles,
+    files: entries,
+  };
+}
+
+function parseNameStatus(raw: string): Map<string, ParsedStatus> {
+  const result = new Map<string, ParsedStatus>();
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") continue;
+    const parts = line.split("\t");
+    const code = parts[0] ?? "";
+    const flag = code.charAt(0);
+    if (flag === "R" || flag === "C") {
+      const oldPath = parts[1] ?? "";
+      const newPath = parts[2] ?? "";
+      if (newPath !== "") {
+        result.set(newPath, { status: "R", oldPath: oldPath === "" ? null : oldPath });
+      }
+      continue;
+    }
+    const path = parts[1] ?? "";
+    if (path === "") continue;
+    const status: DiffFileStatus = flag === "A" ? "A" : flag === "D" ? "D" : "M";
+    result.set(path, { status, oldPath: null });
+  }
+  return result;
+}
+
+function parseNumstat(
+  raw: string,
+): Map<string, { additions: number | null; deletions: number | null }> {
+  const result = new Map<string, { additions: number | null; deletions: number | null }>();
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") continue;
+    const parts = line.split("\t");
+    const additionsRaw = parts[0] ?? "";
+    const deletionsRaw = parts[1] ?? "";
+    const rawPath = parts.slice(2).join("\t");
+    if (rawPath === "") continue;
+    result.set(resolveNumstatPath(rawPath), {
+      additions: additionsRaw === "-" ? null : Number(additionsRaw),
+      deletions: deletionsRaw === "-" ? null : Number(deletionsRaw),
+    });
+  }
+  return result;
+}
+
+/** numstat compacts rename paths as `old => new` or `dir/{old => new}.ext` — recover the new path. */
+function resolveNumstatPath(raw: string): string {
+  const braced = raw.match(/^(.*)\{(.*) => (.*)\}(.*)$/);
+  if (braced !== null) {
+    const [, prefix = "", , after = "", suffix = ""] = braced;
+    return `${prefix}${after}${suffix}`;
+  }
+  const arrow = raw.lastIndexOf(" => ");
+  return arrow === -1 ? raw : raw.slice(arrow + 4);
+}
+
+function classifyKind(path: string): DiffFileKind {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".csv") || lower.endsWith(".tsv")) return "csv";
+  if (lower.endsWith(".fcc") || lower.endsWith(".fcg")) return "script";
+  return "other";
+}

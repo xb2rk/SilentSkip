@@ -10,6 +10,11 @@ export const ErrorCodes = {
   badRequest: "BAD_REQUEST",
   notFound: "NOT_FOUND",
   conflict: "CONFLICT",
+  pathNotAllowed: "PATH_NOT_ALLOWED",
+  notAProject: "NOT_A_PROJECT",
+  notAGitRepo: "NOT_A_GIT_REPO",
+  unknownRef: "UNKNOWN_REF",
+  gitFailed: "GIT_FAILED",
   internal: "INTERNAL",
 } as const;
 
@@ -29,6 +34,11 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   BAD_REQUEST: 400,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  PATH_NOT_ALLOWED: 403,
+  NOT_A_PROJECT: 422,
+  NOT_A_GIT_REPO: 422,
+  UNKNOWN_REF: 400,
+  GIT_FAILED: 500,
   INTERNAL: 500,
 };
 

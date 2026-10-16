@@ -12,7 +12,7 @@ describe("@hono/node-server integration", () => {
   beforeAll(async () => {
     const db = openDatabase(":memory:");
     migrateDatabase(db);
-    const app = createApp({ db, log: pino({ level: "silent" }) });
+    const app = createApp({ db, log: pino({ level: "silent" }), defaultAllowedRoots: [] });
     baseUrl = await new Promise<string>((resolveUrl) => {
       server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 }, (info) => {
         resolveUrl(`http://127.0.0.1:${info.port}`);

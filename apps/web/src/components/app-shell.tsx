@@ -2,6 +2,7 @@ import { PRODUCT_VERSION } from "@craftland-qa/contracts";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
+  FolderGit2,
   GitCompareArrows,
   History,
   LayoutDashboard,
@@ -13,6 +14,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CommandPalette } from "@/components/command-palette";
+import { ProjectSwitcher } from "@/components/projects/project-switcher";
 import { StatusIndicator } from "@/components/status-indicator";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +33,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useProject } from "@/contexts/project-context";
 
 const NAV_GROUPS = [
   {
@@ -63,6 +66,7 @@ const NAV_GROUPS = [
 export function AppShell() {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { activeProject } = useProject();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
@@ -88,6 +92,10 @@ export function AppShell() {
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>{t("projects.switcherLabel")}</SidebarGroupLabel>
+            <ProjectSwitcher />
+          </SidebarGroup>
           {NAV_GROUPS.map((group) => (
             <SidebarGroup key={group.labelKey}>
               <SidebarGroupLabel>{t(group.labelKey)}</SidebarGroupLabel>
@@ -120,6 +128,15 @@ export function AppShell() {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
+          {activeProject !== null && (
+            <Link
+              to="/compare"
+              className="ml-1 hidden max-w-[220px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground md:flex"
+            >
+              <FolderGit2 className="size-3.5 shrink-0" />
+              <span className="truncate">{activeProject.name}</span>
+            </Link>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>

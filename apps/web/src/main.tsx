@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "@/components/ui/sonner";
+import { ProjectProvider } from "@/contexts/project-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { applyDensity, readStoredDensity } from "@/lib/density";
 import "@/i18n";
@@ -37,8 +38,10 @@ createRoot(container).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <Toaster />
+        <ProjectProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </ProjectProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,

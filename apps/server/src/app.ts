@@ -10,11 +10,18 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Logger } from "pino";
+import { createProjectsRoutes } from "./routes/projects.routes";
+import { createSettingsRoutes } from "./routes/settings.routes";
 
 /** Dependencies injected into the HTTP app so handlers stay testable without real I/O. */
 export interface AppDependencies {
   readonly db: AppDatabase;
   readonly log: Logger;
+  /**
+   * Seed for the allowed-roots setting (env `ANALYZED_ROOTS`). Used only until the setting
+   * has been written once — after that, Settings owns the value.
+   */
+  readonly defaultAllowedRoots: readonly string[];
 }
 
 /**
@@ -56,6 +63,15 @@ export function createApp(deps: AppDependencies): Hono {
     });
     return c.json(body);
   });
+
+  app.route(
+    "/api/projects",
+    createProjectsRoutes({ db: deps.db, defaultAllowedRoots: deps.defaultAllowedRoots }),
+  );
+  app.route(
+    "/api/settings",
+    createSettingsRoutes({ db: deps.db, defaultAllowedRoots: deps.defaultAllowedRoots }),
+  );
 
   app.notFound((c) => {
     const envelope = new AppError(

@@ -14,6 +14,8 @@ export interface ServerConfig {
   readonly port: number;
   readonly logLevel: string;
   readonly sqlitePath: string;
+  /** Seed for allowed roots (env `ANALYZED_ROOTS`, `;`/`,`-separated) until Settings owns them. */
+  readonly analyzedRoots: readonly string[];
 }
 
 const DEFAULT_PORT = 3000;
@@ -26,7 +28,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port: parsePort(env.PORT),
     logLevel: env.LOG_LEVEL ?? (nodeEnv === "production" ? "info" : "debug"),
     sqlitePath: env.SQLITE_PATH ?? defaultSqlitePath(env),
+    analyzedRoots: parseAnalyzedRoots(env.ANALYZED_ROOTS),
   };
+}
+
+/** `ANALYZED_ROOTS` accepts `;`- or `,`-separated absolute folder paths. */
+function parseAnalyzedRoots(raw: string | undefined): string[] {
+  if (raw === undefined || raw.trim() === "") {
+    return [];
+  }
+  return raw
+    .split(/[;,]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
 }
 
 function parsePort(raw: string | undefined): number {

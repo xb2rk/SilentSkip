@@ -1,51 +1,290 @@
+import {
+  AppError,
+  type DiffFileEntry,
+  type DiffFileStatus,
+  ErrorCodes,
+  type GitHead,
+  type GitRef,
+  WORKTREE_REF,
+} from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
-import { GitCompareArrows, History, Info, Play } from "lucide-react";
-import { useState } from "react";
+import { cn } from "cn";
+import type { TFunction } from "i18next";
+import { GitCompareArrows, History, Info, Play, TriangleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/page-header";
 import { PhaseBadge } from "@/components/phase-badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useProject } from "@/contexts/project-context";
+import { useDiffSummary, useProjectRefs } from "@/lib/use-projects";
 
 const GOAL_SAMPLES = ["compare.goalSample1", "compare.goalSample2", "compare.goalSample3"] as const;
 
-interface VersionPanelProps {
-  readonly label: string;
-  readonly placeholder: string;
-  readonly emptyText: string;
+type Preset = "worktree" | "vs-main" | "custom";
+
+const STATUS_STYLES: Record<DiffFileStatus, string> = {
+  A: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  M: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  D: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  R: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  U: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+};
+
+const STATUS_LABEL_KEYS: Record<DiffFileStatus, string> = {
+  A: "compare.statusAdded",
+  M: "compare.statusModified",
+  D: "compare.statusDeleted",
+  R: "compare.statusRenamed",
+  U: "compare.statusUntracked",
+};
+
+const KIND_LABEL_KEYS: Record<DiffFileEntry["kind"], string> = {
+  csv: "compare.kindCsv",
+  script: "compare.kindScript",
+  other: "compare.kindOther",
+};
+
+function shortHash(hash: string): string {
+  return hash.slice(0, 7);
 }
 
-/** One side of the A/B picker. Disabled until E1 wires real git refs — visual preview only. */
-function VersionPanel({ label, placeholder, emptyText }: VersionPanelProps) {
+interface RefOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+function buildRefOptions(refs: readonly GitRef[], head: GitHead | null, t: TFunction): RefOption[] {
+  const options: RefOption[] = [];
+  if (head !== null) {
+    options.push({ value: "HEAD", label: t("compare.headOption") });
+  }
+  for (const ref of refs) {
+    options.push({ value: ref.name, label: ref.name });
+  }
+  return options;
+}
+
+interface RefInfo {
+  readonly mono: string;
+  readonly text: string;
+}
+
+interface VersionPanelProps {
+  readonly label: string;
+  readonly value: string | null;
+  readonly onValueChange: (value: string) => void;
+  readonly options: readonly RefOption[];
+  readonly placeholder: string;
+  readonly disabled: boolean;
+  readonly info: RefInfo | null;
+}
+
+/** One side of the A/B picker: a ref select plus the resolved commit info box. */
+function VersionPanel({
+  label,
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+  info,
+}: VersionPanelProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-2">
       <Label className="text-[12.5px]">{label}</Label>
-      <Select disabled>
+      <Select
+        value={value ?? undefined}
+        onValueChange={onValueChange}
+        disabled={disabled || options.length === 0}
+      >
         <SelectTrigger className="w-full">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent />
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
       </Select>
-      <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-[12px] text-muted-foreground">
-        {emptyText}
+      <div className="min-h-11 rounded-lg border border-border/60 bg-muted/40 p-3 text-[12px] text-muted-foreground">
+        {info === null ? (
+          t("compare.refEmpty")
+        ) : (
+          <>
+            <span className="font-mono text-[11.5px]">{info.mono}</span>
+            {info.text !== "" && <span> · {info.text}</span>}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
+function StatusBadge({ status }: { readonly status: DiffFileStatus }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-[10.5px] font-medium",
+        STATUS_STYLES[status],
+      )}
+    >
+      {t(STATUS_LABEL_KEYS[status])}
+    </span>
+  );
+}
+
+interface DiffPreviewProps {
+  readonly files: readonly DiffFileEntry[];
+  readonly additions: number;
+  readonly deletions: number;
+  readonly untrackedFiles: number;
+}
+
+const MAX_DIFF_ROWS = 100;
+
+/** Compact file list with status/kind badges and per-file line counts. */
+function DiffPreview({ files, additions, deletions, untrackedFiles }: DiffPreviewProps) {
+  const { t } = useTranslation();
+  if (files.length === 0) {
+    return <p className="text-[12.5px] text-muted-foreground">{t("compare.diffEmpty")}</p>;
+  }
+  const shown = files.slice(0, MAX_DIFF_ROWS);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3 text-[12px]">
+        <span className="tabular-nums text-emerald-600 dark:text-emerald-400">+{additions}</span>
+        <span className="tabular-nums text-rose-600 dark:text-rose-400">−{deletions}</span>
+        {untrackedFiles > 0 && (
+          <span className="text-muted-foreground">
+            {t("compare.diffUntracked", { count: untrackedFiles })}
+          </span>
+        )}
+      </div>
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-border/60">
+        {shown.map((file) => (
+          <div
+            key={file.path}
+            className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-[12px] last:border-0"
+          >
+            <StatusBadge status={file.status} />
+            <Badge
+              variant="outline"
+              className="h-5 shrink-0 px-1.5 text-[10.5px] font-normal uppercase"
+            >
+              {t(KIND_LABEL_KEYS[file.kind])}
+            </Badge>
+            <span className="truncate font-mono text-[11.5px]" title={file.path}>
+              {file.oldPath !== null ? `${file.oldPath} → ${file.path}` : file.path}
+            </span>
+            <span className="ml-auto shrink-0 tabular-nums text-[11.5px] text-muted-foreground">
+              {file.additions !== null && (
+                <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+              )}
+              {file.additions !== null && file.deletions !== null && " "}
+              {file.deletions !== null && (
+                <span className="text-rose-600 dark:text-rose-400">−{file.deletions}</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      {files.length > shown.length && (
+        <p className="text-[11.5px] text-muted-foreground">
+          {t("compare.diffMore", { count: files.length - shown.length })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
- * Compare screen: pick a project and two revisions (A/B) and run the analysis.
- * The form renders fully but stays disabled until E1 (git refs) and E4 (AI run).
+ * Compare screen (E1): pick project + A/B refs and preview the real diff (files, statuses,
+ * line counts). The AI run itself stays disabled until E4.
  */
 export function ComparePage() {
   const { t } = useTranslation();
+  const { projects, activeProjectId, setActiveProjectId } = useProject();
+  const [preset, setPreset] = useState<Preset>("worktree");
+  const [customBase, setCustomBase] = useState<string | null>(null);
+  const [customCurrent, setCustomCurrent] = useState<string | null>(null);
   const [goal, setGoal] = useState("");
+
+  const refsQuery = useProjectRefs(activeProjectId);
+  const refs = refsQuery.data?.refs ?? [];
+  const head = refsQuery.data?.head ?? null;
+
+  const defaultBranch = useMemo(() => {
+    const branches = refs.filter((ref) => ref.kind === "branch");
+    return (
+      branches.find((branch) => branch.name === "main")?.name ??
+      branches.find((branch) => branch.name === "master")?.name ??
+      branches[0]?.name ??
+      null
+    );
+  }, [refs]);
+
+  const baseRef =
+    activeProjectId === null
+      ? null
+      : preset === "custom"
+        ? customBase
+        : preset === "vs-main"
+          ? defaultBranch
+          : head === null
+            ? null
+            : "HEAD";
+  const currentRef =
+    activeProjectId === null ? null : preset === "custom" ? customCurrent : WORKTREE_REF;
+
+  const diffQuery = useDiffSummary(activeProjectId, baseRef, currentRef);
+
+  const refsErrorCode = refsQuery.error instanceof AppError ? refsQuery.error.code : null;
+  const notGit = refsErrorCode === ErrorCodes.notAGitRepo;
+  const noCommits = refsQuery.data !== undefined && refsQuery.data.head === null;
+
+  const baseOptions = buildRefOptions(refs, head, t);
+  const currentOptions: RefOption[] = [
+    { value: WORKTREE_REF, label: t("compare.worktreeOption") },
+    ...buildRefOptions(refs, head, t),
+  ];
+
+  function selectionInfo(value: string | null): RefInfo | null {
+    if (value === null) return null;
+    if (value === WORKTREE_REF) {
+      return { mono: "worktree", text: t("compare.worktreeInfo") };
+    }
+    if (value === "HEAD" && head !== null) {
+      return { mono: shortHash(head.commitHash), text: head.subject };
+    }
+    const ref = refs.find((candidate) => candidate.name === value);
+    if (ref !== undefined) {
+      return { mono: shortHash(ref.commitHash), text: ref.subject };
+    }
+    return { mono: value, text: "" };
+  }
+
+  const diff = diffQuery.data;
+  const panelsDisabled = activeProjectId === null || refsQuery.isPending || notGit || noCommits;
 
   return (
     <div className="space-y-6">
@@ -65,25 +304,52 @@ export function ComparePage() {
         <Info className="size-4" />
         <AlertDescription>{t("compare.banner")}</AlertDescription>
       </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("compare.projectTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Select disabled>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t("compare.projectPlaceholder")} />
-            </SelectTrigger>
-            <SelectContent />
-          </Select>
+          {projects.length === 0 ? (
+            <p className="text-[12.5px] text-muted-foreground">
+              {t("compare.projectPlaceholder")}{" "}
+              <Link to="/" className="text-primary underline-offset-4 hover:underline">
+                {t("nav.overview")}
+              </Link>
+            </p>
+          ) : (
+            <Select value={activeProjectId ?? undefined} onValueChange={setActiveProjectId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t("compare.projectPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </CardContent>
       </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("compare.versionsTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <ToggleGroup type="single" variant="outline" defaultValue="worktree" disabled>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={preset}
+            onValueChange={(value) => {
+              if (value === "worktree" || value === "vs-main" || value === "custom") {
+                setPreset(value);
+              }
+            }}
+            disabled={activeProjectId === null}
+          >
             <ToggleGroupItem value="worktree" className="text-[12.5px]">
               {t("compare.presetWorktree")}
             </ToggleGroupItem>
@@ -94,21 +360,94 @@ export function ComparePage() {
               {t("compare.presetCustom")}
             </ToggleGroupItem>
           </ToggleGroup>
-          <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-            <VersionPanel
-              label={t("compare.baseLabel")}
-              placeholder={t("compare.refPlaceholder")}
-              emptyText={t("compare.refEmpty")}
-            />
-            <GitCompareArrows className="mx-auto hidden size-4 text-muted-foreground md:block" />
-            <VersionPanel
-              label={t("compare.currentLabel")}
-              placeholder={t("compare.refPlaceholder")}
-              emptyText={t("compare.refEmpty")}
-            />
-          </div>
+
+          {notGit && (
+            <Alert variant="destructive">
+              <TriangleAlert className="size-4" />
+              <AlertTitle>{t("compare.notGitTitle")}</AlertTitle>
+              <AlertDescription>{t("compare.notGitDescription")}</AlertDescription>
+            </Alert>
+          )}
+
+          {!notGit && noCommits && (
+            <Alert>
+              <Info className="size-4" />
+              <AlertDescription>{t("compare.noCommits")}</AlertDescription>
+            </Alert>
+          )}
+
+          {activeProjectId !== null && refsQuery.isPending && <Skeleton className="h-24" />}
+
+          {!panelsDisabled && (
+            <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+              <VersionPanel
+                label={t("compare.baseLabel")}
+                value={baseRef}
+                onValueChange={(value) => setCustomBase(value)}
+                options={baseOptions}
+                placeholder={t("compare.refPlaceholder")}
+                disabled={preset !== "custom"}
+                info={selectionInfo(baseRef)}
+              />
+              <GitCompareArrows className="mx-auto hidden size-4 text-muted-foreground md:block" />
+              <VersionPanel
+                label={t("compare.currentLabel")}
+                value={currentRef}
+                onValueChange={(value) => setCustomCurrent(value)}
+                options={currentOptions}
+                placeholder={t("compare.refPlaceholder")}
+                disabled={preset !== "custom"}
+                info={selectionInfo(currentRef)}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle className="text-base">{t("compare.diffTitle")}</CardTitle>
+          {diff !== undefined && (
+            <Badge variant="secondary" className="font-normal">
+              {t("compare.diffFiles", { count: diff.filesChanged })}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent>
+          {activeProjectId === null ? (
+            <p className="text-[12.5px] text-muted-foreground">{t("compare.selectProjectFirst")}</p>
+          ) : refsQuery.isPending ? (
+            <Skeleton className="h-24" />
+          ) : notGit ? (
+            <p className="text-[12.5px] text-muted-foreground">{t("compare.notGitDescription")}</p>
+          ) : noCommits ? (
+            <p className="text-[12.5px] text-muted-foreground">{t("compare.noCommits")}</p>
+          ) : diffQuery.isPending ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+            </div>
+          ) : diffQuery.isError ? (
+            <Alert variant="destructive">
+              <TriangleAlert className="size-4" />
+              <AlertDescription>
+                {diffQuery.error instanceof Error
+                  ? diffQuery.error.message
+                  : String(diffQuery.error)}
+              </AlertDescription>
+            </Alert>
+          ) : diff !== undefined ? (
+            <DiffPreview
+              files={diff.files}
+              additions={diff.additions}
+              deletions={diff.deletions}
+              untrackedFiles={diff.untrackedFiles}
+            />
+          ) : null}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("compare.goalTitle")}</CardTitle>
@@ -137,15 +476,22 @@ export function ComparePage() {
           <p className="text-[12px] text-muted-foreground">{t("compare.goalHint")}</p>
         </CardContent>
       </Card>
+
       <div className="sticky bottom-6 z-10">
         <Card className="bg-card/95 py-4 shadow-lg backdrop-blur">
           <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
-              <p className="text-[13px] font-medium">{t("compare.runInsufficient")}</p>
+              <p className="text-[13px] font-medium">
+                {diff !== undefined
+                  ? t("compare.ready", { count: diff.filesChanged })
+                  : activeProjectId === null
+                    ? t("compare.selectProjectFirst")
+                    : t("compare.runInsufficient")}
+              </p>
               <p className="text-[12px] text-muted-foreground">{t("compare.runNote")}</p>
             </div>
             <div className="flex items-center gap-2">
-              <PhaseBadge phase="E1/E4" />
+              <PhaseBadge phase="E4" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
