@@ -181,6 +181,9 @@ importers:
       '@craftland-qa/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@craftland-qa/fc-lang':
+        specifier: workspace:*
+        version: link:../fc-lang
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

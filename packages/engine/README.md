@@ -10,12 +10,17 @@ eventually findings.
   source coordinates (1-based lines, 0-based UTF-16 offsets) so UI anchors map 1:1 to files;
   malformed input (unterminated quotes) is reported in `anomalies`, never silently repaired.
   Guarded by a checked-in 33-file corpus gate (`test/corpus`, provenance in its README).
+- **Facts (E2.3)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg` sources
+  into a deterministic `FactBundle` — symbols with scope/container, name references with
+  name-level resolution (`resolved` / `ambiguous` / `unresolved` — never guessed), calls
+  (callee/receiver/arity, `start`/`wait` prefixes), raw string literals, imports, and doc
+  comments attached to the declaration that follows them. Every span is raw-faithful
+  (slice == fact) and 1-based-lined; parse problems are surfaced in `parse`, never hidden.
+  Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
 
 ## Planned scope
 
-- **Facts (E2, next)**: `fc-lang` AST walkers over `.fcc`/`.fcg` (symbols, spans, doc comments,
-  calls, strings, imports, read-sites) → a `FactBundle` per ref.
-- **Delta (E2)**: `DeltaBundle` between ref A and B built from those facts (+ git diff).
+- **Delta (E2.4, next)**: `DeltaBundle` between ref A and B built from those facts (+ git diff).
 - **Relations v1 (E2)**: `refers_to`, `calls`, `imports`, `names_csv` — each marked
   `exact` / `inferred` / `unknown` with a confidence score.
 - **Value Journey (E2)**: two-layer propagation walk (config value → code → runtime effect).

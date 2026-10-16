@@ -11,7 +11,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@craftland-qa/contracts": "workspace:*"
+    "@craftland-qa/contracts": "workspace:*",
+    "@craftland-qa/fc-lang": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
