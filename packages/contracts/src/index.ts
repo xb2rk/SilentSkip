@@ -1,3 +1,4 @@
+export * from "./digest";
 export * from "./error";
 export * from "./fs";
 export * from "./git";

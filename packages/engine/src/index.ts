@@ -17,6 +17,7 @@ export const ENGINE_VERSION = "0.1.0";
 
 export * from "./csv/index.js";
 export * from "./delta/index.js";
+export * from "./digest/index.js";
 export * from "./facts/index.js";
 export * from "./journey/index.js";
 export * from "./profile/index.js";

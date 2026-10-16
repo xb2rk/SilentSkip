@@ -1,0 +1,207 @@
+import { z } from "zod";
+
+/**
+ * Anchor + digest contracts — the JSON shapes of the fact sheet that is served to the UI
+ * and, from E4, to the AI passes. Schemas are the source of truth; the server and the web
+ * app parse at their boundaries.
+ *
+ * Anchor ids are content-stable (`ref:file:lines:kind[:loc]`) so pins and citations survive
+ * re-runs of the engine. Every anchor carries a `blobSha` (git blob hash of the file content
+ * it was taken from) and a `snippet` that must equal the exact source slice at those lines.
+ */
+
+/** Which side of the A/B comparison an anchor points at. */
+export const AnchorRefSchema = z.enum(["A", "B"]);
+
+/** Cell coordinates inside a CSV anchor: row key (PK value) and column name or index. */
+export const AnchorLocSchema = z.object({
+  rowKey: z.string().optional(),
+  column: z.union([z.string(), z.number()]).optional(),
+});
+
+/** A verifiable pointer into a source file: stable id, git blob, lines, exact snippet. */
+export const AnchorSchema = z.object({
+  id: z.string(),
+  ref: AnchorRefSchema,
+  file: z.string(),
+  blobSha: z.string(),
+  lineStart: z.number().int().positive(),
+  lineEnd: z.number().int().positive(),
+  snippet: z.string(),
+  loc: AnchorLocSchema.optional(),
+  kind: z.enum(["csv", "code", "contract", "diff"]),
+});
+
+/** One side of the comparison as recorded in the digest. */
+export const DigestRefSideSchema = z.object({
+  ref: z.string(),
+  commitHash: z.string().nullable(),
+});
+
+/** A symbol recorded on one side of the comparison, pointing at its name span anchor. */
+export const DigestSymbolRefSchema = z.object({
+  name: z.string(),
+  symbolKind: z.string(),
+  anchorId: z.string(),
+});
+
+/** A symbol whose content hash differs between A and B, with one anchor per side. */
+export const DigestSymbolChangeSchema = z.object({
+  name: z.string(),
+  symbolKind: z.string(),
+  beforeAnchorId: z.string(),
+  afterAnchorId: z.string(),
+});
+
+/** Layer 1 — a changed script file and its symbol/import deltas. */
+export const DigestScriptChangeSchema = z.object({
+  kind: z.literal("script"),
+  path: z.string(),
+  status: z.enum(["added", "removed", "changed"]),
+  language: z.enum(["fcc", "fcg"]),
+  symbolsAdded: z.array(DigestSymbolRefSchema),
+  symbolsRemoved: z.array(DigestSymbolRefSchema),
+  symbolsChanged: z.array(DigestSymbolChangeSchema),
+  importsAdded: z.array(z.string()),
+  importsRemoved: z.array(z.string()),
+});
+
+/** A CSV row recorded on one side of the comparison. */
+export const DigestRowRefSchema = z.object({
+  key: z.string(),
+  keyKind: z.enum(["first-column", "row-index"]),
+  line: z.number().int().positive(),
+  text: z.string(),
+  anchorId: z.string(),
+});
+
+/** One changed cell with raw values and anchors on both sides. */
+export const DigestCellChangeSchema = z.object({
+  column: z.union([z.string(), z.number()]),
+  before: z.string(),
+  after: z.string(),
+  beforeAnchorId: z.string(),
+  afterAnchorId: z.string(),
+});
+
+/** A CSV row whose cells changed between A and B. */
+export const DigestRowChangeSchema = z.object({
+  key: z.string(),
+  keyKind: z.enum(["first-column", "row-index"]),
+  columnsChanged: z.array(DigestCellChangeSchema),
+  beforeLine: z.number().int().positive(),
+  afterLine: z.number().int().positive(),
+});
+
+/** Layer 1 — a changed CSV table and its row deltas. */
+export const DigestTableChangeSchema = z.object({
+  kind: z.literal("table"),
+  path: z.string(),
+  status: z.enum(["added", "removed", "changed"]),
+  headerChanged: z.boolean(),
+  rowsAdded: z.array(DigestRowRefSchema),
+  rowsRemoved: z.array(DigestRowRefSchema),
+  rowsChanged: z.array(DigestRowChangeSchema),
+});
+
+/** Layer 1 — everything that changed, in exact facts with anchors. */
+export const DigestChangeFactSchema = z.discriminatedUnion("kind", [
+  DigestScriptChangeSchema,
+  DigestTableChangeSchema,
+]);
+
+/** One node of a journey chain, resolved to an anchor. */
+export const DigestJourneyNodeSchema = z.object({
+  label: z.string(),
+  nodeKind: z.string(),
+  confidence: z.enum(["exact", "inferred", "unknown"]),
+  anchorId: z.string(),
+});
+
+/** One ordered journey chain. */
+export const DigestJourneyChainSchema = z.object({
+  nodes: z.array(DigestJourneyNodeSchema),
+});
+
+/** Layer 2 — a changed origin (row/table/symbol) and the journeys that walk it. */
+export const DigestLinkedSchema = z.object({
+  originKind: z.enum(["csv-table", "csv-row", "symbol"]),
+  originLabel: z.string(),
+  anchorId: z.string().nullable(),
+  chains: z.array(DigestJourneyChainSchema),
+  note: z.string().optional(),
+});
+
+/** Layer 4 — supporting material: doc comments, pinned conventions, notes. */
+export const DigestContextItemSchema = z.object({
+  itemKind: z.enum(["doc-comment", "convention", "note"]),
+  text: z.string(),
+  source: z.string(),
+  anchorId: z.string().nullable(),
+});
+
+/** Honest accounting of the span selection: budgets, counts and what was dropped. */
+export const DigestManifestSchema = z.object({
+  budgets: z.object({
+    maxJourneys: z.number().int().positive(),
+    maxAnchors: z.number().int().positive(),
+  }),
+  counts: z.object({
+    changedScripts: z.number().int().nonnegative(),
+    changedTables: z.number().int().nonnegative(),
+    anchors: z.number().int().nonnegative(),
+    journeys: z.number().int().nonnegative(),
+    contextItems: z.number().int().nonnegative(),
+  }),
+  selection: z.object({
+    journeyCandidates: z.number().int().nonnegative(),
+    journeysSelected: z.number().int().nonnegative(),
+    anchorsDropped: z.number().int().nonnegative(),
+  }),
+  notes: z.array(z.string()),
+});
+
+/** Headline numbers for the digest, all computed by the engine — never by the AI. */
+export const DigestStatsSchema = z.object({
+  filesChanged: z.number().int().nonnegative(),
+  scriptFilesChanged: z.number().int().nonnegative(),
+  tableFilesChanged: z.number().int().nonnegative(),
+  symbolsAdded: z.number().int().nonnegative(),
+  symbolsRemoved: z.number().int().nonnegative(),
+  symbolsChanged: z.number().int().nonnegative(),
+  rowsAdded: z.number().int().nonnegative(),
+  rowsRemoved: z.number().int().nonnegative(),
+  rowsChanged: z.number().int().nonnegative(),
+});
+
+/** The complete fact sheet for one A/B comparison. Deterministic: no timestamps inside. */
+export const DigestBundleSchema = z.object({
+  schemaVersion: z.number().int().positive(),
+  refs: z.object({ base: DigestRefSideSchema, current: DigestRefSideSchema }),
+  stats: DigestStatsSchema,
+  changeFacts: z.array(DigestChangeFactSchema),
+  linked: z.array(DigestLinkedSchema),
+  context: z.array(DigestContextItemSchema),
+  anchors: z.array(AnchorSchema),
+  manifest: DigestManifestSchema,
+});
+
+export type AnchorRef = z.infer<typeof AnchorRefSchema>;
+export type AnchorLoc = z.infer<typeof AnchorLocSchema>;
+export type Anchor = z.infer<typeof AnchorSchema>;
+export type DigestRefSide = z.infer<typeof DigestRefSideSchema>;
+export type DigestSymbolRef = z.infer<typeof DigestSymbolRefSchema>;
+export type DigestSymbolChange = z.infer<typeof DigestSymbolChangeSchema>;
+export type DigestScriptChange = z.infer<typeof DigestScriptChangeSchema>;
+export type DigestRowRef = z.infer<typeof DigestRowRefSchema>;
+export type DigestCellChange = z.infer<typeof DigestCellChangeSchema>;
+export type DigestRowChange = z.infer<typeof DigestRowChangeSchema>;
+export type DigestTableChange = z.infer<typeof DigestTableChangeSchema>;
+export type DigestChangeFact = z.infer<typeof DigestChangeFactSchema>;
+export type DigestJourneyNode = z.infer<typeof DigestJourneyNodeSchema>;
+export type DigestJourneyChain = z.infer<typeof DigestJourneyChainSchema>;
+export type DigestLinked = z.infer<typeof DigestLinkedSchema>;
+export type DigestContextItem = z.infer<typeof DigestContextItemSchema>;
+export type DigestManifest = z.infer<typeof DigestManifestSchema>;
+export type DigestStats = z.infer<typeof DigestStatsSchema>;
+export type DigestBundle = z.infer<typeof DigestBundleSchema>;
