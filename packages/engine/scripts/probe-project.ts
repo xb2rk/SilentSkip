@@ -11,7 +11,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildFactBundle, buildRelations, parseCsv } from "../src/index.js";
+import { buildFactBundle, buildJourney, buildRelations, parseCsv } from "../src/index.js";
 
 /** Directories that are never project source. */
 const EXCLUDED_DIRS = new Set([".git", "node_modules"]);
@@ -129,6 +129,46 @@ for (const relation of relationSet.relations) {
   );
 }
 
+// ---- Value journeys (smoke) ----
+const journeyTargets = csvFiles.map(relativePath);
+const journeysWithChains: string[] = [];
+let journeysDeterministic = true;
+for (const target of journeyTargets) {
+  const first = buildJourney({
+    bundle,
+    relations: relationSet,
+    origin: { kind: "csv", path: target },
+  });
+  const second = buildJourney({
+    bundle,
+    relations: relationSet,
+    origin: { kind: "csv", path: target },
+  });
+  if (JSON.stringify(first) !== JSON.stringify(second)) journeysDeterministic = false;
+  if (first.chains.length > 0) journeysWithChains.push(`${target} (${first.chains.length})`);
+}
+
+// ---- Symbol journeys (smoke) ----
+const symbolTargets: { file: string; symbolId: string }[] = [];
+for (const file of bundle.files) {
+  const symbol = file.symbols.find(
+    (candidate) => candidate.kind === "function" || candidate.kind === "field",
+  );
+  if (symbol !== undefined) symbolTargets.push({ file: file.path, symbolId: symbol.id });
+  if (symbolTargets.length >= 5) break;
+}
+const symbolJourneysWithChains: string[] = [];
+for (const target of symbolTargets) {
+  const journey = buildJourney({
+    bundle,
+    relations: relationSet,
+    origin: { kind: "symbol", file: target.file, symbolId: target.symbolId },
+  });
+  if (journey.chains.length > 0) {
+    symbolJourneysWithChains.push(`${journey.origin.label} (${journey.chains.length})`);
+  }
+}
+
 // ---- Report ----
 console.log(`=== probe: ${root} ===`);
 console.log(`FC files: ${fcFiles.length} (built in ${elapsedMs}ms)`);
@@ -156,7 +196,16 @@ console.log(
       ? ` — problems:\n    ${csvProblemFiles.slice(0, 20).join("\n    ")}`
       : ""),
 );
-console.log(`Deterministic: facts=${deterministic} relations=${relationsDeterministic}`);
+console.log(
+  `Journeys: tables=${journeyTargets.length} withChains=${journeysWithChains.length} sample=${JSON.stringify(journeysWithChains.slice(0, 5))}`,
+);
+console.log(
+  `Symbol journeys: tried=${symbolTargets.length} withChains=${symbolJourneysWithChains.length} sample=${JSON.stringify(symbolJourneysWithChains.slice(0, 5))}`,
+);
+console.log(
+  `Deterministic: facts=${deterministic} relations=${relationsDeterministic} journeys=${journeysDeterministic}`,
+);
 
-const failed = problemFiles.length > 0 || !deterministic || !relationsDeterministic;
+const failed =
+  problemFiles.length > 0 || !deterministic || !relationsDeterministic || !journeysDeterministic;
 process.exit(failed ? 1 : 0);

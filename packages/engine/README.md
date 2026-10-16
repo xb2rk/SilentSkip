@@ -24,6 +24,16 @@ eventually findings.
   fallback, import receivers and path-suffix matching are `inferred`) and a human-readable
   derivation chain. Unresolved or ambiguous sites produce no relation at all. Guarded by
   engineered fixtures plus the 245-file corpus gate (`test/relations*.test.ts`).
+- **Delta (E2.4)** — `buildDeltaBundle({ before, after })`: identity-keyed A/B diff — symbols
+  matched by `kind|container|name` (moved code keeps identity), container declarations reported
+  as added/removed only, imports as a set diff, CSV rows keyed by trimmed first column
+  (fallback `#row:<index>` for empty/duplicate keys) with changed column indexes and previews.
+  Guarded by engineered fixtures plus corpus-grounded mutations (`test/delta.test.ts`).
+- **Value Journey (E2.6)** — `buildJourney({ bundle, relations, origin })`: layered chains from
+  a CSV table/row or a symbol — naming literals → binding symbol → use-sites → runtime
+  containers, each node with a raw-faithful span, step confidence and derivation; cycles are
+  skipped, budgets enforced with a truthful `truncated` flag, and dead values carry an explicit
+  "consider pinning" note. Guarded by engineered fixtures (`test/journey.test.ts`).
 
 ## Dev probes
 
@@ -35,10 +45,7 @@ eventually findings.
 
 ## Planned scope
 
-- **Delta (E2.4, next)**: `DeltaBundle` between ref A and B built from those facts (+ git diff).
-- **Value Journey (E2.6)**: two-layer propagation walk over the relations (config value → code
-  → runtime effect).
-- **Project Profile + Discovery (E2.7)**: per-project conventions as *data* (pinned by the user).
+- **Project Profile + Discovery (E2.7, next)**: per-project conventions as *data* (pinned by the user).
 - **Checks (E7/E8)**: structural (`STRUCT-*`, `TYPE-01`, PK inference) and semantic
   (`BIND-*`, `DRIFT-*`, `REF-*`, silent-skip) — see plan §4/§10.
 
