@@ -45,14 +45,17 @@ eventually findings.
 - `pnpm --filter @craftland-qa/engine probe:project <projectRoot>` — runs the fact + CSV
   pipeline over a real project folder: parse problems, fact totals, resolution stats, CSV
   anomalies, determinism, timing. Exits 1 on parse problems or non-determinism.
+- `pnpm --filter @craftland-qa/engine probe:delta <projectRoot> <baseRef> <currentRef>` — runs
+  the delta pipeline over a real git range: changed script/table files, symbol and row changes,
+  determinism. Exits 1 on non-determinism.
 - `pnpm --filter @craftland-qa/engine exec tsx scripts/diag-file.ts <file>` — prints the
   first parse diagnostics of one file with the exact source line for each.
 
 ## Planned scope
 
-- **Project Profile + Discovery (E2.7, next)**: per-project conventions as *data* (pinned by the user).
 - **Checks (E7/E8)**: structural (`STRUCT-*`, `TYPE-01`, PK inference) and semantic
   (`BIND-*`, `DRIFT-*`, `REF-*`, silent-skip) — see plan §4/§10.
+- **Digest assembly (E3)** and the **AI pipeline (E4)** build on the bundles above.
 
 ## Hard rules
 

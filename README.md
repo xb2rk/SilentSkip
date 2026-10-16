@@ -7,9 +7,11 @@ AI review whose claims are grounded in verifiable evidence anchors.
 Primary audience: **game designers** — the UI is Vietnamese and i18n-ready. Secondary: developers —
 technical docs are English.
 
-> Status: **Phase 1 — Knowledge core & AI review**. E0 (skeleton) and E1 (project registry +
-> read-only git A/B preview) are complete; E2 (knowledge core) is in progress — `fc-lang` is
-> vendored (v0.4.0) and guarded by a 245-file corpus gate.
+> Status: **Phase 1 — Knowledge core & AI review**. E0 (skeleton), E1 (project registry +
+> read-only git A/B preview) and E2 (knowledge core) are complete — vendored `fc-lang`,
+> raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey and the
+> profile store, all deterministic and guarded by corpus gates (245 FC + 33 CSV).
+> E3 (digest + assembly) is next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > and the per-package READMEs.
 
