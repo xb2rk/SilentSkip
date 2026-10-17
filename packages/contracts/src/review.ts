@@ -51,7 +51,7 @@ export const StartReviewResponseSchema = z.object({
 
 /** Per-pass metadata persisted with the run (prompt version + latency + salvage rung). */
 export const ReviewPassMetaSchema = z.object({
-  pass: z.enum(["map", "read", "dig", "synthesize"]),
+  pass: z.enum(["map", "read", "dig", "synthesize", "whatif"]),
   promptVersion: z.string().min(1),
   latencyMs: z.number().int().min(0),
   salvage: SalvageLadderSchema,
@@ -83,7 +83,7 @@ export const VerifyIssueSchema = z.object({
     "synthesize-invalid",
     "verdict-downgraded",
   ]),
-  pass: z.enum(["map", "read", "dig", "synthesize"]),
+  pass: z.enum(["map", "read", "dig", "synthesize", "whatif"]),
   target: z.string(),
   detail: z.string(),
 });

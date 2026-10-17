@@ -1,7 +1,8 @@
 # @craftland-qa/ai
 
 The AI review pipeline (Insea): workflow client, context assembly, the v2 pass flow
-(`map → read×N → [dig] → synthesize`, decision #28) and the linker that gates every citation.
+(`map → read×N → [dig] → synthesize`, decision #28), the What-If chat (`whatif`, E6) and the
+linker that gates every citation.
 
 ## Landed
 
@@ -78,10 +79,25 @@ The AI review pipeline (Insea): workflow client, context assembly, the v2 pass f
   call-arity drift and named treatments of the new special-enemy and stat-service systems;
   229 anchors verified, hallucinated ids stripped honestly.
 
+- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.0) answers one question per turn over
+  the same machinery. Insea is stateless, so every call **reconstructs context**: task pack, the
+  session ledger (mechanically composed from previous answers — no summarization call), recent raw
+  turns, pins, and a 400-anchor evidence pack with **pinned anchors boosted to the front**, plus the
+  latest verified run report of the same comparison when one exists. `linkAnswer` gates the answer
+  like every other pass: evidence statements must cite registry anchors (unanchored → demoted to
+  speculation, never dropped silently), numbers only via `{{f:<factId>}}` placeholders, free digits
+  in prose get an honest "no fact source" suffix. Sessions and pins are scoped to **one A/B
+  comparison** (not a run) and survive new runs of the same pair; answers are in Vietnamese with
+  evidence / speculation / unknowns blocks and a transparency line (ngữ cảnh: X dẫn chứng · Y ghim ·
+  N lượt). Every turn persists (`turns` + `context_manifests.turnId`) and streams over SSE with
+  replay. Real smoke (Sample `refactor/localization→main`, 2 turns): grounded Vietnamese answer citing
+  `SpecialUnitData.fcg:159`; follow-up carried `turns=1` + `pins=1` in its context and answered the
+  spawn-flow question coherently.
+
 ## Planned scope
 
-- **What-If passes (E6)**: `whatif_answer` plus session-ledger context assembly, on top of the
-  same linker and manifest discipline.
+- **Engine checks E8** (silent-skip surface, BIND-01/02, DRIFT-01, REF-01/02) and **LOC-01 (E9)**
+  build on the same fact store and linker; the eval corpus lands at E11.
 
 ## Hard rules
 

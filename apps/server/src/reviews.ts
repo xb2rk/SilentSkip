@@ -23,6 +23,7 @@ import { desc, eq } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
 import { getProject } from "./projects";
+import { SseChannel } from "./sse-channel";
 
 /**
  * Review manager (E4.4): owns the lifecycle of A/B review runs.
@@ -48,47 +49,9 @@ export interface ReviewManagerDeps {
 }
 
 /**
- * Live event channel of one run. `emit` never throws on subscriber errors (a client that
- * disconnected must not kill the run); `attach` replays the buffer, then waits for the terminal
- * event, which makes the SSE route correct for both live and already-finished runs.
+ * Live event channel of one run — replay semantics live in `SseChannel` (shared with What-If).
  */
-class RunChannel {
-  private readonly events: ReviewStreamEvent[] = [];
-  private readonly subscribers = new Set<(event: ReviewStreamEvent) => Promise<void>>();
-  private terminal = false;
-  private readonly closed: Promise<void>;
-  private resolveClosed: () => void = () => {};
-
-  constructor() {
-    this.closed = new Promise<void>((resolve) => {
-      this.resolveClosed = resolve;
-    });
-  }
-
-  async emit(event: ReviewStreamEvent): Promise<void> {
-    this.events.push(event);
-    for (const subscriber of [...this.subscribers]) {
-      try {
-        await subscriber(event);
-      } catch {
-        // Subscriber gone (client aborted) — the run must keep going.
-      }
-    }
-    if (event.type !== "stage") {
-      this.terminal = true;
-      this.subscribers.clear();
-      this.resolveClosed();
-    }
-  }
-
-  /** Replay the buffer to `listener`, then keep delivering until the terminal event. */
-  async attach(listener: (event: ReviewStreamEvent) => Promise<void>): Promise<void> {
-    for (const event of this.events) await listener(event);
-    if (this.terminal) return;
-    this.subscribers.add(listener);
-    await this.closed;
-  }
-}
+class RunChannel extends SseChannel<ReviewStreamEvent> {}
 
 /** Zeroed verifier stats for fallback results — no pass ran, nothing was verified. */
 const ZERO_STATS: VerifyStats = {

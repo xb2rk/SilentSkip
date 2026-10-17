@@ -18,8 +18,9 @@ technical docs are English.
 > full (STRUCT-02/03, TYPE-01, BIND-03/04, PK pins), E7.4 report v2 (theme change map,
 > FACT/INTERPRETATION split, "Cần xác minh" label, L4 re-measure) and E7.5 report depth
 > (function bodies + chunked reads, CALL-ARITY/ORPHAN-ADD checks, structured theme narratives)
-> are in.** E6 (What-If +
-> memory) is next (decision #27).
+> are in.** E6 is in — the What-If chat: sessions + pins scoped to one A/B comparison, Vietnamese
+> answers with verified evidence vs labelled speculation, ledger-based memory on the stateless
+> Insea pipeline. E8 (semantic checks + silent-skip surface) is next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md),
 > [`docs/INSEA.md`](./docs/INSEA.md), [`docs/PROMPTS.md`](./docs/PROMPTS.md) and the per-package READMEs.
 

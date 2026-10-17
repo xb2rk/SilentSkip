@@ -9,7 +9,7 @@ import type { PassConfidence, TypedClaim } from "@craftland-qa/contracts";
  */
 
 /** Which pass produced the linked output. */
-export type LinkPass = "map" | "read" | "dig" | "synthesize";
+export type LinkPass = "map" | "read" | "dig" | "synthesize" | "whatif";
 
 /** Everything the linker can report about a claim it stripped or downgraded. */
 export type LinkIssueKind =

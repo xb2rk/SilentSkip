@@ -15,6 +15,8 @@ import { ReviewManager } from "./reviews";
 import { createFsRoutes } from "./routes/fs.routes";
 import { createProjectsRoutes } from "./routes/projects.routes";
 import { createReviewsRoutes } from "./routes/reviews.routes";
+import { createWhatIfRoutes } from "./routes/whatif.routes";
+import { WhatIfManager } from "./whatif";
 
 /** Dependencies injected into the HTTP app so handlers stay testable without real I/O. */
 export interface AppDependencies {
@@ -81,6 +83,14 @@ export function createApp(deps: AppDependencies): Hono {
     config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
   });
   app.route("/api/reviews", createReviewsRoutes({ manager: reviewManager }));
+
+  const whatIfManager = new WhatIfManager({
+    db: deps.db,
+    log: deps.log,
+    runner: deps.ai?.runner ?? runInseaWorkflow,
+    config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
+  });
+  app.route("/api/whatif", createWhatIfRoutes({ manager: whatIfManager }));
 
   app.notFound((c) => {
     const envelope = new AppError(

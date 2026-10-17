@@ -17,7 +17,7 @@ export interface PassConfig {
 
 /** Which pass produced a result, with the prompt version and honest transport facts. */
 export interface PassMeta {
-  readonly pass: "map" | "read" | "dig" | "synthesize";
+  readonly pass: "map" | "read" | "dig" | "synthesize" | "whatif";
   readonly promptVersion: string;
   readonly latencyMs: number;
   readonly salvage: InseaSalvage;

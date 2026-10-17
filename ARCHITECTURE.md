@@ -70,7 +70,8 @@ the first project when the stored id disappears).
 
 Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
 `["projects", id, "diff-summary", base, current]`, `["projects", id, "digest", base, current]`,
-`["fs", path]`, `["reviews", …]`. Mutations invalidate `["projects"]` / `["reviews"]`.
+`["fs", path]`, `["reviews", …]`, `["whatif", …]`. Mutations invalidate `["projects"]` /
+`["reviews"]` / `["whatif"]`.
 
 ### Review run (server + AI)
 
@@ -91,6 +92,22 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
    interpretation) over the raw change facts, the findings tab split FACT (engine checks) /
    INTERPRETATION (linked AI findings, unverified ones labelled "Cần xác minh" and sorted
    last), and the AI notes tab with the audit trail.
+
+### What-If chat (server + AI)
+
+1. Sessions and pins are scoped to a **comparison** (`projectId + baseRef + currentRef`), not to a
+   run: `sessions.base_ref/current_ref` plus the `pins` table; every turn persists as a `turns`
+   row and the ledger is written back to `session_ledgers` (mechanically composed from previous
+   answers — no summarization call).
+2. `POST /api/whatif/sessions/:id/ask` inserts the user turn + a pending assistant turn, then runs
+   the turn in the background (`WhatIfManager`, the shared `SseChannel` replay semantics): load the
+   digest → build context (task pack, ledger, recent turns, pins, a 400-anchor evidence pack with
+   pinned anchors boosted, and the latest verified run report of the same pair when one exists) →
+   one `whatif` call → `linkAnswer` → persist (`turns` + `context_manifests` with `turnId`) → emit
+   the answer over SSE. AI failure persists an honest error on the turn — never a fake answer.
+3. Entry points: the What-If page (scope picker + session list + chat) and the "Hỏi về thay đổi
+   này" button on a run. Answers render evidence chips (click → evidence dialog, 📌 pin) / labelled
+   speculation / unknowns with a transparency line ("ngữ cảnh: X dẫn chứng · Y ghim · N lượt").
 
 ## 4. Package map and dependency rules
 

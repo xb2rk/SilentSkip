@@ -8,3 +8,4 @@ export * from "./profile";
 export * from "./project";
 export * from "./review";
 export * from "./version";
+export * from "./whatif";

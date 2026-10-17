@@ -200,7 +200,7 @@ export const findings = sqliteTable(
   (t) => [index("findings_run_idx").on(t.runId)],
 );
 
-/** What-If chat sessions. */
+/** What-If chat sessions, scoped to one A/B comparison (project + baseRef + currentRef). */
 export const sessions = sqliteTable(
   "sessions",
   {
@@ -209,6 +209,8 @@ export const sessions = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     runId: text("run_id"),
+    baseRef: text("base_ref"),
+    currentRef: text("current_ref"),
     title: text("title").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
@@ -248,6 +250,26 @@ export const sessionLedgers = sqliteTable("session_ledgers", {
   ledgerJson: text("ledger_json").notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+/**
+ * Pinned evidence anchors of one A/B comparison (What-If context, E6). Pins are scoped to the
+ * comparison (project + refs) — they survive new sessions and new runs of the same comparison.
+ */
+export const pins = sqliteTable(
+  "pins",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    baseRef: text("base_ref").notNull(),
+    currentRef: text("current_ref").notNull(),
+    anchorId: text("anchor_id").notNull(),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("pins_scope_idx").on(t.projectId, t.baseRef, t.currentRef)],
+);
 
 /** Pinned semantic knowledge (entity notes) with provenance + staleness tracking. */
 export const semanticNotes = sqliteTable(

@@ -1,7 +1,15 @@
 import type { Anchor, ReviewRunResult, ReviewStreamEvent, Verdict } from "@craftland-qa/contracts";
 import { Link, useParams } from "@tanstack/react-router";
 import { cn } from "cn";
-import { Ban, CheckCircle2, GitCompareArrows, Info, Loader2, TriangleAlert } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  GitCompareArrows,
+  Info,
+  Loader2,
+  MessageCircleQuestion,
+  TriangleAlert,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -211,12 +219,27 @@ export function RunPage() {
         title={t("run.title")}
         description={t("run.description")}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link to="/compare">
-              <GitCompareArrows className="size-4" />
-              {t("run.backToCompare")}
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to="/what-if"
+                search={{
+                  projectId: run.projectId,
+                  base: run.baseRef,
+                  current: run.currentRef,
+                }}
+              >
+                <MessageCircleQuestion className="size-4" />
+                {t("run.askAboutChange")}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/compare">
+                <GitCompareArrows className="size-4" />
+                {t("run.backToCompare")}
+              </Link>
+            </Button>
+          </div>
         }
       />
 

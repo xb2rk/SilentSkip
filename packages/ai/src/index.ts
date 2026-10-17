@@ -29,5 +29,7 @@ export * from "./passes/parse-output.js";
 export * from "./passes/read.js";
 export * from "./passes/synthesize.js";
 export * from "./passes/types.js";
+export * from "./passes/whatif.js";
 export * from "./pipeline/review.js";
 export * from "./prompts/registry.js";
+export * from "./whatif/index.js";

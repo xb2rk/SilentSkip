@@ -74,6 +74,7 @@ describe("prompt registry v2", () => {
       read: "2.2.0",
       dig: "2.0.0",
       synthesize: "2.2.0",
+      whatif: "1.0.0",
     });
   });
 });

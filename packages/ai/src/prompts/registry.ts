@@ -1,4 +1,5 @@
-import type { EvidenceAnchor, ReviewContext } from "../context/types.js";
+import type { EvidenceAnchor, ReviewContext, TaskPack } from "../context/types.js";
+import type { WhatIfContext } from "../whatif/context.js";
 
 /**
  * The versioned prompt registry, v2 (E7.2 — decision #28).
@@ -16,6 +17,7 @@ export const PROMPT_VERSIONS = {
   read: "2.2.0",
   dig: "2.0.0",
   synthesize: "2.2.0",
+  whatif: "1.0.0",
 } as const;
 
 const SHARED_RULES = `Rules (non-negotiable):
@@ -27,7 +29,7 @@ const SHARED_RULES = `Rules (non-negotiable):
 6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.`;
 
 /** The shared task-pack block every prompt ends with. */
-function taskPackBlock(context: ReviewContext): string {
+function taskPackBlock(context: { readonly taskPack: TaskPack }): string {
   const { taskPack } = context;
   return `## Task pack
 goal: ${taskPack.goal === "" ? "(none — general review)" : taskPack.goal}
@@ -187,4 +189,37 @@ linked findings: ${findingCount}, unknowns: ${unknownCount}
 - findings.json — the linked findings to carry forward
 - themes.json — the engine theme partition (ids, names, files)
 - anchors.jsonl — the full evidence pack`;
+}
+
+/** One What-If answer — the chat pass over a comparison's digest + session memory (E6). */
+export function buildWhatIfPrompt(context: WhatIfContext, question: string): string {
+  const reportLine =
+    context.runSummary === null
+      ? ""
+      : "\n- report.json — the latest verified review report of this comparison (verdict, findings, unknowns)";
+  return `You are the What-If assistant of Craftland QA — a local A/B review tool for a Craftland Studio game project. A designer is asking follow-up questions about one A/B change set. Write the prose in VIETNAMESE.
+
+${SHARED_RULES}
+
+## What to produce
+Strict JSON with exactly these keys:
+{"answer":"<câu trả lời tiếng Việt>","evidence":[{"statement":"...","anchors":["<anchor id>"]}],"speculation":["..."],"unknowns":["..."]}
+
+- "answer": the direct answer in Vietnamese; numbers only as {{f:<factId>}} placeholders.
+- "evidence": the grounded part — every statement MUST cite at least one anchor id copied exactly from the attached data ("Bằng chứng").
+- "speculation": clearly separate interpretation that is plausible but not grounded — no fake precision.
+- "unknowns": exactly what is missing to answer more fully.
+- Prefer short, concrete, specific statements (name the file/function/system) over hedging prose. Code identifiers, file paths and localization keys stay as written in the data.
+
+## Question
+${question}
+
+${taskPackBlock(context)}
+
+## Attached data
+- task.json — refs, stats, goal and lens
+- facts.json — the comparison's fact store (every citable number; ids q:…) and deterministic engine findings
+- history.json — established claims from earlier turns plus the most recent turns
+- pins.jsonl — anchors the designer pinned (treat them as always relevant)
+- anchors.jsonl — change-line snippets (with ids) for this comparison${reportLine}`;
 }

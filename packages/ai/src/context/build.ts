@@ -304,7 +304,7 @@ const TIER_UNREFERENCED = 6;
  * multiple structures keep their lowest (most important) tier. Ids absent from the map are
  * unreferenced and fill the pack last.
  */
-function collectAnchorPriorities(digest: DigestBundle): Map<string, number> {
+export function collectAnchorPriorities(digest: DigestBundle): Map<string, number> {
   const priorities = new Map<string, number>();
   const add = (id: string | null, tier: number): void => {
     if (id === null) return;
@@ -346,7 +346,7 @@ function collectAnchorPriorities(digest: DigestBundle): Map<string, number> {
  * across files inside each tier — one noisy file cannot eat the whole pack, and the anchors with
  * the most signal (changed values) survive first. Deterministic.
  */
-function selectEvidence(
+export function selectEvidence(
   anchors: readonly EvidenceAnchor[],
   priorities: ReadonlyMap<string, number>,
   budget: number,
@@ -370,7 +370,10 @@ function selectEvidence(
       );
   }
   const selected: EvidenceAnchor[] = [];
-  for (let tier = 0; tier <= TIER_UNREFERENCED; tier++) {
+  // Pinned anchors can sit below the standard tiers (what-if context boosts them to `-1`),
+  // so the sweep starts at the lowest tier actually present.
+  const lowestTier = [...priorities.values()].reduce((min, tier) => Math.min(min, tier), 0);
+  for (let tier = lowestTier; tier <= TIER_UNREFERENCED; tier++) {
     const queues = files.map(
       (file) =>
         byFile
