@@ -39,6 +39,13 @@ eventually findings.
   `collectDiscoveryCandidates(bundle, relations)` produces the deterministic proposals the AI
   Discovery pass will review later — CSV-naming literals and import paths, each with evidence
   and no scoring. Guarded by fixture tests (`test/profile.test.ts`).
+- **Digest (E3)** — `buildDigest({ base, current, budgets? })`: the deterministic fact sheet for
+  an A/B range — layer [1] change facts (symbols, imports, CSV rows and cells), layer [2] linked
+  journeys (budgeted, every node anchor-backed), layer [4] context (doc comments of changed
+  symbols, profile conventions, entity notes). A content-stable anchor registry (ref+file+line
+  ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship with it; every
+  number is computed here — never by a model. Guarded by engineered + corpus-grounded tests
+  (`test/digest.test.ts`).
 
 ## Dev probes
 
@@ -55,7 +62,7 @@ eventually findings.
 
 - **Checks (E7/E8)**: structural (`STRUCT-*`, `TYPE-01`, PK inference) and semantic
   (`BIND-*`, `DRIFT-*`, `REF-*`, silent-skip) — see plan §4/§10.
-- **Digest assembly (E3)** and the **AI pipeline (E4)** build on the bundles above.
+- **AI pipeline (E4)** builds on the digest: Insea client, prompt passes, citation verifier, runs.
 
 ## Hard rules
 
@@ -66,7 +73,7 @@ eventually findings.
 - **Only `exact` relations create hard findings**; `inferred` routes context/suggestions;
   `unknown` is reported honestly and suggests a pin.
 
-## Extension points (arriving with E2)
+## Extension points (E4+)
 
 Check / adapter / pass contracts will be defined here first and then used by in-repo templates;
 a check declares the facts it consumes, emits findings with severity + confidence + evidence

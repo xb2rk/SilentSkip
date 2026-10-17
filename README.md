@@ -7,11 +7,11 @@ AI review whose claims are grounded in verifiable evidence anchors.
 Primary audience: **game designers** — the UI is Vietnamese and i18n-ready. Secondary: developers —
 technical docs are English.
 
-> Status: **Phase 1 — Knowledge core & AI review**. E0 (skeleton), E1 (project registry +
-> read-only git A/B preview) and E2 (knowledge core) are complete — vendored `fc-lang`,
-> raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey and the
-> profile store, all deterministic and guarded by corpus gates (245 FC + 33 CSV).
-> E3 (digest + assembly) is next.
+> Status: **Phase 1 — Knowledge core & AI review**. E0–E3 are complete — vendored `fc-lang`,
+> raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey, the profile
+> store, and the deterministic digest served over the first real API
+> (`GET /api/projects/:id/digest`) — all guarded by corpus gates (245 FC + 33 CSV).
+> E4 (AI pipeline: Insea client, prompt passes, citation verifier) is next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > and the per-package READMEs.
 
@@ -49,7 +49,7 @@ apps/server        Hono API server — HTTP surface, read-only git, project regi
 apps/web           Vite + React 19 SPA — designer UI (Vietnamese, i18n-ready)
 packages/contracts Zod schemas + inferred types — single source of truth for every DTO
 packages/db        Drizzle schema, node:sqlite client, migrations
-packages/engine    Deterministic analysis engine (E2+: facts, relations, journeys, checks)
+packages/engine    Deterministic analysis engine (E2+: facts, relations, journeys, digest, checks)
 packages/ai        Insea client, prompt passes, citation verifier (E4+)
 packages/fc-lang   Vendored fc-format-v4 toolchain for `.fcc`/`.fcg` (v0.4.0)
 ```

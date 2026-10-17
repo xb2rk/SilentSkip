@@ -16,10 +16,10 @@ registry. The web app never touches the disk — everything local goes through t
 | `src/routes/fs.routes.ts` | `GET /api/fs/list` — one-level folder browsing for the picker |
 | `src/routes/utils.ts` | `readJsonBody()` — schema-parsed JSON bodies |
 | `src/projects.ts` | Registry service (add/list/get/remove) over `packages/db` |
-| `src/git.ts` | Read-only git service (head, refs, diff summary) |
+| `src/git.ts` | Read-only git service (head, refs, diff summary) + source readers (`cat-file --batch` at a ref, disk walk for the worktree) |
 | `src/paths.ts` | Path normalization + registration guards |
 
-## API surface (E1)
+## API surface (E1–E3)
 
 | Endpoint | Notes |
 | --- | --- |
@@ -29,6 +29,7 @@ registry. The web app never touches the disk — everything local goes through t
 | `DELETE /api/projects/:id` | 204; cascades derived rows |
 | `GET /api/projects/:id/refs` | head + dirty + branches/remotes/tags |
 | `GET /api/projects/:id/diff-summary?base=&current=` | `current=WORKTREE` diffs against disk incl. untracked |
+| `GET /api/projects/:id/digest?base=&current=` | deterministic digest v1 (change facts, journeys, context, anchors) — computed on demand; `current=WORKTREE` reads disk |
 | `GET /api/fs/list[?path=]` | one directory level; no path ⇒ drive roots |
 
 ## Invariants (see also ARCHITECTURE.md §5)
