@@ -160,6 +160,33 @@ describe("buildDigest", () => {
     expect(digest.manifest.budgets.maxJourneys).toBe(1);
   });
 
+  it("caps journeys per file and fills the remaining budget from capped-out candidates", () => {
+    const functions = (value: (index: number) => number): string =>
+      Array.from(
+        { length: 12 },
+        (_, index) => `  func F${index}() int {\n    return ${value(index)}\n  }`,
+      ).join("\n");
+    const before = `static graph Big {\n${functions(() => 0)}\n}\n`;
+    const after = `static graph Big {\n${functions((index) => index + 1)}\n}\n`;
+    const digest = buildDigest(
+      input({
+        base: {
+          ref: "main",
+          commitHash: "a".repeat(40),
+          sources: [{ path: SCRIPT_PATH, source: before }],
+        },
+        current: {
+          ref: "WORKTREE",
+          commitHash: null,
+          sources: [{ path: SCRIPT_PATH, source: after }],
+        },
+        budgets: { maxJourneys: 6 },
+      }),
+    );
+    // 12 changed symbols in one file: the per-file cap keeps 4, the fill pass tops up to the budget.
+    expect(digest.linked).toHaveLength(6);
+  });
+
   it("includes pinned profile material as context", () => {
     const profile: ProjectProfile = {
       ...emptyProjectProfile("p1", "2026-01-01T00:00:00.000Z"),

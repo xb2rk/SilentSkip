@@ -22,9 +22,10 @@ persisted with every pass in `contextManifests`.
 
 ## Guards around the passes
 
-- Context assembly caps the evidence pack (200 anchors / 600 KB) and records honest drop notes
-  (`evidence anchors dropped: …`, `referenced anchors dropped by budget: …`) in the manifest —
-  the budget is attention economy; the digest registry stays the authority.
+- Context assembly caps the evidence pack (600 anchors / 1.8 MB) with tiered priority (changed
+  values → row structure → removals → additions → journeys) spread per file, and records honest
+  drop notes (`evidence anchors dropped: …`, `referenced anchors dropped by budget: …`) in the
+  manifest — the budget is attention economy; the digest registry stays the authority.
 - The citation verifier (`packages/ai/src/verify/`) runs on every pass boundary: anchor
   existence, no-new-anchors, number/quote grounding, honest downgrades. See `docs/INSEA.md`
   for the transport contract and `ARCHITECTURE.md` for the flow.

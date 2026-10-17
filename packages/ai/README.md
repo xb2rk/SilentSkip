@@ -19,7 +19,9 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
 - **Pass library + review pipeline (E4.2)** — versioned prompt registry (`digest_read` / `dig` /
   `synthesize` at 1.0.0, shared anti-hallucination rules, snapshot-tested); context assembly
   (`task.json`, `changes.json`, `journeys.json`, `context.json` + `anchors.jsonl`) under a hard
-  evidence budget (200 anchors / 600 KB) with an honest dropped-count note; strict output schemas
+  evidence budget (600 anchors / 1.8 MB) with tiered priority (changed values → row structure →
+  removals → additions → journeys), per-file spread and an honest dropped-count note; strict output
+  schemas
   (model drift → `AiError` `invalid-output`, never silent); `dig` resolves `needMore` queries
   deterministically (substring match against the full anchor registry → ≤40 focused anchors,
   exactly one round); `mergeReadOutputs`

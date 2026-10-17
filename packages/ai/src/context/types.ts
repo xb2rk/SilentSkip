@@ -66,6 +66,6 @@ export interface ReviewContextInput {
 
 /** Per-section budgets — attention-quality levers, recorded in the manifest when they bite. */
 export const CONTEXT_BUDGETS = {
-  maxEvidenceAnchors: 200,
-  maxEvidenceBytes: 600_000,
+  maxEvidenceAnchors: 600,
+  maxEvidenceBytes: 1_800_000,
 } as const;

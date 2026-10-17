@@ -41,7 +41,7 @@ eventually findings.
   and no scoring. Guarded by fixture tests (`test/profile.test.ts`).
 - **Digest (E3)** — `buildDigest({ base, current, budgets? })`: the deterministic fact sheet for
   an A/B range — layer [1] change facts (symbols, imports, CSV rows and cells), layer [2] linked
-  journeys (budgeted, every node anchor-backed), layer [4] context (doc comments of changed
+  journeys (60 by default — changed tables/rows first, per-file caps, every node anchor-backed), layer [4] context (doc comments of changed
   symbols, profile conventions, entity notes). A content-stable anchor registry (ref+file+line
   ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship with it; every
   number is computed here — never by a model. Guarded by engineered + corpus-grounded tests

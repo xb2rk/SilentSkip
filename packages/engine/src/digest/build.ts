@@ -329,6 +329,8 @@ interface JourneyCandidate {
   file: string;
   offset: number;
   anchorId: string | null;
+  /** Selection priority — lower wins (changed tables → changed rows → changed symbols → added symbols). */
+  priority: number;
 }
 
 function collectJourneyCandidates(
@@ -357,6 +359,7 @@ function collectJourneyCandidates(
         file: table.path,
         offset: 0,
         anchorId,
+        priority: 0,
       });
     }
 
@@ -372,6 +375,7 @@ function collectJourneyCandidates(
         file: table.path,
         offset: row.offset,
         anchorId: registry.add("B", table.path, afterSource, rowSpan(row), "csv", loc),
+        priority: 1,
       });
     }
   }
@@ -389,6 +393,7 @@ function collectJourneyCandidates(
         file: script.path,
         offset: symbol.nameSpan.offset,
         anchorId: registry.add("B", script.path, afterSource, symbol.nameSpan, "code"),
+        priority: 3,
       });
     }
     for (const change of script.symbolsChanged) {
@@ -403,6 +408,7 @@ function collectJourneyCandidates(
         file: script.path,
         offset: symbol.nameSpan.offset,
         anchorId: registry.add("B", script.path, afterSource, symbol.nameSpan, "code"),
+        priority: 2,
       });
     }
   }
@@ -414,6 +420,50 @@ function collectJourneyCandidates(
       compareStrings(a.originLabel, b.originLabel),
   );
   return candidates;
+}
+
+/** Per-file caps so one noisy file cannot eat the whole journey budget (spread, not depth). */
+const JOURNEY_FILE_CAP: Record<JourneyCandidate["originKind"], number> = {
+  "csv-table": 6,
+  "csv-row": 12,
+  symbol: 4,
+};
+
+/**
+ * Select journey candidates under the budget: highest-signal origins first (changed tables →
+ * changed rows → changed symbols → added symbols), then spread across files with per-file caps.
+ * If the caps leave budget unspent (few files), the remaining candidates fill it in priority
+ * order. Deterministic — same candidates always produce the same selection.
+ */
+function selectJourneyCandidates(
+  candidates: readonly JourneyCandidate[],
+  maxJourneys: number,
+): JourneyCandidate[] {
+  const sorted = [...candidates].sort(
+    (a, b) =>
+      a.priority - b.priority ||
+      compareStrings(a.file, b.file) ||
+      a.offset - b.offset ||
+      compareStrings(a.originLabel, b.originLabel),
+  );
+  const perFileCounts = new Map<string, number>();
+  const selected: JourneyCandidate[] = [];
+  for (const candidate of sorted) {
+    if (selected.length >= maxJourneys) break;
+    const key = `${candidate.originKind}|${candidate.file}`;
+    const used = perFileCounts.get(key) ?? 0;
+    if (used >= JOURNEY_FILE_CAP[candidate.originKind]) continue;
+    perFileCounts.set(key, used + 1);
+    selected.push(candidate);
+  }
+  if (selected.length < maxJourneys) {
+    const chosen = new Set(selected);
+    for (const candidate of sorted) {
+      if (selected.length >= maxJourneys) break;
+      if (!chosen.has(candidate)) selected.push(candidate);
+    }
+  }
+  return selected;
 }
 
 function anchorForJourneyNode(
@@ -440,7 +490,7 @@ function buildLinked(
   registry: AnchorRegistry,
 ): DigestLinked[] {
   const linked: DigestLinked[] = [];
-  for (const candidate of candidates.slice(0, maxJourneys)) {
+  for (const candidate of selectJourneyCandidates(candidates, maxJourneys)) {
     const journey = buildJourney({
       bundle: current.bundle,
       relations,

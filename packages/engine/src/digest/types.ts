@@ -5,7 +5,7 @@ import type { SourceInput } from "../facts/index.js";
 export const DIGEST_SCHEMA_VERSION = 1;
 
 /** Default cap on linked journeys selected per digest (attention budget, §5.3). */
-export const DEFAULT_MAX_JOURNEYS = 12;
+export const DEFAULT_MAX_JOURNEYS = 60;
 
 /** Default recorded anchor budget; anchors are never dropped (citation integrity wins). */
 export const DEFAULT_MAX_ANCHORS = 500;

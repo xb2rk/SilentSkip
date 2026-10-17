@@ -210,12 +210,21 @@ interface DiffPreviewProps {
   readonly additions: number;
   readonly deletions: number;
   readonly untrackedFiles: number;
+  readonly scriptFiles: number;
+  readonly csvFiles: number;
 }
 
 const MAX_DIFF_ROWS = 100;
 
 /** Compact file list with status/kind badges and per-file line counts. */
-function DiffPreview({ files, additions, deletions, untrackedFiles }: DiffPreviewProps) {
+function DiffPreview({
+  files,
+  additions,
+  deletions,
+  untrackedFiles,
+  scriptFiles,
+  csvFiles,
+}: DiffPreviewProps) {
   const { t } = useTranslation();
   if (files.length === 0) {
     return <p className="text-[12.5px] text-muted-foreground">{t("compare.diffEmpty")}</p>;
@@ -231,6 +240,9 @@ function DiffPreview({ files, additions, deletions, untrackedFiles }: DiffPrevie
             {t("compare.diffUntracked", { count: untrackedFiles })}
           </span>
         )}
+        <span className="text-muted-foreground">
+          {t("compare.diffBreakdown", { scripts: scriptFiles, csv: csvFiles })}
+        </span>
       </div>
       <div className="max-h-72 overflow-y-auto rounded-lg border border-border/60">
         {shown.map((file) => (
@@ -582,6 +594,8 @@ export function ComparePage() {
               additions={diff.additions}
               deletions={diff.deletions}
               untrackedFiles={diff.untrackedFiles}
+              scriptFiles={diff.scriptFiles}
+              csvFiles={diff.csvFiles}
             />
           ) : null}
         </CardContent>

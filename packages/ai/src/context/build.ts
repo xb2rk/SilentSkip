@@ -26,12 +26,13 @@ export function evidenceAnchorsOf(digest: DigestBundle): EvidenceAnchor[] {
 /**
  * Assemble the context of a review run from a digest.
  *
- * Deterministic: anchors referenced by the digest's own payloads (change facts, linked journeys,
- * context items) get evidence-pack priority — so the model can always resolve the ids it reads in
- * `changes.json` / `journeys.json` / `context.json` — then the remaining anchors follow in digest
- * order. Budgets drop from the tail (unreferenced first) and record the dropped counts in the
- * manifest. No clocks, no environment reads — the same digest always produces the same context,
- * which is what keeps runs and evals reproducible.
+ * Deterministic: the evidence pack is selected by priority tiers with a round-robin spread across
+ * files — changed values first (symbols and CSV cells), then row structure, removals, additions,
+ * linked journeys, context items and finally every remaining anchor. The spread stops one noisy
+ * file from eating the pack. Budgets (count, then bytes) drop from the tail and record honest
+ * counts in the manifest. The pack is attention economy only — the verifier checks citations
+ * against the full anchor registry, so a cited anchor outside the pack stays valid.
+ * No clocks, no environment reads — the same digest always produces the same context.
  */
 export function buildReviewContext(
   digest: DigestBundle,
@@ -39,28 +40,29 @@ export function buildReviewContext(
 ): ReviewContext {
   const allEvidence = evidenceAnchorsOf(digest);
 
-  const referencedIds = collectReferencedAnchorIds(digest);
-  const referencedEvidence = allEvidence.filter((anchor) => referencedIds.has(anchor.id));
-  const restEvidence = allEvidence.filter((anchor) => !referencedIds.has(anchor.id));
-  const prioritized = [...referencedEvidence, ...restEvidence];
+  const priorities = collectAnchorPriorities(digest);
+  const referencedIds = new Set(priorities.keys());
 
   const notes: string[] = [];
-  let evidence = prioritized.slice(0, CONTEXT_BUDGETS.maxEvidenceAnchors);
-  const droppedByCount = prioritized.length - evidence.length;
+  const selected = selectEvidence(allEvidence, priorities, CONTEXT_BUDGETS.maxEvidenceAnchors);
+  let evidence = selected;
   while (
     evidence.length > 0 &&
     Buffer.byteLength(serializeAnchorsJsonl(evidence), "utf8") > CONTEXT_BUDGETS.maxEvidenceBytes
   ) {
     evidence = evidence.slice(0, evidence.length - 1);
   }
-  const dropped = prioritized.length - evidence.length;
+  const dropped = allEvidence.length - evidence.length;
   if (dropped > 0) {
+    const droppedByBytes = selected.length - evidence.length;
     notes.push(
-      `evidence anchors dropped: ${dropped} (by count: ${droppedByCount}, by bytes: ${dropped - droppedByCount})`,
+      `evidence anchors dropped: ${dropped} (by count: ${dropped - droppedByBytes}, by bytes: ${droppedByBytes})`,
     );
   }
   const keptIds = new Set(evidence.map((anchor) => anchor.id));
-  const referencedDropped = referencedEvidence.filter((anchor) => !keptIds.has(anchor.id)).length;
+  const referencedDropped = allEvidence.filter(
+    (anchor) => referencedIds.has(anchor.id) && !keptIds.has(anchor.id),
+  ).length;
   if (referencedDropped > 0) {
     notes.push(`referenced anchors dropped by budget: ${referencedDropped}`);
   }
@@ -162,38 +164,115 @@ function manifestKind(uploadName: string): "code" | "csv" | "diff" | "summary" |
   return "other";
 }
 
+/** Priority tiers for the evidence pack — lower tiers are the anchors the model most needs. */
+const TIER_CHANGED = 0;
+const TIER_ROW_STRUCTURE = 1;
+const TIER_REMOVED = 2;
+const TIER_ADDED = 3;
+const TIER_LINKED = 4;
+const TIER_CONTEXT = 5;
+const TIER_UNREFERENCED = 6;
+
 /**
- * Anchor ids the digest's own payloads reference — change facts, linked journeys, context items.
- * The evidence pack prioritizes these so the model can always resolve ids it reads elsewhere.
+ * Priority tier per anchor id, derived from the digest's own payloads. Anchors referenced by
+ * multiple structures keep their lowest (most important) tier. Ids absent from the map are
+ * unreferenced and fill the pack last.
  */
-function collectReferencedAnchorIds(digest: DigestBundle): Set<string> {
-  const referenced = new Set<string>();
-  const add = (id: string | null): void => {
-    if (id !== null) referenced.add(id);
+function collectAnchorPriorities(digest: DigestBundle): Map<string, number> {
+  const priorities = new Map<string, number>();
+  const add = (id: string | null, tier: number): void => {
+    if (id === null) return;
+    const existing = priorities.get(id);
+    if (existing === undefined || tier < existing) priorities.set(id, tier);
   };
   for (const fact of digest.changeFacts) {
     if (fact.kind === "script") {
-      for (const ref of [...fact.symbolsAdded, ...fact.symbolsRemoved]) add(ref.anchorId);
       for (const change of fact.symbolsChanged) {
-        add(change.beforeAnchorId);
-        add(change.afterAnchorId);
+        add(change.beforeAnchorId, TIER_CHANGED);
+        add(change.afterAnchorId, TIER_CHANGED);
       }
+      for (const ref of fact.symbolsRemoved) add(ref.anchorId, TIER_REMOVED);
+      for (const ref of fact.symbolsAdded) add(ref.anchorId, TIER_ADDED);
     } else {
-      for (const row of [...fact.rowsAdded, ...fact.rowsRemoved]) add(row.anchorId);
       for (const row of fact.rowsChanged) {
         for (const cell of row.columnsChanged) {
-          add(cell.beforeAnchorId);
-          add(cell.afterAnchorId);
+          add(cell.beforeAnchorId, TIER_CHANGED);
+          add(cell.afterAnchorId, TIER_CHANGED);
         }
+      }
+      for (const row of [...fact.rowsAdded, ...fact.rowsRemoved]) {
+        add(row.anchorId, TIER_ROW_STRUCTURE);
       }
     }
   }
   for (const item of digest.linked) {
-    add(item.anchorId);
+    add(item.anchorId, TIER_LINKED);
     for (const chain of item.chains) {
-      for (const node of chain.nodes) add(node.anchorId);
+      for (const node of chain.nodes) add(node.anchorId, TIER_LINKED);
     }
   }
-  for (const item of digest.context) add(item.anchorId);
-  return referenced;
+  for (const item of digest.context) add(item.anchorId, TIER_CONTEXT);
+  return priorities;
+}
+
+/**
+ * Select the evidence pack under the count budget: tier-major priority with a round-robin spread
+ * across files inside each tier — one noisy file cannot eat the whole pack, and the anchors with
+ * the most signal (changed values) survive first. Deterministic.
+ */
+function selectEvidence(
+  anchors: readonly EvidenceAnchor[],
+  priorities: ReadonlyMap<string, number>,
+  budget: number,
+): EvidenceAnchor[] {
+  const byFile = new Map<string, EvidenceAnchor[]>();
+  for (const anchor of anchors) {
+    const list = byFile.get(anchor.file);
+    if (list === undefined) byFile.set(anchor.file, [anchor]);
+    else list.push(anchor);
+  }
+  const files = [...byFile.keys()].sort(compareStrings);
+  for (const file of files) {
+    byFile
+      .get(file)
+      ?.sort(
+        (a, b) =>
+          (priorities.get(a.id) ?? TIER_UNREFERENCED) -
+            (priorities.get(b.id) ?? TIER_UNREFERENCED) ||
+          a.lineStart - b.lineStart ||
+          compareStrings(a.id, b.id),
+      );
+  }
+  const selected: EvidenceAnchor[] = [];
+  for (let tier = 0; tier <= TIER_UNREFERENCED; tier++) {
+    const queues = files.map(
+      (file) =>
+        byFile
+          .get(file)
+          ?.filter((anchor) => (priorities.get(anchor.id) ?? TIER_UNREFERENCED) === tier) ?? [],
+    );
+    const cursors = queues.map(() => 0);
+    let progressed = true;
+    while (progressed && selected.length < budget) {
+      progressed = false;
+      for (let index = 0; index < queues.length; index++) {
+        const queue = queues[index];
+        const cursor = cursors[index];
+        if (queue === undefined || cursor === undefined) continue;
+        const next = queue[cursor];
+        if (next === undefined) continue;
+        cursors[index] = cursor + 1;
+        selected.push(next);
+        progressed = true;
+        if (selected.length >= budget) break;
+      }
+    }
+    if (selected.length >= budget) break;
+  }
+  return selected;
+}
+
+/** Code-unit string compare — deterministic across platforms and locales. */
+function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

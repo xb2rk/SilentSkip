@@ -16,7 +16,7 @@ import {
 } from "./helpers/digest-fixture";
 
 describe("buildReviewContext", () => {
-  it("assembles the task pack, keeps digest order and is deterministic", () => {
+  it("assembles the task pack with tier/spread selection and is deterministic", () => {
     const context = buildReviewContext(makeDigest(), {
       goal: "  Pacing check  ",
       lens: "designer",
@@ -30,11 +30,12 @@ describe("buildReviewContext", () => {
       goal: "Pacing check",
       lens: "designer",
     });
+    // All four anchors are tier 0 (changed values); round-robin picks CSV file first (path order).
     expect(context.evidence.map((anchor) => anchor.id)).toEqual([
-      ANCHOR_A_MOD,
-      ANCHOR_B_MOD,
       ANCHOR_A_ATK,
+      ANCHOR_A_MOD,
       ANCHOR_B_ATK,
+      ANCHOR_B_MOD,
     ]);
     expect(context.manifest.counts).toEqual({
       changeFacts: 2,
@@ -49,7 +50,7 @@ describe("buildReviewContext", () => {
   });
 
   it("drops evidence beyond the count budget and records it honestly", () => {
-    const anchors = Array.from({ length: 250 }, (_, index) => ({
+    const anchors: DigestBundle["anchors"] = Array.from({ length: 900 }, (_, index) => ({
       id: `A:file${index}.fcg:1:1:code`,
       ref: "A" as const,
       file: `file${index}.fcg`,
@@ -60,13 +61,13 @@ describe("buildReviewContext", () => {
       kind: "code" as const,
     }));
     const context = buildReviewContext({ ...makeDigest(), anchors });
-    expect(context.evidence).toHaveLength(200);
-    expect(context.manifest.counts.evidenceDropped).toBe(50);
-    expect(context.manifest.notes.join(" ")).toContain("evidence anchors dropped: 50");
+    expect(context.evidence).toHaveLength(600);
+    expect(context.manifest.counts.evidenceDropped).toBe(300);
+    expect(context.manifest.notes.join(" ")).toContain("evidence anchors dropped: 300");
   });
 
   it("prioritizes anchors referenced by change facts and journeys beyond the cap", () => {
-    const anchors: DigestBundle["anchors"] = Array.from({ length: 250 }, (_, index) => ({
+    const anchors: DigestBundle["anchors"] = Array.from({ length: 900 }, (_, index) => ({
       id: `A:file${index}.fcg:1:1:code`,
       ref: "A" as const,
       file: `file${index}.fcg`,
@@ -77,7 +78,7 @@ describe("buildReviewContext", () => {
       kind: "code" as const,
     }));
     // The last anchor (would be dropped by position) is the one change facts reference.
-    anchors[249] = {
+    anchors[899] = {
       id: ANCHOR_B_ATK,
       ref: "B",
       file: "Assets/CSV/UnitData.csv",
@@ -88,9 +89,34 @@ describe("buildReviewContext", () => {
       kind: "csv",
     };
     const context = buildReviewContext({ ...makeDigest(), anchors });
-    expect(context.evidence).toHaveLength(200);
+    expect(context.evidence).toHaveLength(600);
     expect(context.evidence[0]?.id).toBe(ANCHOR_B_ATK);
     expect(context.manifest.notes.join(" ")).not.toContain("referenced anchors dropped");
+  });
+
+  it("spreads the evidence pack across files instead of taking them in order", () => {
+    const anchors: DigestBundle["anchors"] = [];
+    for (const file of ["a.fcg", "b.fcg", "c.fcg"]) {
+      for (let index = 0; index < 300; index++) {
+        anchors.push({
+          id: `A:${file}:${index + 1}:${index + 1}:code`,
+          ref: "A",
+          file,
+          blobSha: "0".repeat(40),
+          lineStart: index + 1,
+          lineEnd: index + 1,
+          snippet: `x${index}`,
+          kind: "code",
+        });
+      }
+    }
+    const context = buildReviewContext({ ...makeDigest(), anchors });
+    expect(context.evidence).toHaveLength(600);
+    const perFile = new Map<string, number>();
+    for (const anchor of context.evidence) {
+      perFile.set(anchor.file, (perFile.get(anchor.file) ?? 0) + 1);
+    }
+    expect([...perFile.values()].sort()).toEqual([200, 200, 200]);
   });
 
   it("serializes context files with real byte sizes in the manifest", () => {

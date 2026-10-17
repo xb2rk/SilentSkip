@@ -334,6 +334,26 @@ export function RunPage() {
             </CardContent>
           </Card>
 
+          {result.contextManifest.counts.evidenceDropped > 0 && (
+            <Alert>
+              <Info className="size-4" />
+              <AlertDescription>
+                {t("run.coverageNote", {
+                  evidence: result.contextManifest.counts.evidence,
+                  total:
+                    result.contextManifest.counts.evidence +
+                    result.contextManifest.counts.evidenceDropped,
+                  percent: Math.round(
+                    (result.contextManifest.counts.evidence /
+                      (result.contextManifest.counts.evidence +
+                        result.contextManifest.counts.evidenceDropped)) *
+                      100,
+                  ),
+                })}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs defaultValue="changes">
             <TabsList>
               <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>

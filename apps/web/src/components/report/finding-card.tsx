@@ -29,16 +29,20 @@ interface AnchorChipProps {
   readonly anchorId: string;
   readonly anchorsById: ReadonlyMap<string, Anchor>;
   readonly onAnchorClick: (anchor: Anchor) => void;
+  /** Compact mode drops the file path — use inside cards where the file is already on screen. */
+  readonly compact?: boolean;
 }
 
 /** One citation chip — label is the human-readable `file:line`, the id stays the raw truth. */
-export function AnchorChip({ anchorId, anchorsById, onAnchorClick }: AnchorChipProps) {
+export function AnchorChip({ anchorId, anchorsById, onAnchorClick, compact }: AnchorChipProps) {
   const { t } = useTranslation();
   const anchor = anchorsById.get(anchorId);
   const label =
     anchor === undefined
       ? t("run.anchorMissing")
-      : `${anchor.file}:${anchor.lineStart}${anchor.lineEnd === anchor.lineStart ? "" : `-${anchor.lineEnd}`}`;
+      : compact === true
+        ? `:${anchor.lineStart}${anchor.lineEnd === anchor.lineStart ? "" : `-${anchor.lineEnd}`}`
+        : `${anchor.file}:${anchor.lineStart}${anchor.lineEnd === anchor.lineStart ? "" : `-${anchor.lineEnd}`}`;
   return (
     <button
       type="button"

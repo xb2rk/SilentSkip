@@ -13,7 +13,8 @@ technical docs are English.
 > verifier, the review-run API (SSE progress, cancel, deterministic fallback, SQLite persistence),
 > and the report UI (run page with evidence viewer + history). The full loop works end to end:
 > register a project → pick A/B → start a review → watch live progress → read a verified report.
-> Phase 2 (E6 — What-If + Memory) is next.
+> E5.5 (report readability + calibration) shipped; **E7 (CSV facts sâu + STRUCT/TYPE checks) is
+> next, before E6** (decision #27).
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md),
 > [`docs/INSEA.md`](./docs/INSEA.md), [`docs/PROMPTS.md`](./docs/PROMPTS.md) and the per-package READMEs.
 
