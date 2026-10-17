@@ -7,7 +7,12 @@
  *   clients and prompts can be tested and replaced in isolation.
  * - The LLM is never a source of facts; it interprets facts produced elsewhere and every claim
  *   must anchor to evidence that the verifier can re-check.
+ * - The Insea service is stateless and single-shot: every call carries everything the model
+ *   sees; context assembly and manifests (not server memory) provide continuity.
  */
 
-/** Package version marker — replaced by real AI-layer exports as E4 lands. */
-export const AI_PACKAGE_VERSION = "0.1.0";
+export * from "./errors.js";
+export * from "./insea/canary.js";
+export * from "./insea/client.js";
+export * from "./insea/types.js";
+export * from "./insea/unwrap.js";

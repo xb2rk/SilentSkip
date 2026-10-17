@@ -11,7 +11,8 @@ technical docs are English.
 > raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey, the profile
 > store, and the deterministic digest served over the first real API
 > (`GET /api/projects/:id/digest`) — all guarded by corpus gates (245 FC + 33 CSV).
-> E4 (AI pipeline: Insea client, prompt passes, citation verifier) is next.
+> E4 (AI pipeline) is in progress — the Insea client + canary are verified against the live
+> workflow; passes + citation verifier are next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > and the per-package READMEs.
 
