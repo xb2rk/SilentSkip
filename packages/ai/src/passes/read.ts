@@ -2,6 +2,7 @@ import { type DigestFinding, type ReadOutput, ReadOutputSchema } from "@craftlan
 import {
   buildPassManifestJson,
   serializeAnchorsJsonl,
+  serializeBodiesFile,
   serializeFactsFile,
   serializeSkeletonFile,
   serializeTaskFile,
@@ -37,6 +38,10 @@ export interface ReadPassOptions {
   readonly relatedFindings: readonly DigestFinding[];
   /** Change-line snippets (with ids) for this unit's files — the grounding text. */
   readonly anchors: readonly EvidenceAnchor[];
+  /** 1-based chunk of the unit when large units are read chunk by chunk (E7.5). */
+  readonly chunk: number;
+  /** Total chunks of this unit (1 for the common case). */
+  readonly chunks: number;
 }
 
 /** Result of one read call. */
@@ -57,6 +62,7 @@ export async function runReadPass(
     serializeTaskFile(context),
     serializeUnitFile(unit),
     serializeFactsFile(context, unit.files, options.relatedFindings),
+    serializeBodiesFile(context, unit.files),
     {
       uploadName: "anchors.jsonl",
       mimeType: "application/x-ndjson",
@@ -73,6 +79,7 @@ export async function runReadPass(
         context.plan.units.length,
         options.round,
         options.constraints,
+        options.chunks > 1 ? `chunk ${options.chunk} of ${options.chunks}` : undefined,
       ),
       buildPassManifestJson("read", context, attachments),
       attachments,
@@ -87,6 +94,8 @@ export async function runReadPass(
       latencyMs: result.latencyMs,
       salvage: result.salvage,
       unit: unit.index + 1,
+      chunk: options.chunk,
+      chunks: options.chunks,
       round: options.round,
     },
   };

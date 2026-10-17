@@ -76,10 +76,18 @@ export const DigOutputSchema = z.object({
   answers: z.array(z.string().min(1)),
 });
 
-/** One theme narrative in the final report — every engine theme id exactly once. */
+/**
+ * One theme narrative in the final report — every engine theme id exactly once, written in the
+ * three fixed registers (E7.5): what it is, what now happens differently (grounded in
+ * `bodies.jsonl`), and what to verify — plus the anchors the narrative stands on.
+ */
 export const ThemeNarrativeSchema = z.object({
   themeId: z.string().min(1),
-  narrative: z.string().min(1),
+  summary: z.string().min(1),
+  behaviorChange: z.string().min(1),
+  watchFor: z.string().min(1),
+  /** Anchor ids backing this narrative — validated by the linker against the registry. */
+  anchorIds: z.array(z.string().min(1)).default([]),
 });
 
 /** One final report finding — a reading finding with consequences and a recommendation. */

@@ -23,6 +23,10 @@ export interface PassMeta {
   readonly salvage: InseaSalvage;
   /** 1-based reading-unit index for `read` passes. */
   readonly unit?: number;
+  /** 1-based chunk inside that unit (E7.5); both set together for chunked read calls. */
+  readonly chunk?: number;
+  /** Total chunks of that unit. */
+  readonly chunks?: number;
   /** 1-based loop round when L1/L3 re-ran the pass. */
   readonly round?: number;
 }

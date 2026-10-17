@@ -10,7 +10,7 @@
  */
 
 /** Bump on any shape change; persisted snapshots are keyed by this value. */
-export const FACT_SCHEMA_VERSION = 2;
+export const FACT_SCHEMA_VERSION = 3;
 
 /** A source span with 1-based lines and 0-based UTF-16 offsets. */
 export interface FactSpan {
@@ -56,6 +56,11 @@ export interface SymbolFact {
   /** Exact declared name (identifier text). */
   name: string;
   kind: SymbolKind;
+  /**
+   * Declared parameter count for function/event signatures; absent when the declaration has no
+   * signature. Deterministic material for the call-arity check.
+   */
+  paramCount?: number;
   scope: SymbolScope;
   /** Enclosing named scope (enum, component, graph, function…), when there is one. */
   container?: string;

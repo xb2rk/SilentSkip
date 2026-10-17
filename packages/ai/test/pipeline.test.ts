@@ -73,8 +73,20 @@ const GOOD_REPORT = report(
     },
   ],
   [
-    { themeId: "theme-1", narrative: "Data changed." },
-    { themeId: "theme-2", narrative: "Script changed." },
+    {
+      themeId: "theme-1",
+      summary: "Data changed.",
+      behaviorChange: "The row value changed.",
+      watchFor: "Combat numbers.",
+      anchorIds: [ANCHOR_B_ATK],
+    },
+    {
+      themeId: "theme-2",
+      summary: "Script changed.",
+      behaviorChange: "The constant changed.",
+      watchFor: "Skill behavior.",
+      anchorIds: [ANCHOR_B_MOD],
+    },
   ],
 );
 
@@ -230,8 +242,20 @@ describe("runReviewPipeline v2", () => {
         },
       ],
       [
-        { themeId: "theme-1", narrative: "Data changed." },
-        { themeId: "theme-2", narrative: "Script changed." },
+        {
+          themeId: "theme-1",
+          summary: "Data changed.",
+          behaviorChange: "The row value changed.",
+          watchFor: "Combat numbers.",
+          anchorIds: [ANCHOR_B_ATK],
+        },
+        {
+          themeId: "theme-2",
+          summary: "Script changed.",
+          behaviorChange: "The constant changed.",
+          watchFor: "Skill behavior.",
+          anchorIds: [ANCHOR_B_MOD],
+        },
       ],
     );
     const scripted = scriptedRunner({

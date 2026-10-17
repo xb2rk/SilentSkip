@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   Anchor,
   AnchorLoc,
+  DigestBody,
   DigestBundle,
   DigestCellChange,
   DigestContextItem,
@@ -25,6 +26,7 @@ import {
   buildDeltaBundle,
   type CsvRowRef,
   type CsvTableDelta,
+  type DeltaBundle,
   type ScriptFileDelta,
 } from "../delta/index.js";
 import {
@@ -44,6 +46,8 @@ import {
 } from "../plan/index.js";
 import { buildRelations, type RelationSet } from "../relations/index.js";
 import {
+  DEFAULT_BODY_BUDGET_BYTES,
+  DEFAULT_BODY_BYTES_PER_FUNCTION,
   DEFAULT_MAX_ANCHORS,
   DEFAULT_MAX_JOURNEYS,
   DIGEST_SCHEMA_VERSION,
@@ -823,6 +827,71 @@ function planInput(
 }
 
 /**
+ * Collects function-body reading material (E7.5): bodies of functions added in B and of changed
+ * functions (current side). Before this, added symbols reached the AI as name-only anchors, so
+ * new systems could only be described generically. Deterministic order (delta script order,
+ * added before changed), byte-budgeted, truncation never silent (`truncated` flag + manifest).
+ */
+function collectBodies(
+  delta: DeltaBundle,
+  current: DigestSide,
+  bodyBudgetBytes: number,
+): { bodies: DigestBody[]; truncated: number; dropped: number } {
+  const bodies: DigestBody[] = [];
+  let truncated = 0;
+  let dropped = 0;
+  let bytes = 0;
+  const push = (
+    file: string,
+    symbolId: string,
+    name: string,
+    kind: string,
+    span: FactSpan,
+    source: string | undefined,
+  ): void => {
+    if (source === undefined) return;
+    const raw = source.slice(span.offset, span.offset + span.length);
+    const isTruncated = raw.length > DEFAULT_BODY_BYTES_PER_FUNCTION;
+    const text = isTruncated ? raw.slice(0, DEFAULT_BODY_BYTES_PER_FUNCTION) : raw;
+    if (bytes + text.length > bodyBudgetBytes) {
+      dropped += 1;
+      return;
+    }
+    bytes += text.length;
+    if (isTruncated) truncated += 1;
+    bodies.push({
+      file,
+      symbolId,
+      name,
+      kind,
+      side: "B",
+      lineStart: span.line,
+      lineEnd: span.endLine,
+      truncated: isTruncated,
+      text,
+    });
+  };
+  for (const script of delta.scripts) {
+    if (script.status === "removed") continue;
+    const source = current.sources.get(script.path);
+    for (const symbol of script.symbolsAdded) {
+      if (symbol.kind !== "function" && symbol.kind !== "event") continue;
+      push(script.path, symbol.id, symbol.name, symbol.kind, symbol.span, source);
+    }
+  }
+  for (const script of delta.scripts) {
+    if (script.status === "removed") continue;
+    const source = current.sources.get(script.path);
+    for (const change of script.symbolsChanged) {
+      if (change.kind !== "function" && change.kind !== "event") continue;
+      const symbolId = `${script.path}#${change.name}@${change.afterSpan.offset}`;
+      push(script.path, symbolId, change.name, change.kind, change.afterSpan, source);
+    }
+  }
+  return { bodies, truncated, dropped };
+}
+
+/**
  * Builds the deterministic digest fact sheet for one A/B comparison (spec §4.6, E7.1 v2).
  *
  * Layer 1 = change facts (delta, exact, anchored, with literal values), layer 2 = journeys for
@@ -871,6 +940,8 @@ export function buildDigest(input: DigestInput): DigestBundle {
       return registry.add(ref, file, source, span, kind);
     },
   });
+  const bodyBudget = input.budgets?.bodyBudgetBytes ?? DEFAULT_BODY_BUDGET_BYTES;
+  const bodyMaterial = collectBodies(delta, current, bodyBudget);
   const quantities = collectQuantities(changeFacts, base, current, registry);
   const plan = buildReadingPlan(planInput(changeFacts, relations, input.budgets?.unitBudgetBytes));
 
@@ -885,6 +956,11 @@ export function buildDigest(input: DigestInput): DigestBundle {
   if (anchors.length > maxAnchors) {
     notes.push(
       `Anchor count ${anchors.length} exceeds the budget ${maxAnchors}; none were dropped to preserve citation integrity.`,
+    );
+  }
+  if (bodyMaterial.dropped > 0) {
+    notes.push(
+      `Body material: ${bodyMaterial.dropped} function body(ies) omitted beyond the ${bodyBudget}-byte budget.`,
     );
   }
 
@@ -910,6 +986,7 @@ export function buildDigest(input: DigestInput): DigestBundle {
     context,
     quantities,
     findings,
+    bodies: bodyMaterial.bodies,
     plan,
     anchors,
     manifest: {
@@ -920,6 +997,8 @@ export function buildDigest(input: DigestInput): DigestBundle {
         anchors: anchors.length,
         journeys: linked.length,
         contextItems: context.length,
+        bodies: bodyMaterial.bodies.length,
+        bodiesTruncated: bodyMaterial.truncated + bodyMaterial.dropped,
       },
       selection: {
         journeyCandidates: candidates.length,

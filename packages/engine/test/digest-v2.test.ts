@@ -39,7 +39,7 @@ describe("digest v2", () => {
   it("parses through the contracts schema and carries engine findings with resolvable anchors", () => {
     const digest = DigestBundleSchema.parse(buildDigest(INPUT));
 
-    expect(digest.schemaVersion).toBe(2);
+    expect(digest.schemaVersion).toBe(3);
     const struct01 = digest.findings.filter((finding) => finding.ruleId === "STRUCT-01");
     expect(struct01).toHaveLength(1);
     const finding = struct01[0];
@@ -92,5 +92,48 @@ describe("digest v2", () => {
 
   it("is deterministic", () => {
     expect(buildDigest(INPUT)).toEqual(buildDigest(INPUT));
+  });
+
+  it("ships function bodies for added and changed functions (E7.5 reading depth)", () => {
+    const before =
+      "static graph Combat {\n  func Damage(base int) int {\n    return base\n  }\n}\n";
+    const after = [
+      "static graph Combat {",
+      "  func Damage(base int, mult int) int {",
+      "    return base * mult",
+      "  }",
+      "",
+      "  func Boost() int {",
+      "    return 7",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const digest = buildDigest({
+      base: {
+        ref: "A",
+        commitHash: "a".repeat(40),
+        sources: [{ path: SCRIPT_PATH, source: before }],
+      },
+      current: {
+        ref: "B",
+        commitHash: "b".repeat(40),
+        sources: [{ path: SCRIPT_PATH, source: after }],
+      },
+    });
+
+    // Added bodies first, then changed — deterministic delta order.
+    expect(digest.bodies.map((body) => body.name)).toEqual(["Boost", "Damage"]);
+    const boost = digest.bodies[0];
+    if (boost === undefined) throw new Error("expected a Boost body");
+    expect(boost.text.startsWith("func Boost")).toBe(true);
+    expect(boost.text).toContain("return 7");
+    expect(boost.side).toBe("B");
+    expect(boost.truncated).toBe(false);
+    const damage = digest.bodies[1];
+    if (damage === undefined) throw new Error("expected a Damage body");
+    expect(damage.text).toContain("mult");
+    expect(digest.manifest.counts.bodies).toBe(2);
+    expect(digest.manifest.counts.bodiesTruncated).toBe(0);
   });
 });

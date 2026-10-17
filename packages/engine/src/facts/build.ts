@@ -113,6 +113,7 @@ function buildFileFacts(input: SourceInput): FileFacts {
     kind: SymbolKind,
     scope: SymbolScope,
     node: AnySyntaxNode,
+    paramCount?: number,
   ): string | undefined => {
     if (!name) return undefined;
     const id = `${input.path}#${name.text}@${name.range.start.offset}`;
@@ -121,6 +122,7 @@ function buildFileFacts(input: SourceInput): FileFacts {
       id,
       name: name.text,
       kind,
+      ...(paramCount === undefined ? {} : { paramCount }),
       scope,
       ...(ownContainer !== undefined ? { container: ownContainer } : {}),
       span: spanOf(node.range),
@@ -202,12 +204,24 @@ function buildFileFacts(input: SourceInput): FileFacts {
         break;
       }
       case "function-declaration": {
-        registerSymbol(node.name, "function", memberOrTopScope(), node);
+        registerSymbol(
+          node.name,
+          "function",
+          memberOrTopScope(),
+          node,
+          node.signature?.parameters.length,
+        );
         pushScope(node, node.name);
         break;
       }
       case "event-declaration": {
-        registerSymbol(node.name, "event", memberOrTopScope(), node);
+        registerSymbol(
+          node.name,
+          "event",
+          memberOrTopScope(),
+          node,
+          node.signature?.parameters.length,
+        );
         pushScope(node, node.name);
         break;
       }

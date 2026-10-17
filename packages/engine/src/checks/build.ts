@@ -21,6 +21,11 @@
  *   header-matching enum. The absence is an exact fact; the runtime use stays unknown (info).
  * - `DANGLING-REF` — a symbol removed in B still has same-name references in B that resolve
  *   nowhere, while the A-side references resolved exactly to the removed symbol.
+ * - `CALL-ARITY-01` — a call resolving to a same-file function whose declared parameter count
+ *   differs from the passed argument count (a refactor left a call site behind). Current side.
+ * - `ORPHAN-ADD-01` — a function added in B whose name appears in no reference, call or import
+ *   anywhere in the current codebase. The absence of references is exact; the interpretation
+ *   ("dead code unless invoked dynamically") is what the message offers.
  *
  * Severity/confidence semantics follow spec §4.7 + decision #28: `exact` means every derivation
  * step is a recorded fact; `inferred` findings stay soft (severity is kept, but the message says
@@ -29,7 +34,7 @@
 
 import type { ProjectProfile } from "@craftland-qa/contracts";
 import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
-import type { FactSpan } from "../facts/index.js";
+import { type FactSpan, resolveName } from "../facts/index.js";
 import type { CheckFinding, CheckInput, CheckSide, RegisterAnchor } from "./types.js";
 
 /** Maximum mismatching-row witnesses attached to one STRUCT-01 finding. */
@@ -59,8 +64,93 @@ export function runChecks(input: CheckInput): CheckFinding[] {
     ...checkTypeRows(input),
     ...checkBindings(input),
     ...checkDanglingReferences(input),
+    ...checkCallArity(input),
+    ...checkOrphanAdditions(input),
   ];
   return findings.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
+ * CALL-ARITY-01 — a call resolving to a same-file top-level function whose declared parameter
+ * count differs from the passed argument count. Severity `major`: at runtime this call breaks.
+ * Runs on the current side only (the state that would ship); import-level resolutions are
+ * skipped because the target declaration is not visible from this file's facts.
+ */
+function checkCallArity(input: CheckInput): CheckFinding[] {
+  const findings: CheckFinding[] = [];
+  for (const file of input.current.factsByPath.values()) {
+    for (const call of file.calls) {
+      if (call.calleeName === undefined) continue;
+      const resolution = resolveName(call.calleeName, call.container, file.symbols, file.imports);
+      if (resolution.status !== "resolved" || resolution.level === "import") continue;
+      const symbol = file.symbols.find((candidate) => candidate.id === resolution.resolvedId);
+      if (symbol === undefined || symbol.kind !== "function" || symbol.paramCount === undefined) {
+        continue;
+      }
+      if (symbol.paramCount === call.argumentCount) continue;
+      findings.push({
+        id: `CALL-ARITY-01|B|${file.path}|${call.span.offset}`,
+        ruleId: "CALL-ARITY-01",
+        severity: "major",
+        confidence: "exact",
+        title: "Call arity differs from the declaration",
+        message: `\`${call.calleeText}\` passes ${call.argumentCount} argument(s) but \`${symbol.name}\` declares ${symbol.paramCount} parameter(s) in ${file.path} (side B). A signature change may have left this call site unmodified.`,
+        anchors: [
+          input.registerAnchor("B", file.path, call.span, "code"),
+          input.registerAnchor("B", file.path, symbol.nameSpan, "code"),
+        ],
+        derivation: [
+          `The callee \`${call.calleeName}\` resolves exactly to the function \`${symbol.name}\` (${symbol.paramCount} parameter(s)).`,
+          `The call site passes ${call.argumentCount} argument(s) — raw syntax, nothing inferred.`,
+          "Both spans are anchored on side B (the current state).",
+        ],
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * ORPHAN-ADD-01 — a function added in B whose name appears in no reference, call or import
+ * anywhere in the whole current codebase. The absence is exact (full-scope scan); whether it
+ * is dead code or framework-invoked dynamically is not — hence `info` and the note/pin hint.
+ * Events are excluded: framework lifecycles can invoke them implicitly by convention.
+ */
+function checkOrphanAdditions(input: CheckInput): CheckFinding[] {
+  const referencedNames = new Set<string>();
+  for (const file of input.current.factsByPath.values()) {
+    for (const ref of file.refs) referencedNames.add(ref.name);
+    for (const call of file.calls) {
+      if (call.calleeName !== undefined) referencedNames.add(call.calleeName);
+    }
+    for (const imp of file.imports) {
+      if (imp.imported !== undefined) referencedNames.add(imp.imported);
+    }
+  }
+  const findings: CheckFinding[] = [];
+  for (const script of input.delta.scripts) {
+    if (script.status !== "added" && script.status !== "changed") continue;
+    if (input.current.factsByPath.get(script.path) === undefined) continue;
+    for (const symbol of script.symbolsAdded) {
+      if (symbol.scope === "local") continue;
+      if (symbol.kind !== "function") continue;
+      if (referencedNames.has(symbol.name)) continue;
+      findings.push({
+        id: `ORPHAN-ADD-01|B|${script.path}|${symbol.id}`,
+        ruleId: "ORPHAN-ADD-01",
+        severity: "info",
+        confidence: "exact",
+        title: "Added symbol has no references in the current codebase",
+        message: `\`${symbol.name}\` was added to ${script.path} but no reference, call or import name in the whole current codebase mentions it. If the framework invokes it dynamically, record that as a note/pin; otherwise it is dead code.`,
+        anchors: [input.registerAnchor("B", script.path, symbol.nameSpan, "code")],
+        derivation: [
+          `Every current file's references, call callees and import names were scanned for \`${symbol.name}\` — zero hits.`,
+          "The absence is exact (full-scope scan); why it is unreferenced is not.",
+        ],
+      });
+    }
+  }
+  return findings;
 }
 
 function rowSpan(row: CsvRow): FactSpan {

@@ -376,3 +376,80 @@ describe("BIND-03 / BIND-04 binding channels", () => {
     expect(finding.title).toContain("No code reference");
   });
 });
+
+describe("CALL-ARITY-01 / ORPHAN-ADD-01", () => {
+  const CALL_PATH = "Assets/Scripts/C.fcg";
+  const CALL_BASE = [
+    "static graph C {",
+    "  func Damage(base int) int {",
+    "    return base",
+    "  }",
+    "",
+    "  func Fire() int {",
+    "    return Damage(2)",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+  const CALL_AFTER = [
+    "static graph C {",
+    "  func Damage(base int, mult int) int {",
+    "    return base * mult",
+    "  }",
+    "",
+    "  func Fire() int {",
+    "    return Damage(2)",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+  const ORPHAN_AFTER = CALL_AFTER.replace(
+    "  func Fire() int {\n    return Damage(2)\n  }",
+    "  func Fire() int {\n    return Damage(2)\n  }\n\n  func Ghost() int {\n    return 9\n  }",
+  );
+
+  it("reports a call whose arity no longer matches the declaration", () => {
+    const findings = byRule(
+      checks([{ path: CALL_PATH, source: CALL_BASE }], [{ path: CALL_PATH, source: CALL_AFTER }]),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("major");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain("1 argument(s)");
+    expect(finding.message).toContain("2 parameter(s)");
+    expect(finding.anchors).toHaveLength(2);
+  });
+
+  it("stays silent when call sites keep up with the signature", () => {
+    const updated = CALL_AFTER.replace("return Damage(2)", "return Damage(2, 3)");
+    const findings = byRule(
+      checks([{ path: CALL_PATH, source: CALL_BASE }], [{ path: CALL_PATH, source: updated }]),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("flags an added function that nothing references", () => {
+    const findings = byRule(
+      checks([{ path: CALL_PATH, source: CALL_BASE }], [{ path: CALL_PATH, source: ORPHAN_AFTER }]),
+      "ORPHAN-ADD-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("info");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain("Ghost");
+    expect(finding.anchors).toHaveLength(1);
+  });
+
+  it("is silent once something references the added function", () => {
+    const referenced = ORPHAN_AFTER.replace("return Damage(2)", "Ghost()\n    return Damage(2)");
+    const findings = byRule(
+      checks([{ path: CALL_PATH, source: CALL_BASE }], [{ path: CALL_PATH, source: referenced }]),
+      "ORPHAN-ADD-01",
+    );
+    expect(findings).toEqual([]);
+  });
+});

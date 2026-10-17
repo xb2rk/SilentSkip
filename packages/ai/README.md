@@ -67,6 +67,17 @@ The AI review pipeline (Insea): workflow client, context assembly, the v2 pass f
   (linked AI, "Cần xác minh" for unknown confidence, sorted last), with per-unit/per-round
   progress in the live view.
 
+- **Report depth (E7.5, decision #28)** — every `read` call now receives `bodies.jsonl` (the
+  function bodies of added/changed functions — behaviour first), file-balanced snippet anchors
+  (≤40 per file) and, for oversized units, one call per **chunk** (`chunk`/`chunks` on stage
+  events). New deterministic checks feed the FACT layer: `CALL-ARITY-01` (major/`exact` —
+  call-site arity drift after signature changes) and `ORPHAN-ADD-01` (info/`exact` — added
+  function nothing references). Theme narratives are structured
+  (`summary`/`behaviorChange`/`watchFor` + linker-validated `anchorIds`) — read and synthesize
+  prompts at 2.2.0. On the 72-file refactor range: 63 report findings (was 13) including the
+  call-arity drift and named treatments of the new special-enemy and stat-service systems;
+  229 anchors verified, hallucinated ids stripped honestly.
+
 ## Planned scope
 
 - **What-If passes (E6)**: `whatif_answer` plus session-ledger context assembly, on top of the

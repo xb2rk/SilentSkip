@@ -1,8 +1,9 @@
 # Prompt passes
 
 Prompts are code. They live in the versioned registry `packages/ai/src/prompts/registry.ts`
-(`PROMPT_VERSIONS` at 2.0.0, snapshot-tested); passes reference them by version, and the version
-is persisted with every pass in `contextManifests`.
+(`PROMPT_VERSIONS` per pass — map 2.1.0, read 2.2.0, dig 2.0.0, synthesize 2.2.0 —
+snapshot-tested); passes reference them by version, and the version is persisted with every pass
+in `contextManifests`.
 
 ## Shared rules (every pass)
 
@@ -22,7 +23,9 @@ is persisted with every pass in `contextManifests`.
 `map` → `read` × N units (round 1) → **L1** re-reads (≤2 rounds) → `dig` (one focused round) →
 **L2** claims already evaluated at the link boundary → `synthesize` → **L3** revise (≤2 rounds).
 Schema-invalid replies (map/read/dig/synthesize) are repairable rounds, never run-ending.
-Every `read` call gets its unit's `facts.json`; citations are checked against the **full digest
+Every `read` call gets its unit's `facts.json`, `bodies.jsonl` (function bodies of added/changed
+functions — explain behaviour first) and file-balanced snippet anchors (≤40/file); an oversized
+unit is read in chunks (`chunk C of K`). Citations are checked against the **full digest
 registry**, never against the budgeted evidence pack.
 
 ## Passes
@@ -30,9 +33,9 @@ registry**, never against the budgeted evidence pack.
 | Pass | Role | Output schema |
 | --- | --- | --- |
 | `map` | Refine the engine partition into themes by choosing **file ids** (`f1…fN`); every changed file exactly once (set equality enforced); invalid output re-runs ≤2 rounds with repair constraints, else the engine partition falls back | `MapOutputSchema` |
-| `read` | One reading unit per call (every unit, every run); findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
+| `read` | One reading unit — or chunk when oversized — per call (every unit, every run); explain behaviour first from `bodies.jsonl`; findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
 | `dig` | One focused round: queries resolved deterministically against the full anchor registry (≤40 anchors) | `DigOutputSchema` |
-| `synthesize` | Final writer: verdict, score, per-theme narratives, findings carried forward unchanged — may not add anchors or claims. A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
+| `synthesize` | Final writer: verdict, score, per-theme structured narratives (`summary`/`behaviorChange`/`watchFor` + linker-validated `anchorIds`), findings carried forward unchanged — may not add anchors or claims. A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
 
 ## Guards around the passes (linker — `packages/ai/src/link/`)
 
@@ -43,8 +46,9 @@ registry**, never against the budgeted evidence pack.
   the statement (long quoted fragments are verified against cited snippets instead).
 - Claims must evaluate true or the finding dies; quotes must appear in cited snippets (else
   confidence drops to `unknown`).
-- Theme narratives must name the engine theme ids exactly once; a narrative carrying free
-  numbers is dropped.
+- Theme narratives must name the engine theme ids exactly once, carry linker-validated anchors,
+  and survive the placeholder/free-number scan across `summary`/`behaviorChange`/`watchFor` — or
+  the theme narrative is dropped.
 - Nothing is silent: every strip/downgrade emits a `LinkIssue` + counter in `PipelineVerification`.
 - Context assembly budgets remain attention economy (600 anchors / 1.8 MB, tiered + spread per
   file); the digest registry and fact store are the authority. See `docs/INSEA.md` for the

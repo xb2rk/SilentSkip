@@ -71,9 +71,9 @@ describe("prompt registry v2", () => {
   it("pins the prompt versions", () => {
     expect(PROMPT_VERSIONS).toEqual({
       map: "2.1.0",
-      read: "2.0.0",
+      read: "2.2.0",
       dig: "2.0.0",
-      synthesize: "2.0.0",
+      synthesize: "2.2.0",
     });
   });
 });

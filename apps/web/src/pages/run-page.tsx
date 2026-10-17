@@ -55,6 +55,8 @@ interface StageState {
   readonly latencyMs?: number;
   readonly unit?: number;
   readonly units?: number;
+  readonly chunk?: number;
+  readonly chunks?: number;
   readonly round?: number;
 }
 
@@ -73,6 +75,9 @@ function stageStates(events: readonly ReviewStreamEvent[]): Record<StageName, St
       ...(event.unit === undefined || event.units === undefined
         ? {}
         : { unit: event.unit, units: event.units }),
+      ...(event.chunk === undefined || event.chunks === undefined
+        ? {}
+        : { chunk: event.chunk, chunks: event.chunks }),
       ...(event.round === undefined ? {} : { round: event.round }),
     };
     states[event.stage] =
@@ -278,6 +283,14 @@ export function RunPage() {
                       {t("run.stageReadProgress", { unit: state.unit, units: state.units })}
                     </span>
                   )}
+                  {stage === "read" &&
+                    state.chunk !== undefined &&
+                    state.chunks !== undefined &&
+                    state.chunks > 1 && (
+                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                        {t("run.chunkProgress", { chunk: state.chunk, chunks: state.chunks })}
+                      </span>
+                    )}
                   {(stage === "read" || stage === "synthesize") &&
                     state.round !== undefined &&
                     state.round > 1 && (
@@ -431,6 +444,8 @@ export function RunPage() {
                     digest={digestQuery.data}
                     engineFindings={engineFindings}
                     aiFindings={aiFindings}
+                    anchorsById={anchorsById}
+                    onAnchorClick={setAnchor}
                   />
                   <details className="rounded-lg border border-border/60 p-3">
                     <summary className="cursor-pointer text-[12px] font-medium">

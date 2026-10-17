@@ -184,15 +184,35 @@ describe("linkReport", () => {
       makeReport(
         [finding()],
         [
-          { themeId: "theme-1", narrative: "ok" },
-          { themeId: "theme-1", narrative: "dupe" },
-          { themeId: "theme-9", narrative: "unknown" },
+          {
+            themeId: "theme-1",
+            summary: "ok",
+            behaviorChange: "ok",
+            watchFor: "ok",
+            anchorIds: [],
+          },
+          {
+            themeId: "theme-1",
+            summary: "dupe",
+            behaviorChange: "dupe",
+            watchFor: "dupe",
+            anchorIds: [],
+          },
+          {
+            themeId: "theme-9",
+            summary: "unknown",
+            behaviorChange: "unknown",
+            watchFor: "unknown",
+            anchorIds: [],
+          },
         ],
       ),
       INDEX,
       { seenAnchors: new Set([ANCHOR_B_ATK]), themeIds: ["theme-1", "theme-2"] },
     );
-    expect(result.report.themes).toEqual([{ themeId: "theme-1", narrative: "ok" }]);
+    expect(result.report.themes).toEqual([
+      { themeId: "theme-1", summary: "ok", behaviorChange: "ok", watchFor: "ok", anchorIds: [] },
+    ]);
     expect(result.issues.filter((issue) => issue.kind === "theme-invalid")).toHaveLength(3);
   });
 
@@ -201,14 +221,34 @@ describe("linkReport", () => {
       makeReport(
         [finding()],
         [
-          { themeId: "theme-1", narrative: `value {{f:${Q_MOD_B}}}` },
-          { themeId: "theme-2", narrative: "changed 17 columns" },
+          {
+            themeId: "theme-1",
+            summary: `value {{f:${Q_MOD_B}}}`,
+            behaviorChange: "ok",
+            watchFor: "ok",
+            anchorIds: [ANCHOR_B_ATK],
+          },
+          {
+            themeId: "theme-2",
+            summary: "changed 17 columns",
+            behaviorChange: "ok",
+            watchFor: "ok",
+            anchorIds: [],
+          },
         ],
       ),
       INDEX,
       { seenAnchors: new Set([ANCHOR_B_ATK]), themeIds: ["theme-1", "theme-2"] },
     );
-    expect(result.report.themes).toEqual([{ themeId: "theme-1", narrative: "value 999983" }]);
+    expect(result.report.themes).toEqual([
+      {
+        themeId: "theme-1",
+        summary: "value 999983",
+        behaviorChange: "ok",
+        watchFor: "ok",
+        anchorIds: [ANCHOR_B_ATK],
+      },
+    ]);
     expect(result.issues.some((issue) => issue.kind === "free-number")).toBe(true);
   });
 

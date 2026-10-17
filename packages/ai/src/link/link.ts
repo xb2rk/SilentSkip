@@ -265,6 +265,32 @@ export function linkReport(
   const themeIdSet = new Set(themeIds);
   const narrated = new Set<string>();
   const themes: ThemeNarrative[] = [];
+  const renderThemeText = (text: string, themeId: string, field: string): string | undefined => {
+    const rendered = renderStatement(text, index);
+    numbersChecked += rendered.factIds.length;
+    if (rendered.unknownIds.length > 0) {
+      numbersUnverified += rendered.unknownIds.length;
+      issues.push({
+        kind: "unknown-fact",
+        pass: "synthesize",
+        target: themeId,
+        detail: `${field} cites unknown fact id(s): ${rendered.unknownIds.join(", ")}`,
+      });
+      return undefined;
+    }
+    const freeNumbers = findFreeNumbers(text, index, themeLiterals);
+    if (freeNumbers.length > 0) {
+      numbersUnverified += freeNumbers.length;
+      issues.push({
+        kind: "free-number",
+        pass: "synthesize",
+        target: themeId,
+        detail: `${field} number(s) without a fact source: ${freeNumbers.slice(0, 5).join(", ")}`,
+      });
+      return undefined;
+    }
+    return rendered.text;
+  };
   for (const theme of report.themes) {
     if (!themeIdSet.has(theme.themeId) || narrated.has(theme.themeId)) {
       issues.push({
@@ -277,31 +303,24 @@ export function linkReport(
       });
       continue;
     }
-    const rendered = renderStatement(theme.narrative, index);
-    numbersChecked += rendered.factIds.length;
-    if (rendered.unknownIds.length > 0) {
-      numbersUnverified += rendered.unknownIds.length;
+    const summary = renderThemeText(theme.summary, theme.themeId, "summary");
+    const behaviorChange = renderThemeText(theme.behaviorChange, theme.themeId, "behaviorChange");
+    const watchFor = renderThemeText(theme.watchFor, theme.themeId, "watchFor");
+    const anchorIds = theme.anchorIds.filter((anchorId) => {
+      if (index.anchors.has(anchorId)) return true;
       issues.push({
-        kind: "unknown-fact",
+        kind: "theme-invalid",
         pass: "synthesize",
         target: theme.themeId,
-        detail: `narrative cites unknown fact id(s): ${rendered.unknownIds.join(", ")}`,
+        detail: `narrative anchor not in the registry: ${anchorId}`,
       });
-      continue;
-    }
-    const freeNumbers = findFreeNumbers(theme.narrative, index, themeLiterals);
-    if (freeNumbers.length > 0) {
-      numbersUnverified += freeNumbers.length;
-      issues.push({
-        kind: "free-number",
-        pass: "synthesize",
-        target: theme.themeId,
-        detail: `narrative number(s) without a fact source: ${freeNumbers.slice(0, 5).join(", ")}`,
-      });
+      return false;
+    });
+    if (summary === undefined || behaviorChange === undefined || watchFor === undefined) {
       continue;
     }
     narrated.add(theme.themeId);
-    themes.push({ themeId: theme.themeId, narrative: rendered.text });
+    themes.push({ themeId: theme.themeId, summary, behaviorChange, watchFor, anchorIds });
   }
   for (const themeId of themeIds) {
     if (!narrated.has(themeId)) {

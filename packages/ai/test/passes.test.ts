@@ -134,20 +134,25 @@ describe("read pass", () => {
       constraints: [],
       relatedFindings: CONTEXT.engineFindings,
       anchors: CONTEXT.evidence,
+      chunk: 1,
+      chunks: 1,
     });
     expect(result.output.findings).toHaveLength(1);
     expect(result.meta).toEqual({
       pass: "read",
-      promptVersion: "2.0.0",
+      promptVersion: "2.2.0",
       latencyMs: 7,
       salvage: "clean",
       unit: 1,
+      chunk: 1,
+      chunks: 1,
       round: 1,
     });
     expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
       "task.json",
       "unit.json",
       "facts.json",
+      "bodies.jsonl",
       "anchors.jsonl",
       "skeleton.json",
     ]);
@@ -158,6 +163,9 @@ describe("read pass", () => {
     expect(
       (attachmentOf(firstCall(calls), "anchors.jsonl")?.content ?? "").split("\n"),
     ).toHaveLength(4);
+    expect(
+      (attachmentOf(firstCall(calls), "bodies.jsonl")?.content ?? "").split("\n"),
+    ).toHaveLength(1);
   });
 
   it("carries round constraints into the prompt", async () => {
@@ -169,6 +177,8 @@ describe("read pass", () => {
       constraints: ["STRUCT-01: Row width differs — anchors: x"],
       relatedFindings: [],
       anchors: [],
+      chunk: 1,
+      chunks: 1,
     });
     expect(firstCall(calls).prompt).toContain("Constraints from the previous round");
     expect(firstCall(calls).prompt).toContain("STRUCT-01");

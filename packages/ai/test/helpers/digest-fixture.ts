@@ -25,7 +25,7 @@ const BLOB_SHA = "0000000000000000000000000000000000000000";
 /** Fresh digest fixture — every call returns a new object so tests can mutate freely. */
 export function makeDigest(): DigestBundle {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     refs: {
       base: { ref: "HEAD~1", commitHash: "aaaa1111" },
       current: { ref: "WORKTREE", commitHash: null },
@@ -200,6 +200,19 @@ export function makeDigest(): DigestBundle {
         derivation: ["Header cell count on side B: 2."],
       },
     ],
+    bodies: [
+      {
+        file: SCRIPT_PATH,
+        symbolId: `${SCRIPT_PATH}#Recompute@64`,
+        name: "Recompute",
+        kind: "function",
+        side: "B",
+        lineStart: 4,
+        lineEnd: 6,
+        truncated: false,
+        text: "func Recompute() int {\n    return _MOD\n  }",
+      },
+    ],
     plan: {
       units: [
         {
@@ -307,7 +320,15 @@ export function makeDigest(): DigestBundle {
     ],
     manifest: {
       budgets: { maxJourneys: 60, maxAnchors: 500 },
-      counts: { changedScripts: 1, changedTables: 1, anchors: 4, journeys: 1, contextItems: 1 },
+      counts: {
+        changedScripts: 1,
+        changedTables: 1,
+        anchors: 4,
+        journeys: 1,
+        contextItems: 1,
+        bodies: 1,
+        bodiesTruncated: 0,
+      },
       selection: { journeyCandidates: 1, journeysSelected: 1, anchorsDropped: 0 },
       notes: [],
     },

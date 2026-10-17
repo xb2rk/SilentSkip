@@ -1,4 +1,5 @@
 import type {
+  Anchor,
   DigestBundle,
   DigestFinding,
   RunTheme,
@@ -7,6 +8,7 @@ import type {
 import { cn } from "cn";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
+import { AnchorChip } from "./finding-card";
 
 /** Status letter + colour for one file chip — raw engine skeleton status, nothing inferred. */
 const STATUS_STYLES: Record<
@@ -23,17 +25,20 @@ const MAX_VISIBLE_FILES = 12;
 interface ThemeMapProps {
   /** The run's engine-validated partition (persisted with the run, E7.4). */
   readonly themes: readonly RunTheme[];
-  /** One narrative per theme id — AI INTERPRETATION, never a fact source. */
+  /** One structured narrative per theme id — AI INTERPRETATION, validated by the linker (E7.5). */
   readonly narratives: SynthesizeOutput["themes"];
   readonly digest: DigestBundle;
   readonly engineFindings: readonly DigestFinding[];
   readonly aiFindings: SynthesizeOutput["findings"];
+  readonly anchorsById: ReadonlyMap<string, Anchor>;
+  readonly onAnchorClick: (anchor: Anchor) => void;
 }
 
 /**
- * The change map (E7.4) — every engine-validated theme with its narrative, file set and
- * finding counts. The partition and the counts come from the engine; theme names and
- * narratives are labelled AI interpretation.
+ * The change map (E7.4, structured narratives at E7.5) — every engine-validated theme with its
+ * summary / behaviour change / watch-for narrative, file set and finding counts. The partition,
+ * counts and file statuses come from the engine; the narrative text is labelled AI interpretation
+ * and its anchors were linker-validated against the full registry.
  */
 export function ThemeMap({
   themes,
@@ -41,6 +46,8 @@ export function ThemeMap({
   digest,
   engineFindings,
   aiFindings,
+  anchorsById,
+  onAnchorClick,
 }: ThemeMapProps) {
   const { t } = useTranslation();
   if (themes.length === 0) {
@@ -48,7 +55,7 @@ export function ThemeMap({
   }
 
   const narrativeOf = new Map(
-    narratives.map((narrative) => [narrative.themeId, narrative.narrative] as const),
+    narratives.map((narrative) => [narrative.themeId, narrative] as const),
   );
   const themeOfFile = new Map(
     themes.flatMap((theme) => theme.files.map((file) => [file, theme.id] as const)),
@@ -105,7 +112,37 @@ export function ThemeMap({
               {narrative === undefined ? (
                 <p className="text-[12px] text-muted-foreground">{t("run.themeNoNarrative")}</p>
               ) : (
-                <p className="flex-1 text-[12.5px] leading-relaxed">{narrative}</p>
+                <div className="flex-1 space-y-1.5">
+                  <p className="text-[12.5px] leading-relaxed">{narrative.summary}</p>
+                  <p className="text-[12px] leading-relaxed">
+                    <span className="font-medium text-muted-foreground">
+                      {t("run.themeBehaviorLabel")}
+                    </span>{" "}
+                    {narrative.behaviorChange}
+                  </p>
+                  <p className="text-[12px] leading-relaxed">
+                    <span className="font-medium text-muted-foreground">
+                      {t("run.themeWatchLabel")}
+                    </span>{" "}
+                    {narrative.watchFor}
+                  </p>
+                  {narrative.anchorIds.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-muted-foreground">
+                        {t("run.themeEvidenceLabel")}
+                      </span>
+                      {narrative.anchorIds.map((anchorId) => (
+                        <AnchorChip
+                          key={anchorId}
+                          anchorId={anchorId}
+                          anchorsById={anchorsById}
+                          onAnchorClick={onAnchorClick}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div className="flex flex-wrap gap-1.5">

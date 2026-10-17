@@ -349,6 +349,8 @@ export class ReviewManager {
       ...(event.salvage === undefined ? {} : { salvage: event.salvage }),
       ...(event.unit === undefined ? {} : { unit: event.unit }),
       ...(event.units === undefined ? {} : { units: event.units }),
+      ...(event.chunk === undefined ? {} : { chunk: event.chunk }),
+      ...(event.chunks === undefined ? {} : { chunks: event.chunks }),
       ...(event.round === undefined ? {} : { round: event.round }),
     });
   }
@@ -383,6 +385,8 @@ export class ReviewManager {
             latencyMs: meta.latencyMs,
             salvage: meta.salvage,
             ...(meta.unit === undefined ? {} : { unit: meta.unit }),
+            ...(meta.chunk === undefined ? {} : { chunk: meta.chunk }),
+            ...(meta.chunks === undefined ? {} : { chunks: meta.chunks }),
             ...(meta.round === undefined ? {} : { round: meta.round }),
           }),
           verifiedStatsJson: stats === null ? null : JSON.stringify(stats),

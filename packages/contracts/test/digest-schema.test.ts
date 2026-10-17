@@ -16,7 +16,7 @@ const ANCHOR = {
 };
 
 const EMPTY_DIGEST = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   refs: {
     base: { ref: "HEAD~1", commitHash: "a".repeat(40) },
     current: { ref: "WORKTREE", commitHash: null },
@@ -37,6 +37,7 @@ const EMPTY_DIGEST = {
   context: [],
   quantities: [],
   findings: [],
+  bodies: [],
   plan: {
     units: [],
     skeleton: { files: [], importEdges: [] },
@@ -45,7 +46,15 @@ const EMPTY_DIGEST = {
   anchors: [],
   manifest: {
     budgets: { maxJourneys: 12, maxAnchors: 500 },
-    counts: { changedScripts: 0, changedTables: 0, anchors: 0, journeys: 0, contextItems: 0 },
+    counts: {
+      changedScripts: 0,
+      changedTables: 0,
+      anchors: 0,
+      journeys: 0,
+      contextItems: 0,
+      bodies: 0,
+      bodiesTruncated: 0,
+    },
     selection: { journeyCandidates: 0, journeysSelected: 0, anchorsDropped: 0 },
     notes: [],
   },
@@ -128,7 +137,15 @@ describe("digest bundle schema", () => {
       anchors: [ANCHOR],
       manifest: {
         ...EMPTY_DIGEST.manifest,
-        counts: { changedScripts: 1, changedTables: 0, anchors: 1, journeys: 1, contextItems: 1 },
+        counts: {
+          changedScripts: 1,
+          changedTables: 0,
+          anchors: 1,
+          journeys: 1,
+          contextItems: 1,
+          bodies: 0,
+          bodiesTruncated: 0,
+        },
       },
     };
     expect(DigestBundleSchema.parse(digest)).toEqual(digest);

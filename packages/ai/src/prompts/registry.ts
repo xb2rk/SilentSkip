@@ -13,9 +13,9 @@ import type { EvidenceAnchor, ReviewContext } from "../context/types.js";
 /** Prompt versions per pass. Bump on any wording change. */
 export const PROMPT_VERSIONS = {
   map: "2.1.0",
-  read: "2.0.0",
+  read: "2.2.0",
   dig: "2.0.0",
-  synthesize: "2.0.0",
+  synthesize: "2.2.0",
 } as const;
 
 const SHARED_RULES = `Rules (non-negotiable):
@@ -68,17 +68,22 @@ ${taskPackBlock(context)}
 - skeleton.json — changed files with their ids, import edges, base partition, engine findings`;
 }
 
-/** One `read` call — one reading unit of the multi-call flow. */
+/** One `read` call — one reading unit (or one chunk of a large unit) of the multi-call flow. */
 export function buildReadPrompt(
   context: ReviewContext,
   unitIndex: number,
   unitsTotal: number,
   round: number,
   constraints: readonly string[],
+  chunkLabel?: string,
 ): string {
   const unit = context.plan.units[unitIndex - 1];
   const files = unit === undefined ? "" : unit.files.join(", ");
-  return `You are pass "read" — one unit of the multi-call reading flow of an A/B review. Each unit is a lossless compaction of part of the change (unit.json). Read THIS unit and report behavior-relevant findings you can ground in its data.
+  const chunkLine =
+    chunkLabel === undefined
+      ? ""
+      : `\nThis is ${chunkLabel} of the unit — read it as part of the same unit; do not repeat conclusions already fully covered by sibling chunks.`;
+  return `You are pass "read" — one unit of the multi-call reading flow of an A/B review. Each unit is a lossless compaction of part of the change (unit.json). FIRST explain what the added/changed code DOES now: use bodies.jsonl (real function bodies) and unit.json values to describe behavior, not just names. THEN report behavior-relevant findings you can ground in the attached data.
 
 ${SHARED_RULES}
 
@@ -86,11 +91,11 @@ ${SHARED_RULES}
 Strict JSON with exactly these keys:
 {"findings":[{"title":"...","statement":"...","anchors":["<anchor id>"],"severity":"critical|major|minor|info","confidence":"exact|inferred|unknown","claims":[{"subject":"<factId>","relation":"equals|differs","object":"<factId>"}]}],"unknowns":["..."],"negativeResults":["..."],"needMore":["..."]}
 
-- findings: conclusions about THIS unit only; statements must read naturally once placeholders are filled with their values.
+- findings: conclusions about THIS unit only; statements must read naturally once placeholders are filled with their values. Prefer one finding per behavior change — name the function/system and what it now does — over broad summaries; each finding cites its anchors.
 - negativeResults: checks you ran inside this unit that found nothing.
-- needMore: at most 3 short queries for spans you could not see in this unit ([] when fine).
+- needMore: at most 3 short queries for spans you could not see in this unit ([] when fine). When a behavior cannot be determined from the attached material, say exactly what is missing instead of hedging.
 
-## Unit ${unitIndex} of ${unitsTotal} (round ${round})
+## Unit ${unitIndex} of ${unitsTotal} (round ${round})${chunkLine}
 files: ${files}
 
 ${constraintsBlock(constraints)}
@@ -101,6 +106,7 @@ ${taskPackBlock(context)}
 - task.json — refs, stats, goal and lens
 - unit.json — this unit's files with changed symbols/rows/cells and their values
 - facts.json — the fact store slice: quantity ids, and engine findings touching this unit
+- bodies.jsonl — function bodies of added/changed functions in this unit's files (the behavioral text)
 - anchors.jsonl — change-line snippets (with ids) for this unit's files
 - skeleton.json — the whole change map (all files, import edges)`;
 }
@@ -162,12 +168,14 @@ pass | pass_with_warnings | needs_review | fail | insufficient_evidence — choo
 
 ## What to produce
 Strict JSON with exactly these keys:
-{"verdict":"...","qualityScore":0,"executiveSummary":"...","topConcerns":["..."],"themes":[{"themeId":"...","narrative":"..."}],"findings":[{"title":"...","statement":"...","anchors":["<anchor id>"],"severity":"...","confidence":"...","claims":[{"subject":"<factId>","relation":"equals|differs","object":"<factId>"}],"consequence":"...","recommendation":"..."}],"recommendedTests":["..."],"unknowns":["..."]}
+{"verdict":"...","qualityScore":0,"executiveSummary":"...","topConcerns":["..."],"themes":[{"themeId":"...","summary":"...","behaviorChange":"...","watchFor":"...","anchorIds":["<anchor id>"]}],"findings":[{"title":"...","statement":"...","anchors":["<anchor id>"],"severity":"...","confidence":"...","claims":[{"subject":"<factId>","relation":"equals|differs","object":"<factId>"}],"consequence":"...","recommendation":"..."}],"recommendedTests":["..."],"unknowns":["..."]}
 
 - themes: one narrative per themeId — exactly these ids, each exactly once: ${themeIds}
+  Three short registers per theme: "summary" (what this part of the change is), "behaviorChange" (what now happens differently — state it directly; no hedging filler), "watchFor" (what to verify). "anchorIds" lists the anchor ids from anchors.jsonl that back the narrative — at least one per theme.
 - findings: carry the linked findings forward with their anchors and claims unchanged.
 - recommendedTests: concrete in-game checks a designer can run to confirm behavior.
 - topConcerns: at most 5, ordered by risk.
+- If something cannot be determined, name exactly what is missing in "unknowns" — never pad the narrative with vague uncertainty.
 
 ${constraintsBlock(constraints)}
 

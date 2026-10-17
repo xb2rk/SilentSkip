@@ -1,4 +1,5 @@
 import type {
+  DigestBody,
   DigestChangeFact,
   DigestContextItem,
   DigestFinding,
@@ -65,6 +66,8 @@ export interface ReviewContext {
   readonly quantities: readonly DigestQuantity[];
   /** Engine findings (layer 3) that the reading flow must interpret — never sampled. */
   readonly engineFindings: readonly DigestFinding[];
+  /** Function bodies of added/changed functions (E7.5) — the behavioral reading material. */
+  readonly bodies: readonly DigestBody[];
   readonly manifest: ReviewContextManifest;
 }
 

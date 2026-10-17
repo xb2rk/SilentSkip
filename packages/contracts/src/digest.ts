@@ -189,6 +189,22 @@ export const DigestContextItemSchema = z.object({
   anchorId: z.string().nullable(),
 });
 
+/**
+ * One function body shipped as reading material (E7.5): added/changed code the AI can ground
+ * behavioral statements on. Exact source slice — truncated only with the `truncated` flag set.
+ */
+export const DigestBodySchema = z.object({
+  file: z.string(),
+  symbolId: z.string(),
+  name: z.string(),
+  kind: z.string(),
+  side: AnchorRefSchema,
+  lineStart: z.number().int().positive(),
+  lineEnd: z.number().int().positive(),
+  truncated: z.boolean(),
+  text: z.string(),
+});
+
 /** Honest accounting of the span selection: budgets, counts and what was dropped. */
 export const DigestManifestSchema = z.object({
   budgets: z.object({
@@ -201,6 +217,10 @@ export const DigestManifestSchema = z.object({
     anchors: z.number().int().nonnegative(),
     journeys: z.number().int().nonnegative(),
     contextItems: z.number().int().nonnegative(),
+    /** Function bodies shipped as reading material (E7.5). */
+    bodies: z.number().int().nonnegative(),
+    /** Bodies truncated per-function or omitted beyond the body budget. */
+    bodiesTruncated: z.number().int().nonnegative(),
   }),
   selection: z.object({
     journeyCandidates: z.number().int().nonnegative(),
@@ -280,6 +300,8 @@ export const DigestBundleSchema = z.object({
   quantities: z.array(DigestQuantitySchema),
   /** Deterministic engine findings (layer 3). */
   findings: z.array(DigestFindingSchema),
+  /** Body material: function bodies of added/changed functions (E7.5 reading depth). */
+  bodies: z.array(DigestBodySchema),
   /** Reading plan: units + skeleton + base partition (E7 flow). */
   plan: DigestPlanSchema,
   anchors: z.array(AnchorSchema),
@@ -301,6 +323,7 @@ export type DigestTableChange = z.infer<typeof DigestTableChangeSchema>;
 export type DigestChangeFact = z.infer<typeof DigestChangeFactSchema>;
 export type DigestQuantity = z.infer<typeof DigestQuantitySchema>;
 export type DigestFinding = z.infer<typeof DigestFindingSchema>;
+export type DigestBody = z.infer<typeof DigestBodySchema>;
 export type DigestUnit = z.infer<typeof DigestUnitSchema>;
 export type DigestSkeletonFile = z.infer<typeof DigestSkeletonFileSchema>;
 export type DigestSkeletonEdge = z.infer<typeof DigestSkeletonEdgeSchema>;

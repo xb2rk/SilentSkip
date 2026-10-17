@@ -81,7 +81,15 @@ describe("pass I/O schemas (v2)", () => {
       qualityScore: 72,
       executiveSummary: "Summary of the change.",
       topConcerns: ["attack spike in early waves"],
-      themes: [{ themeId: "theme-1", narrative: "Combat pacing moved earlier." }],
+      themes: [
+        {
+          themeId: "theme-1",
+          summary: "Combat pacing moved earlier.",
+          behaviorChange: "The attack value increased.",
+          watchFor: "Early-wave TTK.",
+          anchorIds: ["B:Assets/CSV/UnitData.csv:2:2:csv:r:scout:c:atk"],
+        },
+      ],
       findings: [
         {
           title: "Damage spike",

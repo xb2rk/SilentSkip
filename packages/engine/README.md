@@ -10,7 +10,7 @@ eventually findings.
   source coordinates (1-based lines, 0-based UTF-16 offsets) so UI anchors map 1:1 to files;
   malformed input (unterminated quotes) is reported in `anomalies`, never silently repaired.
   Guarded by a checked-in 33-file corpus gate (`test/corpus`, provenance in its README).
-- **Facts (E2.3, v2 at E7.1)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg`
+- **Facts (E2.3, v3 at E7.5)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg`
   sources into a deterministic `FactBundle` — symbols with scope/container, name references with
   name-level resolution (`resolved` / `ambiguous` / `unresolved` — never guessed), calls
   (callee/receiver/arity, `start`/`wait` prefixes), raw string literals, imports, and doc
@@ -19,6 +19,8 @@ eventually findings.
   v2 adds `values` (raw literal initializers bound to their declaring symbol) and `comparisons`
   (raw guard comparisons with faithful left/right spans) — the fact families the AI flow cites
   numbers through, so a claim about a value must point at the fact that owns it.
+  v3 adds `paramCount` on function/event symbols — the deterministic material for the call-arity
+  check.
   Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
 - **Relations (E2.5)** — `buildRelations(bundle, { csvPaths })`: derives `name-refers-to-symbol`,
   `name-refers-to-import`, `call-name-resolves`, `call-receiver-import`, `import-statement`,
@@ -53,8 +55,11 @@ eventually findings.
   → info); `BIND-03` channel ② candidate — an enum covering every header column (inferred;
   pin-matched → `exact`, stale pin → its own finding); `BIND-04` channel ③ — a changed table no
   code references (the absence is exact, the use stays unknown); `DANGLING-REF` removed symbol
-  with unresolved same-name references. Every finding carries severity, confidence, witness
-  anchors (registered into the digest registry) and a derivation chain. Guarded by
+  with unresolved same-name references; `CALL-ARITY-01` same-file call whose argument count no
+  longer matches the resolved declaration (major/`exact` — signature drift from refactors);
+  `ORPHAN-ADD-01` added function nothing references anywhere (info/`exact`). Every finding
+  carries severity, confidence, witness anchors (registered into the digest registry) and a
+  derivation chain. Guarded by
   `test/checks.test.ts`.
 - **Reading plan (E7.1)** — `buildReadingPlan({ scripts, tables, graphEdges })`: the lossless
   compaction the AI flow reads — units contain every changed file exactly once (never split),
@@ -63,13 +68,15 @@ eventually findings.
   deduped import edges) and the base partition is a true set partition of the changed files
   (import edges + same-directory grouping) that the AI may only refine. Guarded by
   `test/plan.test.ts`.
-- **Digest (E3, v2 at E7.1)** — `buildDigest({ base, current, budgets? })`: the deterministic
+- **Digest (E3, v3 at E7.5)** — `buildDigest({ base, current, budgets? })`: the deterministic
   fact sheet for an A/B range — layer [1] change facts (symbols with values, imports, CSV rows
   and cells), layer [2] linked journeys (60 by default — changed tables/rows first, per-file
   caps, every node anchor-backed), layer [3] engine findings from `runChecks`, layer [4] context
   (doc comments of changed symbols, profile conventions, entity notes). Quantities (`q:*`
   entries: column counts, row counts, symbol counts, literal values) carry the numbers the flow
-  may cite; the reading plan ships inside the digest. A content-stable anchor registry
+  may cite; the reading plan ships inside the digest. v3 adds `bodies` — the function bodies of
+  added/changed functions (added files first, 4 KB per function, 400 KB budget; every stop or
+  per-function truncation is counted in the manifest). A content-stable anchor registry
   (ref+file+line ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship
   with it; every number is computed here — never by a model. Guarded by engineered +
   corpus-grounded tests (`test/digest*.test.ts`).

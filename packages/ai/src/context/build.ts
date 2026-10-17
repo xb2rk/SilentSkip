@@ -89,6 +89,7 @@ export function buildReviewContext(
     plan: digest.plan,
     quantities: digest.quantities,
     engineFindings: digest.findings,
+    bodies: digest.bodies,
     manifest: {
       counts: {
         changeFacts: digest.changeFacts.length,
@@ -229,6 +230,21 @@ export function serializeFactsFile(
       2,
     ),
   );
+}
+
+/**
+ * Serialize function bodies of the given files as `bodies.jsonl` (E7.5) — the material that
+ * lets `read` explain what added/changed code does now instead of only naming symbols.
+ */
+export function serializeBodiesFile(
+  context: ReviewContext,
+  files: readonly string[],
+): InseaAttachment {
+  const fileSet = new Set(files);
+  const lines = context.bodies
+    .filter((body) => fileSet.has(body.file))
+    .map((body) => JSON.stringify(body));
+  return attachment("bodies.jsonl", "application/x-ndjson", lines.join("\n"));
 }
 
 /** Serialize the refined theme partition as `themes.json` (synthesize pass). */

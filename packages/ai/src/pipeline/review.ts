@@ -1,11 +1,13 @@
 import type {
+  Anchor,
   DigestBundle,
+  DigestUnit,
   ReadFinding,
   ReviewLens,
   SynthesizeOutput,
 } from "@craftland-qa/contracts";
 import { buildReviewContext, changeFileIds, evidenceAnchorsOf } from "../context/build.js";
-import type { ReviewContextManifest } from "../context/types.js";
+import type { EvidenceAnchor, ReviewContextManifest } from "../context/types.js";
 import { AiError } from "../errors.js";
 import { buildFactIndex } from "../facts/fact-index.js";
 import { runInseaWorkflow } from "../insea/client.js";
@@ -40,6 +42,126 @@ const MAX_CONSTRAINT_LINES = 10;
 /** Upper bound of snippet anchors shipped to one read call (grounding text per unit). */
 const MAX_UNIT_ANCHORS = 300;
 
+/** Per-file cap inside one read call — every file keeps representation (E7.5 balance). */
+const MAX_ANCHORS_PER_FILE = 40;
+
+/**
+ * Byte budget of one read call's material (compact payload + function bodies). Units whose
+ * material exceeds it are read chunk by chunk — sequential calls, nothing dropped (E7.5).
+ */
+const READ_CHUNK_BUDGET_BYTES = 90_000;
+
+/** One attention slice of a reading unit — a chunk is one `read` call. */
+interface ReadChunk {
+  readonly index: number;
+  readonly files: readonly string[];
+  readonly payload: string;
+}
+
+/**
+ * Split a reading unit's material into read-call chunks of ~`budget` bytes. Files keep the unit's
+ * order; a single oversized file goes into a chunk alone. The material stays lossless: chunks are
+ * sequential read calls, not a sampling of the unit.
+ */
+function chunkReadingUnit(
+  unit: DigestUnit,
+  bodyBytesByFile: ReadonlyMap<string, number>,
+  budget: number,
+): ReadChunk[] {
+  const entries = JSON.parse(unit.payload) as { path?: unknown }[];
+  const byPath = new Map<string, unknown[]>();
+  const order: string[] = [];
+  for (const entry of entries) {
+    const path = typeof entry.path === "string" ? entry.path : "";
+    const list = byPath.get(path);
+    if (list === undefined) {
+      byPath.set(path, [entry]);
+      order.push(path);
+    } else {
+      list.push(entry);
+    }
+  }
+  if (order.length <= 1) {
+    return [{ index: 0, files: [...unit.files], payload: unit.payload }];
+  }
+  const weightOf = (path: string): number =>
+    JSON.stringify(byPath.get(path) ?? []).length + (bodyBytesByFile.get(path) ?? 0);
+  const serialize = (files: readonly string[]): string =>
+    JSON.stringify(files.flatMap((file) => byPath.get(file) ?? []));
+  const chunks: ReadChunk[] = [];
+  let current: string[] = [];
+  let currentBytes = 0;
+  for (const path of order) {
+    const weight = weightOf(path);
+    if (current.length > 0 && currentBytes + weight > budget) {
+      chunks.push({ index: chunks.length, files: current, payload: serialize(current) });
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(path);
+    currentBytes += weight;
+  }
+  if (current.length > 0) {
+    chunks.push({ index: chunks.length, files: current, payload: serialize(current) });
+  }
+  return chunks;
+}
+
+/**
+ * Balanced unit anchors (E7.5): group by file, keep evidence-pack anchors first per file, cap
+ * `MAX_ANCHORS_PER_FILE` per file and interleave files round-robin under `MAX_UNIT_ANCHORS` —
+ * one noisy file (localization tables say) can no longer starve every other file of context.
+ */
+function selectUnitAnchors(
+  anchors: readonly Anchor[],
+  evidenceIds: ReadonlySet<string>,
+): EvidenceAnchor[] {
+  const byFile = new Map<string, Anchor[]>();
+  for (const anchor of anchors) {
+    const list = byFile.get(anchor.file);
+    if (list === undefined) byFile.set(anchor.file, [anchor]);
+    else list.push(anchor);
+  }
+  const files = [...byFile.keys()].sort(compareStrings);
+  const queues = files.map((file) => {
+    const list = byFile.get(file) ?? [];
+    return list
+      .sort(
+        (a, b) =>
+          Number(evidenceIds.has(b.id)) - Number(evidenceIds.has(a.id)) ||
+          a.lineStart - b.lineStart ||
+          compareStrings(a.id, b.id),
+      )
+      .slice(0, MAX_ANCHORS_PER_FILE);
+  });
+  const cursors = queues.map(() => 0);
+  const selected: EvidenceAnchor[] = [];
+  let progressed = true;
+  while (progressed && selected.length < MAX_UNIT_ANCHORS) {
+    progressed = false;
+    for (let index = 0; index < queues.length; index++) {
+      const queue = queues[index];
+      const cursor = cursors[index];
+      if (queue === undefined || cursor === undefined) continue;
+      const next = queue[cursor];
+      if (next === undefined) continue;
+      cursors[index] = cursor + 1;
+      selected.push({
+        id: next.id,
+        ref: next.ref,
+        file: next.file,
+        lineStart: next.lineStart,
+        lineEnd: next.lineEnd,
+        kind: next.kind,
+        snippet: next.snippet,
+      });
+      progressed = true;
+      if (selected.length >= MAX_UNIT_ANCHORS) break;
+    }
+  }
+  return selected;
+}
+
 /** Progress event of one pipeline stage — what the server relays over SSE. */
 export interface PipelineStageEvent {
   readonly stage: "map" | "read" | "dig" | "synthesize";
@@ -50,6 +172,9 @@ export interface PipelineStageEvent {
   readonly unit?: number;
   /** Total reading units, present on `read` events. */
   readonly units?: number;
+  /** 1-based chunk inside the unit and the unit's total chunks (E7.5). */
+  readonly chunk?: number;
+  readonly chunks?: number;
   /** 1-based loop round when L1/L3 re-runs a pass. */
   readonly round?: number;
 }
@@ -198,6 +323,13 @@ export async function runReviewPipeline(
 
     const noSignalUnits = new Set<number>();
     const evidenceIds = new Set(context.evidence.map((anchor) => anchor.id));
+    const bodyBytesByFile = new Map<string, number>();
+    for (const body of digest.bodies) {
+      bodyBytesByFile.set(
+        body.file,
+        (bodyBytesByFile.get(body.file) ?? 0) + Buffer.byteLength(body.text, "utf8") + 96,
+      );
+    }
     const readUnit = async (
       unit: (typeof units)[number],
       round: number,
@@ -208,75 +340,88 @@ export async function runReviewPipeline(
         finding.anchors.some((anchorId) => fileSet.has(anchorFiles.get(anchorId) ?? "")),
       );
       const unitAnchors = digest.anchors.filter((anchor) => fileSet.has(anchor.file));
-      const anchors = [
-        ...unitAnchors.filter((anchor) => evidenceIds.has(anchor.id)),
-        ...unitAnchors.filter((anchor) => !evidenceIds.has(anchor.id)),
-      ]
-        .slice(0, MAX_UNIT_ANCHORS)
-        .map((anchor) => ({
-          id: anchor.id,
-          ref: anchor.ref,
-          file: anchor.file,
-          lineStart: anchor.lineStart,
-          lineEnd: anchor.lineEnd,
-          kind: anchor.kind,
-          snippet: anchor.snippet,
-        }));
-      await notify({
-        stage: "read",
-        state: "started",
-        unit: unit.index + 1,
-        units: units.length,
-        round,
-      });
-      let read: ReadPassResult | undefined;
-      try {
-        read = await runReadPass(
-          deps,
-          context,
-          unit,
-          { round, constraints, relatedFindings, anchors },
-          input.signal,
-        );
-      } catch (error) {
-        // One malformed unit must never kill the run: record it, re-read it in L1.
-        if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
-        issues.push({
-          kind: "read-invalid",
-          pass: "read",
-          target: `unit-${unit.index + 1}`,
-          detail: `read output failed schema validation: ${error.details ?? error.message}`,
+      const anchors = selectUnitAnchors(unitAnchors, evidenceIds);
+      const chunks = chunkReadingUnit(unit, bodyBytesByFile, READ_CHUNK_BUDGET_BYTES);
+      let signalSeen = false;
+      let failedChunks = 0;
+      for (const chunk of chunks) {
+        const chunkFileSet = new Set(chunk.files);
+        const chunkAnchors = anchors.filter((anchor) => chunkFileSet.has(anchor.file));
+        await notify({
+          stage: "read",
+          state: "started",
+          unit: unit.index + 1,
+          units: units.length,
+          chunk: chunk.index + 1,
+          chunks: chunks.length,
+          round,
         });
+        let read: ReadPassResult | undefined;
+        try {
+          read = await runReadPass(
+            deps,
+            context,
+            { index: unit.index, files: chunk.files, payload: chunk.payload },
+            {
+              round,
+              constraints,
+              relatedFindings,
+              anchors: chunkAnchors,
+              chunk: chunk.index + 1,
+              chunks: chunks.length,
+            },
+            input.signal,
+          );
+        } catch (error) {
+          // One malformed chunk must never kill the run: record it, re-read the unit in L1.
+          if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+          failedChunks += 1;
+          issues.push({
+            kind: "read-invalid",
+            pass: "read",
+            target:
+              chunks.length > 1
+                ? `unit-${unit.index + 1} chunk ${chunk.index + 1}`
+                : `unit-${unit.index + 1}`,
+            detail: `read output failed schema validation: ${error.details ?? error.message}`,
+          });
+          continue;
+        }
+        await notify({
+          stage: "read",
+          state: "completed",
+          unit: unit.index + 1,
+          units: units.length,
+          chunk: chunk.index + 1,
+          chunks: chunks.length,
+          round,
+          latencyMs: read.meta.latencyMs,
+          salvage: read.meta.salvage,
+        });
+        passes.push(read.meta);
+        const linked = linkFindings(read.output.findings, index, { pass: "read" });
+        readStats = addLinkStats(readStats, linked.stats);
+        issues.push(...linked.issues);
+        collectedFindings.push(...linked.findings);
+        collectedUnknowns.push(...read.output.unknowns);
+        collectedNegatives.push(...read.output.negativeResults);
+        for (const query of read.output.needMore) {
+          if (queries.length < 3 && !queries.includes(query)) queries.push(query);
+        }
+        if (
+          linked.findings.length > 0 ||
+          read.output.unknowns.length > 0 ||
+          read.output.negativeResults.length > 0
+        ) {
+          signalSeen = true;
+        }
       }
-      if (read === undefined) {
+      if (failedChunks === chunks.length) {
         noSignalUnits.add(unit.index);
         return;
       }
-      await notify({
-        stage: "read",
-        state: "completed",
-        unit: unit.index + 1,
-        units: units.length,
-        round,
-        latencyMs: read.meta.latencyMs,
-        salvage: read.meta.salvage,
-      });
-      passes.push(read.meta);
-      const linked = linkFindings(read.output.findings, index, { pass: "read" });
-      readStats = addLinkStats(readStats, linked.stats);
-      issues.push(...linked.issues);
-      collectedFindings.push(...linked.findings);
-      collectedUnknowns.push(...read.output.unknowns);
-      collectedNegatives.push(...read.output.negativeResults);
-      for (const query of read.output.needMore) {
-        if (queries.length < 3 && !queries.includes(query)) queries.push(query);
-      }
-      const hadSignal =
-        linked.findings.length > 0 ||
-        read.output.unknowns.length > 0 ||
-        read.output.negativeResults.length > 0;
-      if (!hadSignal && round === 1) noSignalUnits.add(unit.index);
-      if (hadSignal) noSignalUnits.delete(unit.index);
+      if (signalSeen) noSignalUnits.delete(unit.index);
+      else if (round === 1) noSignalUnits.add(unit.index);
     };
 
     for (const unit of units) {

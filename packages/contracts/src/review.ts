@@ -57,6 +57,10 @@ export const ReviewPassMetaSchema = z.object({
   salvage: SalvageLadderSchema,
   /** 1-based reading-unit index for `read` passes. */
   unit: z.number().int().min(1).optional(),
+  /** 1-based chunk inside a reading unit (E7.5; large units are read chunk by chunk). */
+  chunk: z.number().int().min(1).optional(),
+  /** Total chunks of that unit. */
+  chunks: z.number().int().min(1).optional(),
   /** 1-based coverage/revise round for passes re-run by the L1/L3 loops. */
   round: z.number().int().min(1).optional(),
 });
@@ -174,6 +178,9 @@ export const ReviewStreamEventSchema = z.discriminatedUnion("type", [
     /** 1-based reading-unit index and total, present on `read` events. */
     unit: z.number().int().min(1).optional(),
     units: z.number().int().min(1).optional(),
+    /** 1-based chunk inside the unit and the unit's total chunks (E7.5). */
+    chunk: z.number().int().min(1).optional(),
+    chunks: z.number().int().min(1).optional(),
     /** 1-based loop round, present when L1/L3 re-runs a pass. */
     round: z.number().int().min(1).optional(),
   }),

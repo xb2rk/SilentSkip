@@ -116,8 +116,20 @@ const scriptedRunner: WorkflowRunner = async (request) => {
       executiveSummary: "Config and table changed.",
       topConcerns: ["check _MOD"],
       themes: [
-        { themeId: "theme-1", narrative: "Data changed." },
-        { themeId: "theme-2", narrative: "Script changed." },
+        {
+          themeId: "theme-1",
+          summary: "Script files changed.",
+          behaviorChange: "The config graph was updated.",
+          watchFor: "Skill behavior.",
+          anchorIds: scriptedReadAnchors.length > 0 ? scriptedReadAnchors : [firstAnchor.id],
+        },
+        {
+          themeId: "theme-2",
+          summary: "Data table changed.",
+          behaviorChange: "Row values were updated.",
+          watchFor: "Combat numbers.",
+          anchorIds: scriptedReadAnchors.length > 0 ? scriptedReadAnchors : [firstAnchor.id],
+        },
       ],
       findings: [
         {
@@ -250,7 +262,7 @@ describe("review runs", () => {
     const manifestRows = app.db.select().from(contextManifests).all();
     expect(manifestRows.map((row) => row.passId).sort()).toEqual(["map", "read", "synthesize"]);
     expect(manifestRows.find((row) => row.passId === "map")?.promptVersion).toBe("2.1.0");
-    expect(manifestRows.find((row) => row.passId === "read")?.promptVersion).toBe("2.0.0");
+    expect(manifestRows.find((row) => row.passId === "read")?.promptVersion).toBe("2.2.0");
   });
 
   it("lists runs newest first, optionally filtered by project", async () => {
