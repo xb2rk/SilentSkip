@@ -453,3 +453,173 @@ describe("CALL-ARITY-01 / ORPHAN-ADD-01", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("CALL-ARITY-01 receiver resolution", () => {
+  const CALLER_PATH = "Assets/Scripts/Callers.fcg";
+  const SVC_PATH = "Assets/Scripts/Svc.fcg";
+
+  const CALLER = [
+    "static graph Caller {",
+    "  func Run() int {",
+    "    return Svc.Helper(1, 2)",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+  const SVC_OK = [
+    "static graph Svc {",
+    "  func Helper(a int, b int) int {",
+    "    return a",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  it("resolves member calls through the receiver's container graph", () => {
+    const silent = byRule(
+      checks(
+        [
+          { path: CALLER_PATH, source: CALLER },
+          { path: SVC_PATH, source: SVC_OK },
+        ],
+        [
+          { path: CALLER_PATH, source: CALLER },
+          { path: SVC_PATH, source: SVC_OK },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(silent).toEqual([]);
+
+    const svcDrift = SVC_OK.replace("Helper(a int, b int)", "Helper(a int)");
+    const findings = byRule(
+      checks(
+        [
+          { path: CALLER_PATH, source: CALLER },
+          { path: SVC_PATH, source: SVC_OK },
+        ],
+        [
+          { path: CALLER_PATH, source: CALLER },
+          { path: SVC_PATH, source: svcDrift },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.message).toContain("2 argument(s)");
+    expect(finding.message).toContain("1 parameter(s)");
+  });
+
+  it("resolves generic receivers by the type name (entity<T>.Method())", () => {
+    const genericCaller = [
+      "static graph Z {",
+      "  func Run() int {",
+      "    var e entity<Srv> = nil",
+      "    return e<Srv>.Hit()",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const srv = ["static graph Srv {", "  func Hit() int {", "    return 1", "  }", "}", ""].join(
+      "\n",
+    );
+    const silent = byRule(
+      checks(
+        [{ path: CALLER_PATH, source: genericCaller }],
+        [
+          { path: CALLER_PATH, source: genericCaller },
+          { path: SVC_PATH, source: srv },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(silent).toEqual([]);
+
+    const drifted = genericCaller.replace("e<Srv>.Hit()", "e<Srv>.Hit(1)");
+    const findings = byRule(
+      checks(
+        [{ path: CALLER_PATH, source: genericCaller }],
+        [
+          { path: CALLER_PATH, source: drifted },
+          { path: SVC_PATH, source: srv },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).message).toContain("1 argument(s)");
+  });
+
+  it("stays silent when the receiver cannot be resolved — no name-only guessing", () => {
+    const trapper = [
+      "static graph T {",
+      "  func Helper(a int) int {",
+      "    return a",
+      "  }",
+      "",
+      "  func Run() int {",
+      "    return Mystery.Helper(1, 2)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const findings = byRule(
+      checks([{ path: CALLER_PATH, source: trapper }], [{ path: CALLER_PATH, source: trapper }]),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("resolves import-alias receivers through the imported file", () => {
+    const caller = [
+      'import "Svc.fcg" as SvcLib',
+      "static graph Caller2 {",
+      "  func Run() int {",
+      "    return SvcLib.Helper(1)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const lib = [
+      "static graph Anything {",
+      "  func Helper(a int, b int) int {",
+      "    return a",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const findings = byRule(
+      checks(
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: lib },
+        ],
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: lib },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).message).toContain("1 argument(s)");
+    expect(firstFinding(findings).message).toContain("2 parameter(s)");
+  });
+
+  it("stays silent when the receiver matches multiple containers", () => {
+    // Same graph name in two bundle files — an ambiguous receiver must stay silent.
+    const findings = byRule(
+      checks(
+        [{ path: CALLER_PATH, source: CALLER }],
+        [
+          { path: CALLER_PATH, source: CALLER },
+          { path: SVC_PATH, source: SVC_OK },
+          { path: "Assets/Scripts/Other.fcg", source: SVC_OK },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toEqual([]);
+  });
+});

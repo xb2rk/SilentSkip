@@ -55,8 +55,11 @@ eventually findings.
   → info); `BIND-03` channel ② candidate — an enum covering every header column (inferred;
   pin-matched → `exact`, stale pin → its own finding); `BIND-04` channel ③ — a changed table no
   code references (the absence is exact, the use stays unknown); `DANGLING-REF` removed symbol
-  with unresolved same-name references; `CALL-ARITY-01` same-file call whose argument count no
-  longer matches the resolved declaration (major/`exact` — signature drift from refactors);
+  with unresolved same-name references; `CALL-ARITY-01` receiver-aware call arity — member calls
+  resolve through the receiver (import alias → the imported file; `e<Type>.M()` → the type's
+  graph container; graph containers looked up across the whole bundle), unresolvable or
+  ambiguous receivers stay silent instead of guessing, bare calls keep the same-file ladder
+  (major/`exact` — signature drift from refactors);
   `ORPHAN-ADD-01` added function nothing references anywhere (info/`exact`). Every finding
   carries severity, confidence, witness anchors (registered into the digest registry) and a
   derivation chain. Guarded by
