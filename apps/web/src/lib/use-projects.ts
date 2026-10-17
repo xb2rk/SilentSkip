@@ -1,6 +1,7 @@
 import {
   AddProjectRequestSchema,
   DiffSummarySchema,
+  DigestBundleSchema,
   FsListResponseSchema,
   ProjectListResponseSchema,
   ProjectRefsResponseSchema,
@@ -56,6 +57,25 @@ export function useDiffSummary(
       DiffSummarySchema.parse(
         await fetchJson<unknown>(
           `/api/projects/${projectId}/diff-summary?base=${encodeURIComponent(baseRef ?? "")}&current=${encodeURIComponent(currentRef ?? "")}`,
+        ),
+      ),
+  });
+}
+
+/** Deterministic digest for a ref range — the change-fact source of the report page (E5). */
+export function useDigest(
+  projectId: string | null,
+  baseRef: string | null,
+  currentRef: string | null,
+) {
+  return useQuery({
+    queryKey: ["projects", projectId, "digest", baseRef, currentRef],
+    enabled: projectId !== null && baseRef !== null && currentRef !== null,
+    staleTime: GIT_STALE_MS,
+    queryFn: async () =>
+      DigestBundleSchema.parse(
+        await fetchJson<unknown>(
+          `/api/projects/${projectId}/digest?base=${encodeURIComponent(baseRef ?? "")}&current=${encodeURIComponent(currentRef ?? "")}`,
         ),
       ),
   });

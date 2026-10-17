@@ -8,7 +8,7 @@ import {
   type GitRefKind,
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { TFunction } from "i18next";
 import {
@@ -16,14 +16,15 @@ import {
   GitCompareArrows,
   History,
   Info,
+  Loader2,
   Play,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProject } from "@/contexts/project-context";
 import { useDiffSummary, useProjectRefs } from "@/lib/use-projects";
+import { useStartReview } from "@/lib/use-runs";
 
 const GOAL_SAMPLES = ["compare.goalSample1", "compare.goalSample2", "compare.goalSample3"] as const;
 
@@ -274,6 +276,8 @@ function DiffPreview({ files, additions, deletions, untrackedFiles }: DiffPrevie
 export function ComparePage() {
   const { t } = useTranslation();
   const { projects, activeProjectId, setActiveProjectId } = useProject();
+  const navigate = useNavigate();
+  const startReview = useStartReview();
   const [preset, setPreset] = useState<Preset>("worktree");
   const [customBase, setCustomBase] = useState<string | null>(null);
   const [customCurrent, setCustomCurrent] = useState<string | null>(null);
@@ -328,6 +332,28 @@ export function ComparePage() {
     if (!canSwap) return;
     setCustomBase(customCurrent);
     setCustomCurrent(customBase);
+  }
+
+  /** Start a real review run and jump to its report page. */
+  function handleRun(): void {
+    if (activeProjectId === null || baseRef === null || currentRef === null) return;
+    startReview.mutate(
+      {
+        projectId: activeProjectId,
+        baseRef,
+        currentRef,
+        ...(goal.trim() === "" ? {} : { goal }),
+      },
+      {
+        onSuccess: (response) => {
+          toast.success(t("compare.runStarted"));
+          void navigate({ to: "/runs/$runId", params: { runId: response.runId } });
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : t("compare.runFailed"));
+        },
+      },
+    );
   }
 
   function selectionInfo(value: string | null): RefInfo | null {
@@ -604,18 +630,24 @@ export function ComparePage() {
               <p className="text-[12px] text-muted-foreground">{t("compare.runNote")}</p>
             </div>
             <div className="flex items-center gap-2">
-              <PhaseBadge phase="E4" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <Button disabled>
-                      <Play className="size-4" />
-                      {t("compare.runCta")}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{t("common.comingSoonPhase", { phase: "E4" })}</TooltipContent>
-              </Tooltip>
+              <Button
+                type="button"
+                disabled={
+                  activeProjectId === null ||
+                  baseRef === null ||
+                  currentRef === null ||
+                  diff === undefined ||
+                  startReview.isPending
+                }
+                onClick={handleRun}
+              >
+                {startReview.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Play className="size-4" />
+                )}
+                {startReview.isPending ? t("compare.runStarting") : t("compare.runCta")}
+              </Button>
             </div>
           </CardContent>
         </Card>
