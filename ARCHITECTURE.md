@@ -69,8 +69,23 @@ query keys. `contexts/project-context.tsx` owns the active project (persisted by
 the first project when the stored id disappears).
 
 Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
-`["projects", id, "diff-summary", base, current]`, `["fs", path]`. Mutations invalidate
-`["projects"]`.
+`["projects", id, "diff-summary", base, current]`, `["projects", id, "digest", base, current]`,
+`["fs", path]`, `["reviews", …]`. Mutations invalidate `["projects"]` / `["reviews"]`.
+
+### Review run (server + AI)
+
+1. `POST /api/reviews` inserts a `runs` row (`running`) and returns `202 { runId }` immediately —
+   the pipeline runs in the background, driven by `src/reviews.ts` (`ReviewManager`).
+2. The manager loads the digest (shared `digest-input.ts`), then runs `runReviewPipeline`:
+   `digest_read` → optional single `dig` round → `synthesize`, with the citation verifier on every
+   pass boundary. Progress relays as SSE events through the run's channel (replay buffer + live
+   subscribers; the channel closes after the terminal event).
+3. Result, verification stats and per-pass manifests persist to `runs` + `contextManifests`.
+   Cancel aborts in-flight calls via `AbortController` and persists `cancelled`. AI failure falls
+   back to the deterministic report (run still `completed`, carrying `fallbackReason`).
+4. The web starts runs from Compare, navigates to `/runs/$runId`, consumes the SSE stream (with
+   2 s polling as a converging fallback) and renders the report: change facts, findings with
+   evidence dialogs, and the AI notes tab.
 
 ## 4. Package map and dependency rules
 
@@ -79,9 +94,9 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
 | `packages/contracts` | Wire DTOs, error envelope, versions | nothing (leaf) |
 | `packages/db` | Drizzle schema + client + migrations | contracts |
 | `packages/fc-lang` | Vendored FC language toolchain (lexer/AST) | nothing |
-| `packages/engine` | Deterministic facts/relations/checks (E2+) | contracts, fc-lang, db |
-| `packages/ai` | Insea client, passes, verifier (E4+) | contracts, engine types |
-| `apps/server` | HTTP surface + orchestration | contracts, db, (engine, ai later) |
+| `packages/engine` | Deterministic facts/relations/checks (E2+) | contracts, fc-lang |
+| `packages/ai` | Insea client, passes, verifier (E4+) | contracts |
+| `apps/server` | HTTP surface + orchestration | contracts, db, engine, ai |
 | `apps/web` | Designer UI | contracts only |
 
 `apps/web` never imports `db`/`engine`/`server` — it talks HTTP only.
@@ -144,6 +159,8 @@ Tests use `openDatabase(":memory:")` + `migrateDatabase()`.
 | Server modules / git rules | `apps/server/README.md` + this file's invariants |
 | UI structure / design rules | `apps/web/README.md` |
 | Engine scope / determinism | `packages/engine/README.md` |
+| Insea wire contract / failure semantics | `docs/INSEA.md` |
+| Prompt passes / guards | `docs/PROMPTS.md` |
 | Product-level overview | root `README.md` |
 
 ## 9. Roadmap pointer

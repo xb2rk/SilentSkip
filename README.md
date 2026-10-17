@@ -7,15 +7,15 @@ AI review whose claims are grounded in verifiable evidence anchors.
 Primary audience: **game designers** — the UI is Vietnamese and i18n-ready. Secondary: developers —
 technical docs are English.
 
-> Status: **Phase 1 — Knowledge core & AI review**. E0–E3 are complete — vendored `fc-lang`,
-> raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey, the profile
-> store, and the deterministic digest served over the first real API
-> (`GET /api/projects/:id/digest`) — all guarded by corpus gates (245 FC + 33 CSV).
-> E4 (AI pipeline) is complete — Insea client + canary, pass library, mandatory citation
-> verifier, and the review-run API (`POST /api/reviews` with SSE progress, cancel, deterministic
-> fallback and SQLite persistence). E5 (Report UI MVP) is next.
-> The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
-> and the per-package READMEs.
+> Status: **Phase 1 — Knowledge core & AI review (complete)**. E0–E5 are complete: vendored
+> `fc-lang`, raw-faithful CSV parser, FactBundle / DeltaBundle / Relations / Value Journey, the
+> profile store, the deterministic digest API, the Insea pass pipeline with the mandatory citation
+> verifier, the review-run API (SSE progress, cancel, deterministic fallback, SQLite persistence),
+> and the report UI (run page with evidence viewer + history). The full loop works end to end:
+> register a project → pick A/B → start a review → watch live progress → read a verified report.
+> Phase 2 (E6 — What-If + Memory) is next.
+> The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md),
+> [`docs/INSEA.md`](./docs/INSEA.md), [`docs/PROMPTS.md`](./docs/PROMPTS.md) and the per-package READMEs.
 
 ## Requirements
 
@@ -54,6 +54,7 @@ packages/db        Drizzle schema, node:sqlite client, migrations
 packages/engine    Deterministic analysis engine (E2+: facts, relations, journeys, digest, checks)
 packages/ai        Insea client, prompt passes, citation verifier (E4+)
 packages/fc-lang   Vendored fc-format-v4 toolchain for `.fcc`/`.fcg` (v0.4.0)
+docs               Insea integration + prompt-pass contracts
 ```
 
 Each app/package has its own README covering purpose, extension points and testing.

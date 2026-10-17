@@ -7,7 +7,8 @@ primitives). The UI language is Vietnamese and fully i18n-keyed; technical docs 
 
 | Path | Responsibility |
 | --- | --- |
-| `src/pages/` | Route screens (Overview, Compare, What-If, History, Tools, Status, Settings) |
+| `src/pages/` | Route screens (Overview, Compare, What-If, History, Tools, Status, Settings, run report) |
+| `src/components/report/` | Report UI (change facts, finding cards, evidence dialog) |
 | `src/components/` | Feature components (`projects/…`) + shell (sidebar, palette, header) |
 | `src/components/ui/` | shadcn primitives (generated; keep as-is unless a bug demands a fix) |
 | `src/contexts/` | `theme-context` (theme/density/language), `project-context` (active project) |
@@ -19,7 +20,8 @@ primitives). The UI language is Vietnamese and fully i18n-keyed; technical docs 
 - **All requests go through `lib/api.ts` `fetchJson`** (envelope-aware, localized transport
   errors). Hooks in `lib/use-*.ts` wrap react-query, parse through `packages/contracts` and own
   the query keys (`["projects"]`, `["projects", id, "refs"]`, `["projects", id, "diff-summary",
-  base, current]`, `["fs", path]`; mutations invalidate `["projects"]`).
+  base, current]`, `["projects", id, "digest", base, current]`, `["fs", path]`, `["reviews", …]`;
+  mutations invalidate `["projects"]` / `["reviews"]`).
 - **No hard-coded user strings** — every label/placeholder/error goes through i18n keys.
 - **Preferences are no-FOUC**: theme/density are applied by a tiny pre-hydration script in
   `index.html` whose storage keys must stay in sync with `lib/theme.ts` / `lib/density.ts`.

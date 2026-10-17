@@ -22,7 +22,7 @@ registry. The web app never touches the disk — everything local goes through t
 | `src/git.ts` | Read-only git service (head, refs, diff summary) + source readers (`cat-file --batch` at a ref, disk walk for the worktree) |
 | `src/paths.ts` | Path normalization + registration guards |
 
-## API surface (E1–E4)
+## API surface (E1–E5)
 
 | Endpoint | Notes |
 | --- | --- |
@@ -33,6 +33,7 @@ registry. The web app never touches the disk — everything local goes through t
 | `GET /api/projects/:id/refs` | head + dirty + branches/remotes/tags |
 | `GET /api/projects/:id/diff-summary?base=&current=` | `current=WORKTREE` diffs against disk incl. untracked |
 | `GET /api/projects/:id/digest?base=&current=` | deterministic digest v1 (change facts, journeys, context, anchors) — computed on demand; `current=WORKTREE` reads disk |
+| `GET /api/reviews[?projectId=]` | run summaries, newest first (History page) |
 | `POST /api/reviews` | `{ projectId, baseRef, currentRef, goal?, lens? }` → 202 `{ runId }`, runs in the background; AI unavailable ⇒ deterministic fallback report, never a flaky failure |
 | `GET /api/reviews/:runId` | run detail (status, verdict, score, full result, verification stats) |
 | `GET /api/reviews/:runId/stream` | SSE replay: `stage` events then one terminal `completed`/`failed`/`cancelled`, then close |
