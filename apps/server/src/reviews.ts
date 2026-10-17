@@ -13,12 +13,13 @@ import {
   type ReviewRunResult,
   type ReviewStreamEvent,
   type RunDetailResponse,
+  type RunSummary,
   type StartReviewRequest,
   type VerifyStats,
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
 import { type AppDatabase, contextManifests, runs } from "@craftland-qa/db";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
 import { getProject } from "./projects";
@@ -102,6 +103,9 @@ const ZERO_STATS: VerifyStats = {
   confidenceDowngraded: 0,
 };
 
+/** Cap of the run list endpoint — newest first; the History UI shows the latest slice. */
+const RUN_LIST_LIMIT = 100;
+
 export class ReviewManager {
   private readonly deps: ReviewManagerDeps;
   private readonly channels = new Map<string, RunChannel>();
@@ -154,6 +158,20 @@ export class ReviewManager {
     const row = this.runRow(runId);
     this.controllers.get(runId)?.abort();
     return this.detail(row);
+  }
+
+  /** Run summaries, newest first — optionally narrowed to one project (History page). */
+  listRuns(projectId?: string): RunSummary[] {
+    const base = this.deps.db.select().from(runs);
+    const rows =
+      projectId === undefined
+        ? base.orderBy(desc(runs.createdAt)).limit(RUN_LIST_LIMIT).all()
+        : base
+            .where(eq(runs.projectId, projectId))
+            .orderBy(desc(runs.createdAt))
+            .limit(RUN_LIST_LIMIT)
+            .all();
+    return rows.map((row) => this.summary(row));
   }
 
   /** Run detail by id — throws NOT_FOUND for unknown ids. */
@@ -398,7 +416,7 @@ export class ReviewManager {
     return row;
   }
 
-  private detail(row: typeof runs.$inferSelect): RunDetailResponse {
+  private summary(row: typeof runs.$inferSelect): RunSummary {
     return {
       id: row.id,
       projectId: row.projectId,
@@ -413,8 +431,11 @@ export class ReviewManager {
       durationMs: row.durationMs,
       createdAt: row.createdAt.toISOString(),
       completedAt: row.completedAt === null ? null : row.completedAt.toISOString(),
-      result: this.parseResult(row.reportJson),
     };
+  }
+
+  private detail(row: typeof runs.$inferSelect): RunDetailResponse {
+    return { ...this.summary(row), result: this.parseResult(row.reportJson) };
   }
 
   private parseResult(reportJson: string | null): ReviewRunResult | null {

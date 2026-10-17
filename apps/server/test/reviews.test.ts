@@ -8,6 +8,7 @@ import {
   ProjectSummarySchema,
   type RunDetailResponse,
   RunDetailResponseSchema,
+  RunListResponseSchema,
   StartReviewResponseSchema,
 } from "@craftland-qa/contracts";
 import { contextManifests, migrateDatabase, openDatabase, runs } from "@craftland-qa/db";
@@ -217,6 +218,25 @@ describe("review runs", () => {
     const manifestRows = app.db.select().from(contextManifests).all();
     expect(manifestRows.map((row) => row.passId).sort()).toEqual(["digest_read", "synthesize"]);
     expect(manifestRows[0]?.promptVersion).toBe("1.0.0");
+  });
+
+  it("lists runs newest first, optionally filtered by project", async () => {
+    currentRunner = scriptedRunner;
+    const runId = await startRun({ projectId, baseRef: "HEAD", currentRef: "WORKTREE" });
+    await waitForStatus(runId, "completed");
+
+    const listRes = await app.instance.request("/api/reviews");
+    expect(listRes.status).toBe(200);
+    const list = RunListResponseSchema.parse(await listRes.json());
+    expect(list.runs.length).toBeGreaterThanOrEqual(1);
+    expect(list.runs[0]?.id).toBe(runId);
+
+    const filteredRes = await app.instance.request(`/api/reviews?projectId=${projectId}`);
+    const filtered = RunListResponseSchema.parse(await filteredRes.json());
+    expect(filtered.runs.every((run) => run.projectId === projectId)).toBe(true);
+
+    const emptyRes = await app.instance.request("/api/reviews?projectId=missing-project");
+    expect(RunListResponseSchema.parse(await emptyRes.json()).runs).toEqual([]);
   });
 
   it("cancels a running review and replays the cancelled terminal event", async () => {

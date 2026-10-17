@@ -134,6 +134,11 @@ export const RunDetailResponseSchema = RunSummarySchema.extend({
   result: ReviewRunResultSchema.nullable(),
 });
 
+/** `GET /api/reviews` — run summaries, newest first, optionally filtered by project. */
+export const RunListResponseSchema = z.object({
+  runs: z.array(RunSummarySchema),
+});
+
 /** SSE events of `GET /api/reviews/:runId/stream` (replayed from the start on connect). */
 export const ReviewStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
@@ -165,4 +170,5 @@ export type ReviewContextManifest = z.infer<typeof ReviewContextManifestSchema>;
 export type ReviewRunResult = z.infer<typeof ReviewRunResultSchema>;
 export type RunSummary = z.infer<typeof RunSummarySchema>;
 export type RunDetailResponse = z.infer<typeof RunDetailResponseSchema>;
+export type RunListResponse = z.infer<typeof RunListResponseSchema>;
 export type ReviewStreamEvent = z.infer<typeof ReviewStreamEventSchema>;

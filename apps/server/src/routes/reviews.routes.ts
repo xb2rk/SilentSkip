@@ -1,5 +1,6 @@
 import {
   RunDetailResponseSchema,
+  RunListResponseSchema,
   StartReviewRequestSchema,
   StartReviewResponseSchema,
 } from "@craftland-qa/contracts";
@@ -25,6 +26,14 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps): Hono {
     const input = await readJsonBody(c.req.raw, StartReviewRequestSchema);
     const runId = deps.manager.startReview(input);
     return c.json(StartReviewResponseSchema.parse({ runId }), 202);
+  });
+
+  app.get("/", (c) => {
+    const projectId = c.req.query("projectId");
+    const runs = deps.manager.listRuns(
+      projectId === undefined || projectId === "" ? undefined : projectId,
+    );
+    return c.json(RunListResponseSchema.parse({ runs }));
   });
 
   app.get("/:runId", (c) => {
