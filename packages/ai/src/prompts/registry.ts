@@ -12,7 +12,7 @@ import type { EvidenceAnchor, ReviewContext } from "../context/types.js";
 
 /** Prompt versions per pass. Bump on any wording change. */
 export const PROMPT_VERSIONS = {
-  map: "2.0.0",
+  map: "2.1.0",
   read: "2.0.0",
   dig: "2.0.0",
   synthesize: "2.0.0",
@@ -45,24 +45,27 @@ Resolve every item below in your output; anything you cannot resolve must appear
 ${constraints.map((constraint, index) => `${index + 1}. ${constraint}`).join("\n")}`;
 }
 
-/** The `map` pass — refine the engine partition into named themes (no findings). */
-export function buildMapPrompt(context: ReviewContext): string {
-  return `You are pass "map" — the first pass of an A/B review of a Craftland Studio game project. The engine read the git diff and produced skeleton.json: every changed file, the import edges among them, a base partition (clusters derived mechanically from the import graph and directories) and the engine findings. Refine that partition into meaningful themes: rename, merge or split clusters. You do NOT report findings and you never invent files.
+/** The `map` pass — pick engine-issued file ids into named themes (no findings, no paths). */
+export function buildMapPrompt(context: ReviewContext, constraints: readonly string[]): string {
+  return `You are pass "map" — the first pass of an A/B review of a Craftland Studio game project. The engine read the git diff and produced skeleton.json: every changed file with an engine-issued id (f1, f2, …), the import edges among them, a base partition (clusters derived mechanically from the import graph and directories) and the engine findings. Refine that partition into meaningful themes: rename, merge or split clusters. You do NOT report findings.
 
 ${SHARED_RULES}
 
 ## What to produce
 Strict JSON with exactly these keys:
-{"themes":[{"name":"...","files":["<changed file path>"]}]}
+{"themes":[{"name":"...","files":["f1","f5"]}]}
 
-- Every changed file in skeleton.json must appear in EXACTLY ONE theme; the engine validates set equality and rejects the entire map otherwise.
+- "files" lists **file ids from skeleton.json only** — never write or invent a file path. The engine resolves ids back to paths and rejects the entire map if any id is unknown, duplicated across themes, or if any changed file is missing.
+- Every file id in skeleton.json must appear in EXACTLY ONE theme.
 - Order themes from the most structural change to the most mechanical; names are short presentation labels.
+
+${constraintsBlock(constraints)}
 
 ${taskPackBlock(context)}
 
 ## Attached data
 - task.json — refs, stats, goal and lens
-- skeleton.json — changed files, import edges, base partition, engine findings`;
+- skeleton.json — changed files with their ids, import edges, base partition, engine findings`;
 }
 
 /** One `read` call — one reading unit of the multi-call flow. */

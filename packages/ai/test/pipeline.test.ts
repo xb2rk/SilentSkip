@@ -8,7 +8,6 @@ import {
   ANCHOR_B_MOD,
   makeDigest,
   SCRIPT_PATH,
-  TABLE_PATH,
 } from "./helpers/digest-fixture";
 import { attachmentOf, type ScriptValue, scriptedRunner } from "./helpers/scripted-runner";
 
@@ -16,8 +15,8 @@ const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" };
 
 const MAP_OUTPUT = {
   themes: [
-    { name: "Script", files: [SCRIPT_PATH] },
-    { name: "Data", files: [TABLE_PATH] },
+    { name: "Script", files: ["f1"] },
+    { name: "Data", files: ["f2"] },
   ],
 };
 
@@ -108,6 +107,58 @@ describe("runReviewPipeline v2", () => {
     expect(result.report.verdict).toBe("needs_review");
     expect(result.report.themes).toHaveLength(2);
     expect(result.contextManifest.counts.evidence).toBe(4);
+  });
+
+  it("re-runs map with repair constraints when the partition is invalid", async () => {
+    const scripted = scriptedRunner({
+      map: ((_request: unknown, callIndex: number) =>
+        (callIndex === 0
+          ? { themes: [{ name: "Bad", files: ["f9"] }] }
+          : MAP_OUTPUT) as unknown as Record<string, unknown>) as ScriptValue,
+      read: (request: InseaRunRequest) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const mapCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "map",
+    );
+    expect(mapCalls).toHaveLength(2);
+    expect(mapCalls[1]?.prompt).toContain("Constraints from the previous round");
+    expect(mapCalls[1]?.prompt).toContain("unknown file id");
+    expect(result.report.themes).toHaveLength(2);
+    expect(result.verification.issues).toEqual([]);
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("falls back to the engine base partition when map never validates", async () => {
+    const scripted = scriptedRunner({
+      map: { themes: [{ name: "Bad", files: ["f9"] }] } as unknown as ScriptValue,
+      read: (request: InseaRunRequest) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const mapCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "map",
+    );
+    expect(mapCalls).toHaveLength(2);
+    expect(result.report.themes).toHaveLength(2);
+    expect(result.verification.issues.some((issue) => issue.kind === "map-invalid")).toBe(true);
+    expect(
+      result.structuredFindings.unknowns.some((unknown) => unknown.includes("base partition")),
+    ).toBe(true);
+    expect(result.report.verdict).toBe("needs_review");
   });
 
   it("L1 re-reads units with engine findings left uninterpreted", async () => {
@@ -272,5 +323,54 @@ describe("runReviewPipeline v2", () => {
     expect(events).toContain("read:started:1:r1");
     expect(events).toContain("read:completed:2:r1");
     expect(events).toContain("synthesize:completed:r1");
+  });
+
+  it("re-runs map when its output fails schema validation", async () => {
+    const scripted = scriptedRunner({
+      map: ((_request: unknown, callIndex: number) =>
+        (callIndex === 0
+          ? { themes: [{ name: "Broken", files: [] }] }
+          : MAP_OUTPUT) as unknown as Record<string, unknown>) as ScriptValue,
+      read: (request) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const mapCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "map",
+    );
+    expect(mapCalls).toHaveLength(2);
+    expect(mapCalls[1]?.prompt).toContain("failed schema validation");
+    expect(result.report.themes).toHaveLength(2);
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("survives a malformed read output and re-reads the unit", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((_request: unknown, callIndex: number) => {
+        if (callIndex === 0) return { findings: [{ title: "Broken" }] } as Record<string, unknown>;
+        if (callIndex === 1)
+          return reading([ANCHOR_A_ATK, ANCHOR_B_ATK]) as unknown as Record<string, unknown>;
+        return reading([ANCHOR_B_MOD]) as unknown as Record<string, unknown>;
+      }) as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    expect(result.verification.issues.some((issue) => issue.kind === "read-invalid")).toBe(true);
+    expect(
+      result.structuredFindings.unknowns.some((unknown) =>
+        unknown.includes("Engine finding not interpreted"),
+      ),
+    ).toBe(false);
+    expect(result.report.verdict).toBe("needs_review");
   });
 });

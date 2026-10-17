@@ -28,7 +28,7 @@ registry**, never against the budgeted evidence pack.
 
 | Pass | Role | Output schema |
 | --- | --- | --- |
-| `map` | Refine the engine partition into themes; every changed file exactly once (set equality enforced) | `MapOutputSchema` |
+| `map` | Refine the engine partition into themes by choosing **file ids** (`f1…fN`); every changed file exactly once (set equality enforced); invalid output re-runs ≤2 rounds with repair constraints, else the engine partition falls back | `MapOutputSchema` |
 | `read` | One reading unit per call (every unit, every run); findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
 | `dig` | One focused round: queries resolved deterministically against the full anchor registry (≤40 anchors) | `DigOutputSchema` |
 | `synthesize` | Final writer: verdict, score, per-theme narratives, findings carried forward unchanged — may not add anchors or claims | `SynthesizeOutputSchema` |
@@ -36,6 +36,8 @@ registry**, never against the budgeted evidence pack.
 ## Guards around the passes (linker — `packages/ai/src/link/`)
 
 - Anchors must exist in the full registry; `synthesize` may not introduce new ones.
+- File paths never come from the model: `map` chooses engine-issued ids only (`map-invalid` +
+  honest unknown when the engine partition has to stand in).
 - Statement placeholders must resolve to real fact ids; free digits outside facts/literals block
   the statement (long quoted fragments are verified against cited snippets instead).
 - Claims must evaluate true or the finding dies; quotes must appear in cited snippets (else

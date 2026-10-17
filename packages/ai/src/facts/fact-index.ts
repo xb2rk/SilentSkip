@@ -58,6 +58,12 @@ export function buildFactIndex(digest: DigestBundle): FactIndex {
   for (const fact of digest.changeFacts) {
     addLiteral(fact.path);
     addLiteral(basename(fact.path));
+    if (fact.kind === "table") {
+      // Row keys are data identifiers (like file names) — digits inside them are legitimate text.
+      for (const row of [...fact.rowsAdded, ...fact.rowsRemoved, ...fact.rowsChanged]) {
+        addLiteral(row.key);
+      }
+    }
   }
   for (const anchor of digest.anchors) {
     addLiteral(anchor.id);

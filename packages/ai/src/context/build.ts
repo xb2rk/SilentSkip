@@ -141,17 +141,44 @@ export function serializeContextFiles(context: ReviewContext): InseaAttachment[]
 }
 
 /**
- * Serialize the change map as `skeleton.json` — every changed file, the import edges among
- * them, the engine's base partition and the engine findings (map/read passes read this).
+ * File ids for the map pass: `f1…fN` over the skeleton's file list (stable for the same digest).
+ * The model selects these ids; the engine resolves them back to paths — model output can never
+ * introduce a path of its own (E7.2.1).
+ */
+export interface ChangeFileIds {
+  readonly idToPath: ReadonlyMap<string, string>;
+  readonly pathToId: ReadonlyMap<string, string>;
+}
+
+/** Builds the file-id table of a context (input to `serializeSkeletonFile` + map normalization). */
+export function changeFileIds(context: ReviewContext): ChangeFileIds {
+  const idToPath = new Map<string, string>();
+  const pathToId = new Map<string, string>();
+  context.plan.skeleton.files.forEach((file, index) => {
+    const id = `f${index + 1}`;
+    idToPath.set(id, file.path);
+    pathToId.set(file.path, id);
+  });
+  return { idToPath, pathToId };
+}
+
+/**
+ * Serialize the change map as `skeleton.json` — every changed file (with its engine-issued id),
+ * the import edges among them, the engine's base partition and the engine findings
+ * (map/read passes read this).
  */
 export function serializeSkeletonFile(context: ReviewContext): InseaAttachment {
+  const ids = changeFileIds(context);
   return attachment(
     "skeleton.json",
     "application/json",
     JSON.stringify(
       {
         stats: context.taskPack.stats,
-        files: context.plan.skeleton.files,
+        files: context.plan.skeleton.files.map((file) => ({
+          id: ids.pathToId.get(file.path) ?? "",
+          ...file,
+        })),
         importEdges: context.plan.skeleton.importEdges,
         basePartition: context.plan.partition.clusters,
         engineFindings: context.engineFindings,

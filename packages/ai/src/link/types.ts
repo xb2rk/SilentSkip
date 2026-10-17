@@ -22,6 +22,9 @@ export type LinkIssueKind =
   | "claim-false"
   | "quote-unverified"
   | "theme-invalid"
+  | "map-invalid"
+  | "read-invalid"
+  | "dig-invalid"
   | "verdict-downgraded";
 
 /** One linker issue — kind, pass, target and a human-readable detail. */

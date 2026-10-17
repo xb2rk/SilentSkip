@@ -16,12 +16,16 @@ const THEMES = [
 ];
 
 describe("prompt registry v2", () => {
-  it("builds the map prompt deterministically", () => {
-    const prompt = buildMapPrompt(CONTEXT);
+  it("builds the map prompt with file-id rules and repair constraints", () => {
+    const prompt = buildMapPrompt(CONTEXT, []);
     expect(prompt).toContain("EXACTLY ONE theme");
-    expect(prompt).toContain("skeleton.json");
+    expect(prompt).toContain("file ids from skeleton.json only");
     expect(prompt).toContain("Kiểm tra thay đổi");
-    expect(buildMapPrompt(CONTEXT)).toBe(prompt);
+    expect(prompt).not.toContain("Constraints from the previous round");
+    const retry = buildMapPrompt(CONTEXT, ["file not covered by any theme: x (id f1)"]);
+    expect(retry).toContain("Constraints from the previous round");
+    expect(retry).toContain("not covered");
+    expect(buildMapPrompt(CONTEXT, [])).toBe(prompt);
     expect(prompt).toMatchSnapshot();
   });
 
@@ -66,7 +70,7 @@ describe("prompt registry v2", () => {
 
   it("pins the prompt versions", () => {
     expect(PROMPT_VERSIONS).toEqual({
-      map: "2.0.0",
+      map: "2.1.0",
       read: "2.0.0",
       dig: "2.0.0",
       synthesize: "2.0.0",

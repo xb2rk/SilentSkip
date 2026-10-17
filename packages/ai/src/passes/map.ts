@@ -10,11 +10,14 @@ import { parsePassOutput } from "./parse-output.js";
 import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
 
 /**
- * The `map` pass (E7.2, decision #28 mechanism d) — theme partition refinement.
+ * The `map` pass (E7.2/E7.2.1, decision #28 mechanism d) — theme partition refinement.
  *
- * The engine derives a base partition mechanically (import graph + directories); the model may
- * only rename/merge/split it. `normalizeThemes` enforces the invariant that makes the mechanism
- * real: every changed file appears in exactly one theme, or the whole map is rejected.
+ * The engine derives a base partition mechanically (import graph + directories) and issues a
+ * **file id** (`f1…fN`) for every changed file in `skeleton.json`; the model may only pick ids
+ * and name/merge/split themes — it never writes a path, so it cannot invent directories
+ * (`Assets/Scripts/CSV/…` on a project whose CSVs live elsewhere is mechanically impossible).
+ * `normalizeThemes` resolves ids and enforces the invariant that makes the mechanism real:
+ * every changed file exactly once, or the whole map is rejected.
  */
 
 /** One engine-validated theme: stable id (path order) + presentation name + exact file set. */
@@ -28,33 +31,40 @@ export interface NormalizedTheme {
 export type MapNormalization = { readonly themes: NormalizedTheme[] } | { readonly error: string };
 
 /**
- * Validates and normalizes the map output: every changed file exactly once, no unknown files,
- * no duplicates. Themes are ordered by their first file and receive engine ids (`theme-1…`),
- * so ids are stable across runs regardless of the model's ordering.
+ * Resolves model-chosen file ids against the engine's id table and validates the partition:
+ * unknown ids, duplicates and missing coverage are rejected with a repairable message. Themes
+ * are ordered by their first resolved path and receive engine ids (`theme-1…`), so theme ids
+ * are stable across runs regardless of the model's ordering.
  */
 export function normalizeThemes(
   output: MapOutput,
-  changePaths: readonly string[],
+  idToPath: ReadonlyMap<string, string>,
 ): MapNormalization {
-  const wanted = new Set(changePaths);
   const seen = new Set<string>();
+  const resolved: { name: string; files: string[] }[] = [];
   for (const theme of output.themes) {
-    for (const file of theme.files) {
-      if (!wanted.has(file)) {
-        return { error: `theme "${theme.name}" references a file that did not change: ${file}` };
+    const files: string[] = [];
+    for (const token of theme.files) {
+      const path = idToPath.get(token.trim());
+      if (path === undefined) {
+        return {
+          error: `theme "${theme.name}" references an unknown file id: ${token.trim()} (ids are like f1…f${idToPath.size})`,
+        };
       }
-      if (seen.has(file)) return { error: `file appears in more than one theme: ${file}` };
-      seen.add(file);
+      if (seen.has(path)) {
+        return { error: `file appears in more than one theme: ${path}` };
+      }
+      seen.add(path);
+      files.push(path);
+    }
+    resolved.push({ name: theme.name.trim(), files: files.sort(compareStrings) });
+  }
+  for (const [id, path] of idToPath) {
+    if (!seen.has(path)) {
+      return { error: `file not covered by any theme: ${path} (id ${id})` };
     }
   }
-  for (const path of changePaths) {
-    if (!seen.has(path)) return { error: `file not covered by any theme: ${path}` };
-  }
-  const themes = output.themes
-    .map((theme) => ({
-      name: theme.name.trim(),
-      files: [...theme.files].sort(compareStrings),
-    }))
+  const themes = resolved
     .sort((a, b) => compareStrings(a.files[0] ?? "", b.files[0] ?? ""))
     .map((theme, index) => ({ id: `theme-${index + 1}`, name: theme.name, files: theme.files }));
   return { themes };
@@ -70,13 +80,14 @@ export interface MapPassResult {
 export async function runMapPass(
   deps: PassDeps,
   context: ReviewContext,
+  constraints: readonly string[],
   signal?: AbortSignal,
 ): Promise<MapPassResult> {
   const attachments = [serializeTaskFile(context), serializeSkeletonFile(context)];
   const result = await deps.runner(
     buildRunRequest(
       deps,
-      buildMapPrompt(context),
+      buildMapPrompt(context, constraints),
       buildPassManifestJson("map", context, attachments),
       attachments,
       signal,

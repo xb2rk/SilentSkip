@@ -43,9 +43,12 @@ The AI review pipeline (Insea): workflow client, context assembly, the v2 pass f
   `insufficient_evidence` report summarising the change from engine stats — the UI never depends
   on a flaky call. `runReviewPipeline` takes an optional `onEvent` hook and emits stage
   started/completed around every pass; the server relays these over SSE.
-- **AI flow v2 (E7.2, decision #28)** — the single-shot digest read is gone. `map` refines the
-  engine's mechanical partition into themes (set-equality validated — every changed file exactly
-  once); `read` runs **once per reading unit, every run** (lossless units from `plan/`, ~60 KB
+- **AI flow v2 (E7.2/E7.2.1, decision #28)** — the single-shot digest read is gone. `map` picks
+  **engine-issued file ids** (`f1…fN` from `skeleton.json`) into themes — the model never writes
+  a path, so invented directories are mechanically impossible; set-equality validated, ≤2 repair
+  rounds, and the engine base partition as last-resort fallback (`map-invalid` issue + honest
+  unknown) so one bad map can never kill a run; `read` runs **once per reading unit, every run**
+  (lossless units from `plan/`, ~60 KB
   each) with `facts.json` giving each unit its fact-store slice; **L1** re-reads units that
   produced no signal or whose engine findings were never cited (≤2 rounds), and whatever stays
   unread lands in `unknowns`; `dig` remains one focused round; **L3** re-runs `synthesize` with

@@ -56,11 +56,11 @@ describe("map pass", () => {
       ],
     };
     const { deps, calls } = depsFor({ map: output as unknown as ScriptValue });
-    const result = await runMapPass(deps, CONTEXT);
+    const result = await runMapPass(deps, CONTEXT, []);
     expect(result.output).toEqual(output);
     expect(result.meta).toEqual({
       pass: "map",
-      promptVersion: "2.0.0",
+      promptVersion: "2.1.0",
       latencyMs: 7,
       salvage: "clean",
     });
@@ -75,22 +75,27 @@ describe("map pass", () => {
 
   it("rejects drifted map output with a typed error", async () => {
     const { deps } = depsFor({ map: { themes: "nope" } });
-    await expect(runMapPass(deps, CONTEXT)).rejects.toThrowError(
+    await expect(runMapPass(deps, CONTEXT, [])).rejects.toThrowError(
       /map output failed schema validation/,
     );
   });
 });
 
 describe("normalizeThemes", () => {
-  it("orders themes by first file and assigns stable engine ids", () => {
+  const ID_MAP = new Map([
+    ["f1", SCRIPT_PATH],
+    ["f2", TABLE_PATH],
+  ]);
+
+  it("resolves file ids, orders themes by first file and assigns stable engine ids", () => {
     const normalized = normalizeThemes(
       {
         themes: [
-          { name: "Scripts", files: [SCRIPT_PATH] },
-          { name: "Data", files: [TABLE_PATH] },
+          { name: "Scripts", files: ["f1"] },
+          { name: "Data", files: ["f2"] },
         ],
       },
-      [SCRIPT_PATH, TABLE_PATH],
+      ID_MAP,
     );
     expect("themes" in normalized && normalized.themes).toEqual([
       { id: "theme-1", name: "Data", files: [TABLE_PATH] },
@@ -98,26 +103,24 @@ describe("normalizeThemes", () => {
     ]);
   });
 
-  it("rejects unknown files, duplicates and missing coverage", () => {
-    expect(
-      normalizeThemes({ themes: [{ name: "x", files: ["nope.fcg"] }] }, [SCRIPT_PATH]),
-    ).toEqual({
-      error: 'theme "x" references a file that did not change: nope.fcg',
+  it("rejects unknown ids, duplicates and missing coverage", () => {
+    expect(normalizeThemes({ themes: [{ name: "x", files: ["f9"] }] }, ID_MAP)).toEqual({
+      error: 'theme "x" references an unknown file id: f9 (ids are like f1…f2)',
     });
     expect(
       normalizeThemes(
         {
           themes: [
-            { name: "a", files: [SCRIPT_PATH] },
-            { name: "b", files: [SCRIPT_PATH] },
+            { name: "a", files: ["f1"] },
+            { name: "b", files: ["f1"] },
           ],
         },
-        [SCRIPT_PATH],
+        ID_MAP,
       ),
     ).toEqual({ error: `file appears in more than one theme: ${SCRIPT_PATH}` });
-    expect(
-      normalizeThemes({ themes: [{ name: "a", files: [SCRIPT_PATH] }] }, [SCRIPT_PATH, TABLE_PATH]),
-    ).toEqual({ error: `file not covered by any theme: ${TABLE_PATH}` });
+    expect(normalizeThemes({ themes: [{ name: "a", files: ["f1"] }] }, ID_MAP)).toEqual({
+      error: `file not covered by any theme: ${TABLE_PATH} (id f2)`,
+    });
   });
 });
 

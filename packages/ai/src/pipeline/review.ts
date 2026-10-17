@@ -4,7 +4,7 @@ import type {
   ReviewLens,
   SynthesizeOutput,
 } from "@craftland-qa/contracts";
-import { buildReviewContext, evidenceAnchorsOf } from "../context/build.js";
+import { buildReviewContext, changeFileIds, evidenceAnchorsOf } from "../context/build.js";
 import type { ReviewContextManifest } from "../context/types.js";
 import { AiError } from "../errors.js";
 import { buildFactIndex } from "../facts/fact-index.js";
@@ -18,15 +18,18 @@ import {
   linkFindings,
   linkReport,
 } from "../link/index.js";
-import { runDigPass } from "../passes/dig.js";
+import { type DigPassResult, runDigPass } from "../passes/dig.js";
 import { mergeStructured, type StructuredFindings } from "../passes/digest-step.js";
 import { type NormalizedTheme, normalizeThemes, runMapPass } from "../passes/map.js";
-import { runReadPass } from "../passes/read.js";
+import { type ReadPassResult, runReadPass } from "../passes/read.js";
 import { runSynthesizePass } from "../passes/synthesize.js";
 import type { PassConfig, PassMeta, WorkflowRunner } from "../passes/types.js";
 
 /** Coverage loop bound: after this many reading rounds the rest is reported, not chased. */
 export const MAX_COVERAGE_ROUNDS = 2;
+
+/** Map loop bound: map re-runs with repair constraints; then the engine partition takes over. */
+export const MAX_MAP_ROUNDS = 2;
 
 /** Revise loop bound: synthesize is re-run at most this many times with linker constraints. */
 export const MAX_SYNTHESIZE_ROUNDS = 2;
@@ -138,20 +141,58 @@ export async function runReviewPipeline(
 
   let themes: NormalizedTheme[] = [];
   if (changePaths.length > 0) {
-    await notify({ stage: "map", state: "started" });
-    const map = await runMapPass(deps, context, input.signal);
-    await notify({
-      stage: "map",
-      state: "completed",
-      latencyMs: map.meta.latencyMs,
-      salvage: map.meta.salvage,
-    });
-    passes.push(map.meta);
-    const normalized = normalizeThemes(map.output, changePaths);
-    if ("error" in normalized) {
-      throw new AiError("invalid-output", `map partition invalid: ${normalized.error}`);
+    const idToPath = changeFileIds(context).idToPath;
+    let mapConstraints: string[] = [];
+    let mapDone = false;
+    for (let round = 1; round <= MAX_MAP_ROUNDS; round++) {
+      await notify({ stage: "map", state: "started", ...(round === 1 ? {} : { round }) });
+      let normalized: { themes: NormalizedTheme[] } | { error: string };
+      try {
+        const map = await runMapPass(deps, context, mapConstraints, input.signal);
+        await notify({
+          stage: "map",
+          state: "completed",
+          ...(round === 1 ? {} : { round }),
+          latencyMs: map.meta.latencyMs,
+          salvage: map.meta.salvage,
+        });
+        passes.push(map.meta);
+        normalized = normalizeThemes(map.output, idToPath);
+      } catch (error) {
+        // Schema drift is a repairable partition error here, not a reason to lose the review.
+        if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+        normalized = {
+          error: `map output failed schema validation: ${error.details ?? error.message}`,
+        };
+      }
+      if (!("error" in normalized)) {
+        themes = normalized.themes;
+        mapDone = true;
+        break;
+      }
+      mapConstraints = [
+        normalized.error,
+        `Use only the file ids listed in skeleton.json (f1…f${idToPath.size}), every id exactly once; every theme needs at least one id.`,
+      ];
     }
-    themes = normalized.themes;
+    if (!mapDone) {
+      // The engine partition is a valid exact cover by construction — the review always runs;
+      // at worst it loses the model's theme naming, never the readings or the report.
+      themes = context.plan.partition.clusters.map((cluster, index) => ({
+        id: `theme-${index + 1}`,
+        name: cluster.id,
+        files: [...cluster.files],
+      }));
+      issues.push({
+        kind: "map-invalid",
+        pass: "map",
+        target: "partition",
+        detail: `map output invalid after ${MAX_MAP_ROUNDS} rounds; the engine base partition is used`,
+      });
+      collectedUnknowns.push(
+        "AI could not group the changes into themes; the engine's base partition is used instead (only theme naming is affected).",
+      );
+    }
 
     const noSignalUnits = new Set<number>();
     const evidenceIds = new Set(context.evidence.map((anchor) => anchor.id));
@@ -186,13 +227,29 @@ export async function runReviewPipeline(
         units: units.length,
         round,
       });
-      const read = await runReadPass(
-        deps,
-        context,
-        unit,
-        { round, constraints, relatedFindings, anchors },
-        input.signal,
-      );
+      let read: ReadPassResult | undefined;
+      try {
+        read = await runReadPass(
+          deps,
+          context,
+          unit,
+          { round, constraints, relatedFindings, anchors },
+          input.signal,
+        );
+      } catch (error) {
+        // One malformed unit must never kill the run: record it, re-read it in L1.
+        if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+        issues.push({
+          kind: "read-invalid",
+          pass: "read",
+          target: `unit-${unit.index + 1}`,
+          detail: `read output failed schema validation: ${error.details ?? error.message}`,
+        });
+      }
+      if (read === undefined) {
+        noSignalUnits.add(unit.index);
+        return;
+      }
       await notify({
         stage: "read",
         state: "completed",
@@ -264,20 +321,37 @@ export async function runReviewPipeline(
   // dig — one focused round over at most three queries, deterministic server-side resolution.
   if (queries.length > 0) {
     await notify({ stage: "dig", state: "started" });
-    const dig = await runDigPass(deps, context, queries, input.signal, authoritativeAnchors);
-    await notify({
-      stage: "dig",
-      state: "completed",
-      latencyMs: dig.meta.latencyMs,
-      salvage: dig.meta.salvage,
-    });
-    passes.push(dig.meta);
-    const linked = linkFindings(dig.output.findings, index, { pass: "dig" });
-    digStats = linked.stats;
-    issues.push(...linked.issues);
-    collectedFindings.push(...linked.findings);
-    collectedUnknowns.push(...dig.output.unknowns);
-    collectedAnswers.push(...dig.output.answers);
+    let dig: DigPassResult | undefined;
+    try {
+      dig = await runDigPass(deps, context, queries, input.signal, authoritativeAnchors);
+    } catch (error) {
+      if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+      issues.push({
+        kind: "dig-invalid",
+        pass: "dig",
+        target: "dig",
+        detail: `dig output failed schema validation: ${error.details ?? error.message}`,
+      });
+    }
+    if (dig === undefined) {
+      collectedUnknowns.push(
+        "Dig output was unusable; the reading flow's queries stay unanswered.",
+      );
+    } else {
+      await notify({
+        stage: "dig",
+        state: "completed",
+        latencyMs: dig.meta.latencyMs,
+        salvage: dig.meta.salvage,
+      });
+      passes.push(dig.meta);
+      const linked = linkFindings(dig.output.findings, index, { pass: "dig" });
+      digStats = linked.stats;
+      issues.push(...linked.issues);
+      collectedFindings.push(...linked.findings);
+      collectedUnknowns.push(...dig.output.unknowns);
+      collectedAnswers.push(...dig.output.answers);
+    }
   }
 
   // L2 — claims were evaluated at the link boundary (only true claims survive); the merge

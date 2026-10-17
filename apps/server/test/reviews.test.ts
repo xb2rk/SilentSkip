@@ -70,8 +70,8 @@ const scriptedRunner: WorkflowRunner = async (request) => {
   if (stage === "map") {
     return ok({
       themes: [
-        { name: "Script", files: ["Assets/Scripts/Config.fcg"] },
-        { name: "Data", files: ["Assets/CSV/UnitData.csv"] },
+        { name: "Script", files: ["f1"] },
+        { name: "Data", files: ["f2"] },
       ],
     });
   }
@@ -244,7 +244,8 @@ describe("review runs", () => {
     expect(runRows[0]?.durationMs).not.toBeNull();
     const manifestRows = app.db.select().from(contextManifests).all();
     expect(manifestRows.map((row) => row.passId).sort()).toEqual(["map", "read", "synthesize"]);
-    expect(manifestRows[0]?.promptVersion).toBe("2.0.0");
+    expect(manifestRows.find((row) => row.passId === "map")?.promptVersion).toBe("2.1.0");
+    expect(manifestRows.find((row) => row.passId === "read")?.promptVersion).toBe("2.0.0");
   });
 
   it("lists runs newest first, optionally filtered by project", async () => {
