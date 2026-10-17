@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@craftland-qa/ai": "workspace:*",
     "@craftland-qa/contracts": "workspace:*",
     "@craftland-qa/db": "workspace:*",
     "@craftland-qa/engine": "workspace:*",

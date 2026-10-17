@@ -2,6 +2,7 @@ import type { DigestBundle, ReviewLens, SynthesizeOutput } from "@craftland-qa/c
 import { buildReviewContext, evidenceAnchorsOf } from "../context/build.js";
 import type { ReviewContextManifest } from "../context/types.js";
 import { runInseaWorkflow } from "../insea/client.js";
+import type { InseaSalvage } from "../insea/types.js";
 import { runDigPass } from "../passes/dig.js";
 import { runDigestReadPass } from "../passes/digest-read.js";
 import { mergeReadOutputs, type StructuredFindings } from "../passes/digest-step.js";
@@ -14,12 +15,22 @@ import {
   verifySynthesizeReport,
 } from "../verify/index.js";
 
+/** Progress event of one pipeline stage — what the server relays over SSE (E4.4). */
+export interface PipelineStageEvent {
+  readonly stage: "digest_read" | "dig" | "synthesize";
+  readonly state: "started" | "completed";
+  readonly latencyMs?: number;
+  readonly salvage?: InseaSalvage;
+}
+
 /** Input of one review run — the digest plus the user's goal and lens. */
 export interface ReviewPipelineInput {
   readonly digest: DigestBundle;
   readonly goal?: string;
   readonly lens?: ReviewLens;
   readonly signal?: AbortSignal;
+  /** Optional progress hook — called around every pass, never inside the verifier. */
+  readonly onEvent?: (event: PipelineStageEvent) => void | Promise<void>;
 }
 
 /** Verifier outcome of one run — per-pass counts plus the combined audit trail. */
@@ -69,15 +80,35 @@ export async function runReviewPipeline(
     ...(input.lens === undefined ? {} : { lens: input.lens }),
   });
   const authoritativeAnchors = evidenceAnchorsOf(input.digest);
+  const notify = async (event: PipelineStageEvent): Promise<void> => {
+    if (input.onEvent !== undefined) await input.onEvent(event);
+  };
 
+  await notify({ stage: "digest_read", state: "started" });
   const read = await runDigestReadPass(deps, context, input.signal);
+  await notify({
+    stage: "digest_read",
+    state: "completed",
+    latencyMs: read.meta.latencyMs,
+    salvage: read.meta.salvage,
+  });
   const readVerified = verifyFindings(context, read.output.findings, {
     pass: "digest_read",
     allAnchors: authoritativeAnchors,
   });
   const dig =
     read.output.needMore.length > 0
-      ? await runDigPass(deps, context, read.output.needMore, input.signal)
+      ? await (async () => {
+          await notify({ stage: "dig", state: "started" });
+          const result = await runDigPass(deps, context, read.output.needMore, input.signal);
+          await notify({
+            stage: "dig",
+            state: "completed",
+            latencyMs: result.meta.latencyMs,
+            salvage: result.meta.salvage,
+          });
+          return result;
+        })()
       : undefined;
   const digVerified =
     dig === undefined
@@ -93,7 +124,14 @@ export async function runReviewPipeline(
       : { ...dig.output, findings: [...digVerified.findings] },
   );
   const seenAnchors = new Set(structured.findings.flatMap((finding) => finding.anchors));
+  await notify({ stage: "synthesize", state: "started" });
   const synthesize = await runSynthesizePass(deps, { context, structured }, input.signal);
+  await notify({
+    stage: "synthesize",
+    state: "completed",
+    latencyMs: synthesize.meta.latencyMs,
+    salvage: synthesize.meta.salvage,
+  });
   const verifiedReport = verifySynthesizeReport(
     context,
     synthesize.output,

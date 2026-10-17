@@ -7,18 +7,11 @@ import {
   ProjectListResponseSchema,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
-  WORKTREE_REF,
 } from "@craftland-qa/contracts";
 import type { AppDatabase } from "@craftland-qa/db";
-import { buildDigest } from "@craftland-qa/engine";
 import { Hono } from "hono";
-import {
-  diffSummary,
-  projectRefs,
-  readFilesAtRef,
-  readProjectFilesFromDisk,
-  resolveCommit,
-} from "../git";
+import { loadDigest } from "../digest-input";
+import { diffSummary, projectRefs } from "../git";
 import { addProject, getProject, listProjects, removeProject } from "../projects";
 import { readJsonBody } from "./utils";
 
@@ -75,25 +68,7 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
     if (base === undefined || base === "" || current === undefined || current === "") {
       throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `base` hoặc `current`");
     }
-    if (base === WORKTREE_REF) {
-      throw new AppError(
-        ErrorCodes.badRequest,
-        "Bản gốc (A) phải là ref thật — không thể là bản đang làm",
-      );
-    }
-    const baseCommit = await resolveCommit(project.rootPath, base);
-    const currentIsWorktree = current === WORKTREE_REF;
-    const currentCommit = currentIsWorktree ? null : await resolveCommit(project.rootPath, current);
-    const [baseSources, currentSources] = await Promise.all([
-      readFilesAtRef(project.rootPath, base),
-      currentIsWorktree
-        ? Promise.resolve(readProjectFilesFromDisk(project.rootPath))
-        : readFilesAtRef(project.rootPath, current),
-    ]);
-    const digest = buildDigest({
-      base: { ref: base, commitHash: baseCommit, sources: baseSources },
-      current: { ref: current, commitHash: currentCommit, sources: currentSources },
-    });
+    const digest = await loadDigest(project.rootPath, base, current);
     return c.json(DigestBundleSchema.parse(digest));
   });
 

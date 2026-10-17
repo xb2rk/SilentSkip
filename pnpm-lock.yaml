@@ -17,6 +17,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@craftland-qa/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@craftland-qa/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

@@ -1,3 +1,4 @@
+import { type PassConfig, runInseaWorkflow, type WorkflowRunner } from "@craftland-qa/ai";
 import {
   API_VERSION,
   AppError,
@@ -10,13 +11,24 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Logger } from "pino";
+import { ReviewManager } from "./reviews";
 import { createFsRoutes } from "./routes/fs.routes";
 import { createProjectsRoutes } from "./routes/projects.routes";
+import { createReviewsRoutes } from "./routes/reviews.routes";
 
 /** Dependencies injected into the HTTP app so handlers stay testable without real I/O. */
 export interface AppDependencies {
   readonly db: AppDatabase;
   readonly log: Logger;
+  /**
+   * AI wiring for review runs. Optional so non-review tests stay one-liners; production passes
+   * the loaded workflow config. Without a config the client reports `not-configured` and runs
+   * complete through the deterministic fallback.
+   */
+  readonly ai?: {
+    readonly runner?: WorkflowRunner;
+    readonly config?: PassConfig;
+  };
 }
 
 /**
@@ -61,6 +73,14 @@ export function createApp(deps: AppDependencies): Hono {
 
   app.route("/api/projects", createProjectsRoutes({ db: deps.db }));
   app.route("/api/fs", createFsRoutes());
+
+  const reviewManager = new ReviewManager({
+    db: deps.db,
+    log: deps.log,
+    runner: deps.ai?.runner ?? runInseaWorkflow,
+    config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
+  });
+  app.route("/api/reviews", createReviewsRoutes({ manager: reviewManager }));
 
   app.notFound((c) => {
     const envelope = new AppError(

@@ -14,6 +14,7 @@
 export * from "./context/build.js";
 export * from "./context/types.js";
 export * from "./errors.js";
+export * from "./fallback.js";
 export * from "./insea/canary.js";
 export * from "./insea/client.js";
 export * from "./insea/types.js";

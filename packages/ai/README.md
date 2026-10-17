@@ -35,13 +35,16 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
   and downgrade emits a `VerifyIssue` and moves a counter in `PipelineVerification`. Real run
   (Sample `e96f6ff→418d7d6f`): the read pass stripped 3 truly unknown ids and honestly downgraded 3
   findings; synthesize introduced 0 new anchors and stripped 0.
+- **Fallback + progress events (E4.4)** — `buildFallbackReport(digest, error)`: when the AI is
+  unavailable (any `AiError` except cancellation) the run still completes with an honest
+  `insufficient_evidence` report summarising the change from engine stats — the UI never depends
+  on a flaky call. `runReviewPipeline` takes an optional `onEvent` hook and emits stage
+  started/completed around every pass; the server relays these over SSE.
 
 ## Planned scope
 
-- **Deterministic fallback**: when the model times out or fails verification, the deterministic
-  engine output is presented instead — the UI never depends on a flaky call.
-- **Streaming + persistence (E4.4)**: SSE progress, cancel, and per-run manifests/reports
-  saved to SQLite.
+- **What-If passes (E6)**: `whatif_answer` plus session-ledger context assembly, on top of the
+  same verifier and manifest discipline.
 
 ## Hard rules
 
