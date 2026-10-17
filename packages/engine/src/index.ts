@@ -15,10 +15,12 @@
 /** Package version marker — kept in lockstep with the package manifest. */
 export const ENGINE_VERSION = "0.1.0";
 
+export * from "./checks/index.js";
 export * from "./csv/index.js";
 export * from "./delta/index.js";
 export * from "./digest/index.js";
 export * from "./facts/index.js";
 export * from "./journey/index.js";
+export * from "./plan/index.js";
 export * from "./profile/index.js";
 export * from "./relations/index.js";

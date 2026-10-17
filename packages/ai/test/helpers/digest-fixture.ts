@@ -16,7 +16,7 @@ export const ANCHOR_B_ATK = "B:Assets/CSV/UnitData.csv:2:2:csv:r:scout:c:atk";
 /** Build a fresh digest fixture (never shared/mutated between tests). */
 export function makeDigest(): DigestBundle {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     refs: {
       base: { ref: "HEAD~1", commitHash: "aaaa1111" },
       current: { ref: "WORKTREE", commitHash: null },
@@ -56,6 +56,8 @@ export function makeDigest(): DigestBundle {
         path: "Assets/CSV/UnitData.csv",
         status: "changed",
         headerChanged: false,
+        columns: { before: 2, after: 2 },
+        widths: { before: [{ width: 2, rows: 1 }], after: [{ width: 2, rows: 1 }] },
         rowsAdded: [],
         rowsRemoved: [],
         rowsChanged: [
@@ -110,6 +112,54 @@ export function makeDigest(): DigestBundle {
         anchorId: null,
       },
     ],
+    quantities: [
+      {
+        id: "q:symbol-count|B|Assets/Scripts/Config.fcg|added",
+        kind: "symbol-count",
+        subject: "Assets/Scripts/Config.fcg symbols added",
+        value: "0",
+        ref: "B",
+        anchorId: null,
+      },
+      {
+        id: "q:symbol-count|A|Assets/Scripts/Config.fcg|removed",
+        kind: "symbol-count",
+        subject: "Assets/Scripts/Config.fcg symbols removed",
+        value: "0",
+        ref: "A",
+        anchorId: null,
+      },
+      {
+        id: "q:symbol-count|Assets/Scripts/Config.fcg|changed",
+        kind: "symbol-count",
+        subject: "Assets/Scripts/Config.fcg symbols changed",
+        value: "1",
+        ref: null,
+        anchorId: null,
+      },
+      {
+        id: "q:value|A|Assets/Scripts/Config.fcg|_MOD",
+        kind: "value",
+        subject: "Assets/Scripts/Config.fcg _MOD (before)",
+        value: "104729",
+        ref: "A",
+        anchorId: ANCHOR_A_MOD,
+      },
+      {
+        id: "q:value|B|Assets/Scripts/Config.fcg|_MOD",
+        kind: "value",
+        subject: "Assets/Scripts/Config.fcg _MOD (after)",
+        value: "999983",
+        ref: "B",
+        anchorId: ANCHOR_B_MOD,
+      },
+    ],
+    findings: [],
+    plan: {
+      units: [],
+      skeleton: { files: [], importEdges: [] },
+      partition: { clusters: [] },
+    },
     anchors: [
       {
         id: ANCHOR_A_MOD,

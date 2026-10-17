@@ -10,12 +10,15 @@ eventually findings.
   source coordinates (1-based lines, 0-based UTF-16 offsets) so UI anchors map 1:1 to files;
   malformed input (unterminated quotes) is reported in `anomalies`, never silently repaired.
   Guarded by a checked-in 33-file corpus gate (`test/corpus`, provenance in its README).
-- **Facts (E2.3)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg` sources
-  into a deterministic `FactBundle` — symbols with scope/container, name references with
+- **Facts (E2.3, v2 at E7.1)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg`
+  sources into a deterministic `FactBundle` — symbols with scope/container, name references with
   name-level resolution (`resolved` / `ambiguous` / `unresolved` — never guessed), calls
   (callee/receiver/arity, `start`/`wait` prefixes), raw string literals, imports, and doc
   comments attached to the declaration that follows them. Every span is raw-faithful
   (slice == fact) and 1-based-lined; parse problems are surfaced in `parse`, never hidden.
+  v2 adds `values` (raw literal initializers bound to their declaring symbol) and `comparisons`
+  (raw guard comparisons with faithful left/right spans) — the fact families the AI flow cites
+  numbers through, so a claim about a value must point at the fact that owns it.
   Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
 - **Relations (E2.5)** — `buildRelations(bundle, { csvPaths })`: derives `name-refers-to-symbol`,
   `name-refers-to-import`, `call-name-resolves`, `call-receiver-import`, `import-statement`,
@@ -28,7 +31,9 @@ eventually findings.
   matched by `kind|container|name` (moved code keeps identity), container declarations reported
   as added/removed only, imports as a set diff, CSV rows keyed by trimmed first column
   (fallback `#row:<index>` for empty/duplicate keys) with changed column indexes and previews.
-  Guarded by engineered fixtures plus corpus-grounded mutations (`test/delta.test.ts`).
+  Changed symbols also carry `beforeValue`/`afterValue` — the raw literal initializer from each
+  side when one exists, honestly omitted otherwise (E7.1).
+  Guarded by engineered fixtures plus corpus-grounded mutations (`test/delta*.test.ts`).
 - **Value Journey (E2.6)** — `buildJourney({ bundle, relations, origin })`: layered chains from
   a CSV table/row or a symbol — naming literals → binding symbol → use-sites → runtime
   containers, each node with a raw-faithful span, step confidence and derivation; cycles are
@@ -39,13 +44,30 @@ eventually findings.
   `collectDiscoveryCandidates(bundle, relations)` produces the deterministic proposals the AI
   Discovery pass will review later — CSV-naming literals and import paths, each with evidence
   and no scoring. Guarded by fixture tests (`test/profile.test.ts`).
-- **Digest (E3)** — `buildDigest({ base, current, budgets? })`: the deterministic fact sheet for
-  an A/B range — layer [1] change facts (symbols, imports, CSV rows and cells), layer [2] linked
-  journeys (60 by default — changed tables/rows first, per-file caps, every node anchor-backed), layer [4] context (doc comments of changed
-  symbols, profile conventions, entity notes). A content-stable anchor registry (ref+file+line
-  ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship with it; every
-  number is computed here — never by a model. Guarded by engineered + corpus-grounded tests
-  (`test/digest.test.ts`).
+- **Checks (E7.1)** — `runChecks({ base, current, delta, registerAnchor })`: deterministic
+  findings that run over the full scope, never sampled. `STRUCT-01` reports rows whose width
+  differs from the header (raw structure, nothing inferred about the "right" width);
+  `DANGLING-REF` reports a symbol removed in B whose same-name references in B resolve nowhere
+  while the A-side references resolved exactly to it. Every finding carries severity,
+  confidence, raw-structure witness anchors (registered into the digest registry) and a
+  derivation chain. Guarded by `test/checks.test.ts`.
+- **Reading plan (E7.1)** — `buildReadingPlan({ scripts, tables, graphEdges })`: the lossless
+  compaction the AI flow reads — units contain every changed file exactly once (never split),
+  packed in path order under a byte budget (~60 KB per unit), payloads keep every changed name
+  and value; the skeleton maps every changed file (`counts`, `changedSymbols`, `headerColumns`,
+  deduped import edges) and the base partition is a true set partition of the changed files
+  (import edges + same-directory grouping) that the AI may only refine. Guarded by
+  `test/plan.test.ts`.
+- **Digest (E3, v2 at E7.1)** — `buildDigest({ base, current, budgets? })`: the deterministic
+  fact sheet for an A/B range — layer [1] change facts (symbols with values, imports, CSV rows
+  and cells), layer [2] linked journeys (60 by default — changed tables/rows first, per-file
+  caps, every node anchor-backed), layer [3] engine findings from `runChecks`, layer [4] context
+  (doc comments of changed symbols, profile conventions, entity notes). Quantities (`q:*`
+  entries: column counts, row counts, symbol counts, literal values) carry the numbers the flow
+  may cite; the reading plan ships inside the digest. A content-stable anchor registry
+  (ref+file+line ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship
+  with it; every number is computed here — never by a model. Guarded by engineered +
+  corpus-grounded tests (`test/digest*.test.ts`).
 
 ## Dev probes
 
@@ -60,9 +82,10 @@ eventually findings.
 
 ## Planned scope
 
-- **Checks (E7/E8)**: structural (`STRUCT-*`, `TYPE-01`, PK inference) and semantic
-  (`BIND-*`, `DRIFT-*`, `REF-*`, silent-skip) — see plan §4/§10.
-- **AI pipeline (E4)** builds on the digest: Insea client, prompt passes, citation verifier, runs.
+- **Checks full (E7.3)**: `STRUCT-02/03`, `TYPE-01`, PK inference (pin → exact) and the binding
+  channels ①/②/③ with pin suggestions — then `BIND-*`, `DRIFT-*`, `REF-*` at E8.
+- **AI flow v2 (E7.2)**: multi-call map → read-by-unit → dig → link-verify → synthesize over the
+  reading plan, with fact-id placeholders for every number.
 
 ## Hard rules
 

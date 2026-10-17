@@ -8,11 +8,13 @@ import {
   type QualifiedNameNode,
   type SourceRange,
   type Token,
+  TokenId,
   triviaKindOf,
   walkAst,
 } from "@craftland-qa/fc-lang";
 import {
   type CallFact,
+  type ComparisonFact,
   type DocCommentFact,
   FACT_SCHEMA_VERSION,
   type FactBundle,
@@ -27,6 +29,7 @@ import {
   type SymbolFact,
   type SymbolKind,
   type SymbolScope,
+  type ValueFact,
 } from "./types.js";
 
 /**
@@ -64,6 +67,8 @@ function buildFileFacts(input: SourceInput): FileFacts {
   const rawRefs: RawRef[] = [];
   const calls: CallFact[] = [];
   const strings: StringFact[] = [];
+  const values: ValueFact[] = [];
+  const comparisons: ComparisonFact[] = [];
   const imports: ImportFact[] = [];
   const docComments: DocCommentFact[] = [];
 
@@ -108,8 +113,8 @@ function buildFileFacts(input: SourceInput): FileFacts {
     kind: SymbolKind,
     scope: SymbolScope,
     node: AnySyntaxNode,
-  ): void => {
-    if (!name) return;
+  ): string | undefined => {
+    if (!name) return undefined;
     const id = `${input.path}#${name.text}@${name.range.start.offset}`;
     const ownContainer = container();
     symbols.push({
@@ -122,6 +127,22 @@ function buildFileFacts(input: SourceInput): FileFacts {
       nameSpan: spanOf(name.range),
     });
     if (scope !== "local") attachDocComments(node.tokenRange.start, id);
+    return id;
+  };
+
+  /** Records the literal initializer of a declaration; non-literal initializers record nothing. */
+  const recordValue = (symbolId: string, value: AnySyntaxNode): void => {
+    if (value.kind !== "literal-expression") return;
+    const token = tokens[value.tokenIndex];
+    if (!token) return;
+    values.push({
+      id: `${input.path}#value@${value.range.start.offset}`,
+      symbolId,
+      literalKind: value.literalKind,
+      rawText: token.text,
+      text: stripDelimiters(token.text),
+      span: spanOf(value.range),
+    });
   };
 
   const pushScope = (node: AnySyntaxNode, name: NameNode | QualifiedNameNode | undefined): void => {
@@ -200,15 +221,18 @@ function buildFileFacts(input: SourceInput): FileFacts {
         break;
       }
       case "enum-member": {
-        registerSymbol(node.name, "enum-member", "member", node);
+        const id = registerSymbol(node.name, "enum-member", "member", node);
+        if (id !== undefined && node.value !== undefined) recordValue(id, node.value);
         break;
       }
       case "field-declaration": {
-        registerSymbol(node.name, "field", "member", node);
+        const id = registerSymbol(node.name, "field", "member", node);
+        if (id !== undefined && node.value !== undefined) recordValue(id, node.value);
         break;
       }
       case "variable-statement": {
-        registerSymbol(node.name, "variable", "local", node);
+        const id = registerSymbol(node.name, "variable", "local", node);
+        if (id !== undefined && node.value !== undefined) recordValue(id, node.value);
         break;
       }
       case "parameter": {
@@ -227,6 +251,26 @@ function buildFileFacts(input: SourceInput): FileFacts {
       }
       case "out-var-argument": {
         registerSymbol(node.name, "variable", "local", node);
+        break;
+      }
+      // ---- comparisons: raw syntax material for width/column guards ----
+      case "binary-expression": {
+        if (isComparisonOperator(node.operator) && node.right !== undefined) {
+          const operatorToken = tokens[node.operatorTokenIndices[0] ?? -1];
+          const ownContainer = container();
+          comparisons.push({
+            id: `${input.path}#cmp@${node.range.start.offset}`,
+            ...(ownContainer !== undefined ? { container: ownContainer } : {}),
+            operatorText:
+              operatorToken?.text ??
+              source.slice(node.left.range.end.offset, node.right.range.start.offset).trim(),
+            leftText: sliceRange(source, node.left.range),
+            leftSpan: spanOf(node.left.range),
+            rightText: sliceRange(source, node.right.range),
+            rightSpan: spanOf(node.right.range),
+            span: spanOf(node.range),
+          });
+        }
         break;
       }
       // ---- references ----
@@ -356,6 +400,8 @@ function buildFileFacts(input: SourceInput): FileFacts {
     refs,
     calls,
     strings,
+    values,
+    comparisons,
     imports,
     docComments,
   };
@@ -430,6 +476,18 @@ export function resolveName(
 /** Exactly-one-or-nothing helper that stays type-safe under `noUncheckedIndexedAccess`. */
 function singleCandidate<T>(items: readonly T[]): T | undefined {
   return items.length === 1 ? items[0] : undefined;
+}
+
+/** Comparison operators recorded as {@link ComparisonFact}s (spec §4.7 STRUCT-01 raw material). */
+function isComparisonOperator(operator: TokenId): boolean {
+  return (
+    operator === TokenId.EQUALS ||
+    operator === TokenId.NOT_EQUALS ||
+    operator === TokenId.LESS ||
+    operator === TokenId.GREATER ||
+    operator === TokenId.LESS_OR_EQUALS ||
+    operator === TokenId.GREATER_OR_EQUALS
+  );
 }
 
 /** Convert a half-open LSP range into a `FactSpan` (1-based lines, 0-based offsets). */

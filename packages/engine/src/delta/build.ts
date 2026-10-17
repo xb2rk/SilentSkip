@@ -117,6 +117,13 @@ function languageOf(path: string): "fcc" | "fcg" {
   return path.toLowerCase().endsWith(".fcc") ? "fcc" : "fcg";
 }
 
+/** Maps symbol id → raw literal text for single-literal initializers. */
+function valueBySymbolId(file: FileFacts): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const value of file.values) map.set(value.symbolId, value.rawText);
+  return map;
+}
+
 /** Delta for a file that exists only in ref B. */
 function addedFile(path: string, after: FileFacts): ScriptFileDelta {
   return {
@@ -158,6 +165,8 @@ function changedFile(
     after.symbols,
     beforeSource,
     afterSource,
+    valueBySymbolId(before),
+    valueBySymbolId(after),
   );
   const { importsAdded, importsRemoved } = diffImports(before.imports, after.imports);
   const empty =
@@ -200,6 +209,8 @@ function diffSymbols(
   after: readonly SymbolFact[],
   beforeSource: string,
   afterSource: string,
+  beforeValues: ReadonlyMap<string, string>,
+  afterValues: ReadonlyMap<string, string>,
 ): {
   symbolsAdded: SymbolFact[];
   symbolsRemoved: SymbolFact[];
@@ -224,6 +235,8 @@ function diffSymbols(
       const beforeHash = hashSlice(beforeSource, b.span.offset, b.span.length);
       const afterHash = hashSlice(afterSource, a.span.offset, a.span.length);
       if (beforeHash === afterHash) continue;
+      const beforeValue = beforeValues.get(b.id);
+      const afterValue = afterValues.get(a.id);
       symbolsChanged.push({
         key,
         name: b.name,
@@ -233,6 +246,8 @@ function diffSymbols(
         afterSpan: a.span,
         beforeHash,
         afterHash,
+        ...(beforeValue === undefined ? {} : { beforeValue }),
+        ...(afterValue === undefined ? {} : { afterValue }),
       });
     }
     for (const extra of beforeList.slice(paired)) symbolsRemoved.push(extra);

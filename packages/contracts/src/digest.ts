@@ -43,6 +43,8 @@ export const DigestSymbolRefSchema = z.object({
   name: z.string(),
   symbolKind: z.string(),
   anchorId: z.string(),
+  /** Raw literal initializer text when the declaration initializes from a single literal. */
+  value: z.string().optional(),
 });
 
 /** A symbol whose content hash differs between A and B, with one anchor per side. */
@@ -51,6 +53,10 @@ export const DigestSymbolChangeSchema = z.object({
   symbolKind: z.string(),
   beforeAnchorId: z.string(),
   afterAnchorId: z.string(),
+  /** Raw literal initializer text on side A, when one exists. */
+  beforeValue: z.string().optional(),
+  /** Raw literal initializer text on side B, when one exists. */
+  afterValue: z.string().optional(),
 });
 
 /** Layer 1 — a changed script file and its symbol/import deltas. */
@@ -93,12 +99,28 @@ export const DigestRowChangeSchema = z.object({
   afterLine: z.number().int().positive(),
 });
 
+/** Distinct row width and how many data rows have it (raw structure, nothing inferred). */
+export const DigestWidthEntrySchema = z.object({
+  width: z.number().int().positive(),
+  rows: z.number().int().nonnegative(),
+});
+
 /** Layer 1 — a changed CSV table and its row deltas. */
 export const DigestTableChangeSchema = z.object({
   kind: z.literal("table"),
   path: z.string(),
   status: z.enum(["added", "removed", "changed"]),
   headerChanged: z.boolean(),
+  /** Header cell count per side; null when the table does not exist on that side. */
+  columns: z.object({
+    before: z.number().int().positive().nullable(),
+    after: z.number().int().positive().nullable(),
+  }),
+  /** Distinct data-row widths per side — the raw material of the STRUCT checks. */
+  widths: z.object({
+    before: z.array(DigestWidthEntrySchema),
+    after: z.array(DigestWidthEntrySchema),
+  }),
   rowsAdded: z.array(DigestRowRefSchema),
   rowsRemoved: z.array(DigestRowRefSchema),
   rowsChanged: z.array(DigestRowChangeSchema),
@@ -109,6 +131,31 @@ export const DigestChangeFactSchema = z.discriminatedUnion("kind", [
   DigestScriptChangeSchema,
   DigestTableChangeSchema,
 ]);
+
+/**
+ * A named quantity the AI must cite through its id instead of writing raw digits
+ * (fact-id store, decision #28) — every number in a report resolves to one of these.
+ */
+export const DigestQuantitySchema = z.object({
+  id: z.string(),
+  kind: z.enum(["column-count", "row-count", "symbol-count", "value"]),
+  subject: z.string(),
+  value: z.string(),
+  ref: AnchorRefSchema.nullable(),
+  anchorId: z.string().nullable(),
+});
+
+/** Layer 3 — a deterministic engine finding: full-scope, fact-derived, never sampled. */
+export const DigestFindingSchema = z.object({
+  id: z.string(),
+  ruleId: z.string(),
+  severity: z.enum(["critical", "major", "minor", "info"]),
+  confidence: z.enum(["exact", "inferred"]),
+  title: z.string(),
+  message: z.string(),
+  anchors: z.array(z.string()),
+  derivation: z.array(z.string()),
+});
 
 /** One node of a journey chain, resolved to an anchor. */
 export const DigestJourneyNodeSchema = z.object({
@@ -174,6 +221,51 @@ export const DigestStatsSchema = z.object({
   rowsChanged: z.number().int().nonnegative(),
 });
 
+/** One reading unit of the change set: the files it covers plus its compacted payload. */
+export const DigestUnitSchema = z.object({
+  index: z.number().int().nonnegative(),
+  files: z.array(z.string()),
+  estimatedBytes: z.number().int().nonnegative(),
+  payload: z.string(),
+});
+
+/** Per-file skeleton entry — the whole change map without payloads. */
+export const DigestSkeletonFileSchema = z.object({
+  path: z.string(),
+  kind: z.enum(["script", "table"]),
+  status: z.enum(["added", "removed", "changed"]),
+  language: z.enum(["fcc", "fcg"]).optional(),
+  counts: z.object({
+    added: z.number().int().nonnegative(),
+    removed: z.number().int().nonnegative(),
+    changed: z.number().int().nonnegative(),
+  }),
+  changedSymbols: z.array(z.string()),
+  headerColumns: z.number().int().positive().nullable(),
+});
+
+/** Directed import edge between two changed files. */
+export const DigestSkeletonEdgeSchema = z.object({ from: z.string(), to: z.string() });
+
+/** The change map: every changed file plus import edges among them. */
+export const DigestSkeletonSchema = z.object({
+  files: z.array(DigestSkeletonFileSchema),
+  importEdges: z.array(DigestSkeletonEdgeSchema),
+});
+
+/** One deterministic cluster of changed files (base partition; the AI may only refine). */
+export const DigestClusterSchema = z.object({ id: z.string(), files: z.array(z.string()) });
+
+/** Base partition of the change set (import graph + filesystem grouping). */
+export const DigestPartitionSchema = z.object({ clusters: z.array(DigestClusterSchema) });
+
+/** Reading plan: budget-packed units, the skeleton and the base partition. */
+export const DigestPlanSchema = z.object({
+  units: z.array(DigestUnitSchema),
+  skeleton: DigestSkeletonSchema,
+  partition: DigestPartitionSchema,
+});
+
 /** The complete fact sheet for one A/B comparison. Deterministic: no timestamps inside. */
 export const DigestBundleSchema = z.object({
   schemaVersion: z.number().int().positive(),
@@ -182,6 +274,12 @@ export const DigestBundleSchema = z.object({
   changeFacts: z.array(DigestChangeFactSchema),
   linked: z.array(DigestLinkedSchema),
   context: z.array(DigestContextItemSchema),
+  /** Named quantities (fact-id store) — the only legitimate source of numbers for the AI. */
+  quantities: z.array(DigestQuantitySchema),
+  /** Deterministic engine findings (layer 3). */
+  findings: z.array(DigestFindingSchema),
+  /** Reading plan: units + skeleton + base partition (E7 flow). */
+  plan: DigestPlanSchema,
   anchors: z.array(AnchorSchema),
   manifest: DigestManifestSchema,
 });
@@ -196,8 +294,18 @@ export type DigestScriptChange = z.infer<typeof DigestScriptChangeSchema>;
 export type DigestRowRef = z.infer<typeof DigestRowRefSchema>;
 export type DigestCellChange = z.infer<typeof DigestCellChangeSchema>;
 export type DigestRowChange = z.infer<typeof DigestRowChangeSchema>;
+export type DigestWidthEntry = z.infer<typeof DigestWidthEntrySchema>;
 export type DigestTableChange = z.infer<typeof DigestTableChangeSchema>;
 export type DigestChangeFact = z.infer<typeof DigestChangeFactSchema>;
+export type DigestQuantity = z.infer<typeof DigestQuantitySchema>;
+export type DigestFinding = z.infer<typeof DigestFindingSchema>;
+export type DigestUnit = z.infer<typeof DigestUnitSchema>;
+export type DigestSkeletonFile = z.infer<typeof DigestSkeletonFileSchema>;
+export type DigestSkeletonEdge = z.infer<typeof DigestSkeletonEdgeSchema>;
+export type DigestSkeleton = z.infer<typeof DigestSkeletonSchema>;
+export type DigestCluster = z.infer<typeof DigestClusterSchema>;
+export type DigestPartition = z.infer<typeof DigestPartitionSchema>;
+export type DigestPlan = z.infer<typeof DigestPlanSchema>;
 export type DigestJourneyNode = z.infer<typeof DigestJourneyNodeSchema>;
 export type DigestJourneyChain = z.infer<typeof DigestJourneyChainSchema>;
 export type DigestLinked = z.infer<typeof DigestLinkedSchema>;

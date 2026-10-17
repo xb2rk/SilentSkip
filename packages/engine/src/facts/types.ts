@@ -10,7 +10,7 @@
  */
 
 /** Bump on any shape change; persisted snapshots are keyed by this value. */
-export const FACT_SCHEMA_VERSION = 1;
+export const FACT_SCHEMA_VERSION = 2;
 
 /** A source span with 1-based lines and 0-based UTF-16 offsets. */
 export interface FactSpan {
@@ -122,6 +122,48 @@ export interface StringFact {
   innerText: string;
 }
 
+/**
+ * A literal initializer value attached to a named declaration (enum member, field, variable).
+ * Only single-literal initializers produce a fact — `a + b` produces none, and the honest
+ * absence is itself information. No unescaping: strings keep their escapes as written.
+ */
+export interface ValueFact {
+  /** Stable identity: `${path}#value@${literalStartOffset}`. */
+  id: string;
+  /** Symbol id of the declaration this literal initializes. */
+  symbolId: string;
+  /** AST literal kind (`integer`, `float`, `string`, `boolean`, `color`, `nil`, …). */
+  literalKind: string;
+  /** Exact source text of the literal (quotes included for strings). */
+  rawText: string;
+  /** Delimiters stripped for strings; identical to {@link rawText} otherwise. */
+  text: string;
+  /** Span of the literal itself. */
+  span: FactSpan;
+}
+
+/**
+ * A comparison between two expressions — recorded as raw syntax, never interpreted.
+ * Width/column guards in loaders (`List.Length(row) != Index.Length`) are comparisons;
+ * the checks layer consumes these facts instead of pattern-matching source text.
+ */
+export interface ComparisonFact {
+  /** Stable identity: `${path}#cmp@${expressionStartOffset}`. */
+  id: string;
+  /** Enclosing named scope at the comparison site, when there is one. */
+  container?: string;
+  /** Exact operator token text (`==`, `!=`, `<`, `>`, `<=`, `>=`). */
+  operatorText: string;
+  /** Exact source slice of the left operand. */
+  leftText: string;
+  leftSpan: FactSpan;
+  /** Exact source slice of the right operand. */
+  rightText: string;
+  rightSpan: FactSpan;
+  /** Span of the whole comparison expression. */
+  span: FactSpan;
+}
+
 /** An import statement. */
 export interface ImportFact {
   /** Stable identity: `${path}#import@${startOffset}`. */
@@ -164,6 +206,10 @@ export interface FileFacts {
   refs: RefFact[];
   calls: CallFact[];
   strings: StringFact[];
+  /** Literal initializers of declarations (single-literal initializers only). */
+  values: ValueFact[];
+  /** Comparison expressions (`==`, `!=`, `<`, `>`, `<=`, `>=`) with both operand slices. */
+  comparisons: ComparisonFact[];
   imports: ImportFact[];
   docComments: DocCommentFact[];
 }

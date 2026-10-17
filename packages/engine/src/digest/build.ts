@@ -5,17 +5,21 @@ import type {
   DigestBundle,
   DigestCellChange,
   DigestContextItem,
+  DigestFinding,
   DigestJourneyChain,
   DigestJourneyNode,
   DigestLinked,
+  DigestQuantity,
   DigestRowChange,
   DigestRowRef,
   DigestScriptChange,
   DigestSymbolChange,
   DigestSymbolRef,
   DigestTableChange,
+  DigestWidthEntry,
   ProjectProfile,
 } from "@craftland-qa/contracts";
+import { type CheckSide, runChecks } from "../checks/index.js";
 import { type CsvCell, type CsvRow, type CsvTable, parseCsv } from "../csv/index.js";
 import {
   buildDeltaBundle,
@@ -29,9 +33,16 @@ import {
   type FactSpan,
   type FileFacts,
   type SourceInput,
+  type SymbolKind,
 } from "../facts/index.js";
 import { buildJourney, type JourneyNode, type JourneyOrigin } from "../journey/index.js";
-import { buildRelations } from "../relations/index.js";
+import {
+  buildReadingPlan,
+  type PlanInput,
+  type PlanScriptInput,
+  type PlanTableInput,
+} from "../plan/index.js";
+import { buildRelations, type RelationSet } from "../relations/index.js";
 import {
   DEFAULT_MAX_ANCHORS,
   DEFAULT_MAX_JOURNEYS,
@@ -55,6 +66,26 @@ function compareStrings(a: string, b: string): number {
 
 function rowSpan(row: CsvRow): FactSpan {
   return { offset: row.offset, length: row.length, line: row.line, endLine: row.endLine };
+}
+
+/** Maps symbol id → raw literal initializer text for one file's facts. */
+function valueMap(file: FileFacts | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const value of file?.values ?? []) map.set(value.symbolId, value.rawText);
+  return map;
+}
+
+/** Distinct data-row widths with row counts — raw CSV structure, nothing inferred. */
+function widthSummary(table: CsvTable | undefined): DigestWidthEntry[] {
+  if (table === undefined) return [];
+  const counts = new Map<number, number>();
+  for (const row of table.rows) {
+    if (row.index === 0) continue;
+    counts.set(row.cells.length, (counts.get(row.cells.length) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([width, rows]) => ({ width, rows }))
+    .sort((a, b) => a.width - b.width);
 }
 
 function cellSpan(cell: CsvCell): FactSpan {
@@ -157,6 +188,8 @@ function buildScriptChange(
 ): DigestScriptChange {
   const beforeSource = base.sources.get(delta.path);
   const afterSource = current.sources.get(delta.path);
+  const beforeValues = valueMap(base.factsByPath.get(delta.path));
+  const afterValues = valueMap(current.factsByPath.get(delta.path));
 
   const symbolsAdded: DigestSymbolRef[] = [];
   const symbolsRemoved: DigestSymbolRef[] = [];
@@ -164,19 +197,23 @@ function buildScriptChange(
 
   if (afterSource !== undefined) {
     for (const symbol of delta.symbolsAdded) {
+      const value = afterValues.get(symbol.id);
       symbolsAdded.push({
         name: symbol.name,
         symbolKind: symbol.kind,
         anchorId: registry.add("B", delta.path, afterSource, symbol.nameSpan, "code"),
+        ...(value === undefined ? {} : { value }),
       });
     }
   }
   if (beforeSource !== undefined) {
     for (const symbol of delta.symbolsRemoved) {
+      const value = beforeValues.get(symbol.id);
       symbolsRemoved.push({
         name: symbol.name,
         symbolKind: symbol.kind,
         anchorId: registry.add("A", delta.path, beforeSource, symbol.nameSpan, "code"),
+        ...(value === undefined ? {} : { value }),
       });
     }
   }
@@ -187,6 +224,8 @@ function buildScriptChange(
       symbolKind: change.kind,
       beforeAnchorId: registry.add("A", delta.path, beforeSource, change.beforeSpan, "code"),
       afterAnchorId: registry.add("B", delta.path, afterSource, change.afterSpan, "code"),
+      ...(change.beforeValue === undefined ? {} : { beforeValue: change.beforeValue }),
+      ...(change.afterValue === undefined ? {} : { afterValue: change.afterValue }),
     });
   }
 
@@ -315,6 +354,11 @@ function buildTableChange(
     path: delta.path,
     status: delta.status,
     headerChanged: delta.headerChanged,
+    columns: {
+      before: beforeTable?.rows[0]?.cells.length ?? null,
+      after: afterTable?.rows[0]?.cells.length ?? null,
+    },
+    widths: { before: widthSummary(beforeTable), after: widthSummary(afterTable) },
     rowsAdded,
     rowsRemoved,
     rowsChanged,
@@ -580,13 +624,202 @@ function buildContext(
   return items;
 }
 
+/** Narrows the digest side into the checks-layer view. */
+function checkSideOf(side: DigestSide, ref: "A" | "B"): CheckSide {
+  return { ref, sources: side.sources, factsByPath: side.factsByPath, tables: side.tables };
+}
+
+/** Named quantities (fact-id store, decision #28) — per-file counts and changed values. */
+function collectQuantities(
+  changeFacts: readonly (DigestScriptChange | DigestTableChange)[],
+  base: DigestSide,
+  current: DigestSide,
+  registry: AnchorRegistry,
+): DigestQuantity[] {
+  const byId = new Map<string, DigestQuantity>();
+  const add = (quantity: DigestQuantity): void => {
+    if (!byId.has(quantity.id)) byId.set(quantity.id, quantity);
+  };
+  for (const fact of changeFacts) {
+    if (fact.kind === "script") {
+      add({
+        id: `q:symbol-count|B|${fact.path}|added`,
+        kind: "symbol-count",
+        subject: `${fact.path} symbols added`,
+        value: String(fact.symbolsAdded.length),
+        ref: "B",
+        anchorId: null,
+      });
+      add({
+        id: `q:symbol-count|A|${fact.path}|removed`,
+        kind: "symbol-count",
+        subject: `${fact.path} symbols removed`,
+        value: String(fact.symbolsRemoved.length),
+        ref: "A",
+        anchorId: null,
+      });
+      add({
+        id: `q:symbol-count|${fact.path}|changed`,
+        kind: "symbol-count",
+        subject: `${fact.path} symbols changed`,
+        value: String(fact.symbolsChanged.length),
+        ref: null,
+        anchorId: null,
+      });
+      for (const change of fact.symbolsChanged) {
+        if (change.beforeValue !== undefined) {
+          add({
+            id: `q:value|A|${fact.path}|${change.name}`,
+            kind: "value",
+            subject: `${fact.path} ${change.name} (before)`,
+            value: change.beforeValue,
+            ref: "A",
+            anchorId: change.beforeAnchorId,
+          });
+        }
+        if (change.afterValue !== undefined) {
+          add({
+            id: `q:value|B|${fact.path}|${change.name}`,
+            kind: "value",
+            subject: `${fact.path} ${change.name} (after)`,
+            value: change.afterValue,
+            ref: "B",
+            anchorId: change.afterAnchorId,
+          });
+        }
+      }
+      continue;
+    }
+    const beforeHeader = base.tables.get(fact.path)?.rows[0];
+    const afterHeader = current.tables.get(fact.path)?.rows[0];
+    const beforeSource = base.sources.get(fact.path);
+    const afterSource = current.sources.get(fact.path);
+    if (fact.columns.before !== null && beforeHeader !== undefined && beforeSource !== undefined) {
+      add({
+        id: `q:column-count|A|${fact.path}`,
+        kind: "column-count",
+        subject: `${fact.path} columns (before)`,
+        value: String(fact.columns.before),
+        ref: "A",
+        anchorId: registry.add("A", fact.path, beforeSource, rowSpan(beforeHeader), "csv"),
+      });
+    }
+    if (fact.columns.after !== null && afterHeader !== undefined && afterSource !== undefined) {
+      add({
+        id: `q:column-count|B|${fact.path}`,
+        kind: "column-count",
+        subject: `${fact.path} columns (after)`,
+        value: String(fact.columns.after),
+        ref: "B",
+        anchorId: registry.add("B", fact.path, afterSource, rowSpan(afterHeader), "csv"),
+      });
+    }
+    add({
+      id: `q:row-count|B|${fact.path}|added`,
+      kind: "row-count",
+      subject: `${fact.path} rows added`,
+      value: String(fact.rowsAdded.length),
+      ref: "B",
+      anchorId: null,
+    });
+    add({
+      id: `q:row-count|A|${fact.path}|removed`,
+      kind: "row-count",
+      subject: `${fact.path} rows removed`,
+      value: String(fact.rowsRemoved.length),
+      ref: "A",
+      anchorId: null,
+    });
+    add({
+      id: `q:row-count|${fact.path}|changed`,
+      kind: "row-count",
+      subject: `${fact.path} rows changed`,
+      value: String(fact.rowsChanged.length),
+      ref: null,
+      anchorId: null,
+    });
+  }
+  return [...byId.values()].sort((a, b) => compareStrings(a.id, b.id));
+}
+
+/** Maps digest change facts + import edges into the reading-plan input. */
+function planInput(
+  changeFacts: readonly (DigestScriptChange | DigestTableChange)[],
+  relations: RelationSet,
+  unitBudgetBytes: number | undefined,
+): PlanInput {
+  const scripts: PlanScriptInput[] = [];
+  const tables: PlanTableInput[] = [];
+  for (const fact of changeFacts) {
+    if (fact.kind === "script") {
+      scripts.push({
+        path: fact.path,
+        status: fact.status,
+        language: fact.language,
+        importsAdded: fact.importsAdded,
+        importsRemoved: fact.importsRemoved,
+        symbolsAdded: fact.symbolsAdded.map((symbol) => ({
+          name: symbol.name,
+          kind: symbol.symbolKind as SymbolKind,
+          ...(symbol.value === undefined ? {} : { value: symbol.value }),
+        })),
+        symbolsRemoved: fact.symbolsRemoved.map((symbol) => ({
+          name: symbol.name,
+          kind: symbol.symbolKind as SymbolKind,
+          ...(symbol.value === undefined ? {} : { value: symbol.value }),
+        })),
+        symbolsChanged: fact.symbolsChanged.map((change) => ({
+          name: change.name,
+          kind: change.symbolKind as SymbolKind,
+          ...(change.beforeValue === undefined ? {} : { beforeValue: change.beforeValue }),
+          ...(change.afterValue === undefined ? {} : { afterValue: change.afterValue }),
+        })),
+      });
+      continue;
+    }
+    tables.push({
+      path: fact.path,
+      status: fact.status,
+      headerChanged: fact.headerChanged,
+      beforeColumns: fact.columns.before,
+      afterColumns: fact.columns.after,
+      rowsAdded: fact.rowsAdded.map((row) => row.key),
+      rowsRemoved: fact.rowsRemoved.map((row) => row.key),
+      rowsChanged: fact.rowsChanged.map((row) => ({
+        key: row.key,
+        cells: row.columnsChanged.map((cell) => ({
+          column: typeof cell.column === "number" ? String(cell.column) : cell.column,
+          before: cell.before,
+          after: cell.after,
+        })),
+      })),
+    });
+  }
+  const changedPaths = new Set(changeFacts.map((fact) => fact.path));
+  const graphEdges = relations.relations
+    .filter(
+      (relation) =>
+        relation.ruleId === "import-path-matches-file" &&
+        changedPaths.has(relation.from.file) &&
+        changedPaths.has(relation.to.file),
+    )
+    .map((relation) => ({ from: relation.from.file, to: relation.to.file }));
+  return {
+    scripts,
+    tables,
+    graphEdges,
+    ...(unitBudgetBytes === undefined ? {} : { unitBudgetBytes }),
+  };
+}
+
 /**
- * Builds the deterministic digest fact sheet for one A/B comparison (spec §4.6).
+ * Builds the deterministic digest fact sheet for one A/B comparison (spec §4.6, E7.1 v2).
  *
- * Layer 1 = change facts (delta, exact, anchored), layer 2 = journeys for the selected
- * changed origins (budgeted, current side), layer 4 = doc comments of changed symbols and
- * pinned profile material. The manifest records budgets, counts and what was not walked —
- * never silently.
+ * Layer 1 = change facts (delta, exact, anchored, with literal values), layer 2 = journeys for
+ * the selected changed origins (budgeted, current side), layer 3 = deterministic engine findings
+ * (full-scope checks — never sampled), layer 4 = doc comments of changed symbols and pinned
+ * profile material. On top: the fact-id store (`quantities`) and the reading plan built from the
+ * whole change set. The manifest records budgets, counts and what was not walked — never silently.
  */
 export function buildDigest(input: DigestInput): DigestBundle {
   const maxJourneys = input.budgets?.maxJourneys ?? DEFAULT_MAX_JOURNEYS;
@@ -612,6 +845,22 @@ export function buildDigest(input: DigestInput): DigestBundle {
   const linked = buildLinked(candidates, maxJourneys, current, relations, registry);
 
   const context = buildContext(delta.scripts, current, registry, input.profile);
+
+  const findings: DigestFinding[] = runChecks({
+    base: checkSideOf(base, "A"),
+    current: checkSideOf(current, "B"),
+    delta,
+    registerAnchor: (ref, file, span, kind) => {
+      const side = ref === "A" ? base : current;
+      const source = side.sources.get(file);
+      if (source === undefined) {
+        throw new Error(`Check anchor source missing: ${ref}:${file}`);
+      }
+      return registry.add(ref, file, source, span, kind);
+    },
+  });
+  const quantities = collectQuantities(changeFacts, base, current, registry);
+  const plan = buildReadingPlan(planInput(changeFacts, relations, input.budgets?.unitBudgetBytes));
 
   const anchors = registry.list();
   const notes: string[] = [];
@@ -647,6 +896,9 @@ export function buildDigest(input: DigestInput): DigestBundle {
     changeFacts,
     linked,
     context,
+    quantities,
+    findings,
+    plan,
     anchors,
     manifest: {
       budgets: { maxJourneys, maxAnchors },

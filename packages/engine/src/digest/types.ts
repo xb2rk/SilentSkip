@@ -2,7 +2,7 @@ import type { ProjectProfile } from "@craftland-qa/contracts";
 import type { SourceInput } from "../facts/index.js";
 
 /** Digest schema version — bump when the shape of `DigestBundle` changes. */
-export const DIGEST_SCHEMA_VERSION = 1;
+export const DIGEST_SCHEMA_VERSION = 2;
 
 /** Default cap on linked journeys selected per digest (attention budget, §5.3). */
 export const DEFAULT_MAX_JOURNEYS = 60;
@@ -21,6 +21,8 @@ export interface DigestSideInput {
 export interface DigestBudgets {
   maxJourneys?: number;
   maxAnchors?: number;
+  /** Optional override of the reading-plan unit byte budget (default 60 KB). */
+  unitBudgetBytes?: number;
 }
 
 /** Everything `buildDigest` needs: both sides, the optional pinned profile, budgets. */

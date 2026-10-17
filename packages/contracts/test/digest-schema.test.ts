@@ -16,7 +16,7 @@ const ANCHOR = {
 };
 
 const EMPTY_DIGEST = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   refs: {
     base: { ref: "HEAD~1", commitHash: "a".repeat(40) },
     current: { ref: "WORKTREE", commitHash: null },
@@ -35,6 +35,13 @@ const EMPTY_DIGEST = {
   changeFacts: [],
   linked: [],
   context: [],
+  quantities: [],
+  findings: [],
+  plan: {
+    units: [],
+    skeleton: { files: [], importEdges: [] },
+    partition: { clusters: [] },
+  },
   anchors: [],
   manifest: {
     budgets: { maxJourneys: 12, maxAnchors: 500 },
@@ -133,6 +140,83 @@ describe("digest bundle schema", () => {
       DigestBundleSchema.parse({
         ...EMPTY_DIGEST,
         changeFacts: [{ kind: "script", path: "x", status: "moved" }],
+      }),
+    ).toThrow();
+  });
+
+  it("round-trips engine findings, quantities and a reading plan", () => {
+    const tableFact = {
+      kind: "table",
+      path: "Assets/CSV/UnitData.csv",
+      status: "changed",
+      headerChanged: false,
+      columns: { before: 2, after: 2 },
+      widths: {
+        before: [
+          { width: 2, rows: 1 },
+          { width: 3, rows: 1 },
+        ],
+        after: [{ width: 2, rows: 1 }],
+      },
+      rowsAdded: [],
+      rowsRemoved: [],
+      rowsChanged: [],
+    };
+    const digest = {
+      ...EMPTY_DIGEST,
+      changeFacts: [tableFact],
+      quantities: [
+        {
+          id: "q:column-count|B|Assets/CSV/UnitData.csv",
+          kind: "column-count",
+          subject: "Assets/CSV/UnitData.csv columns (after)",
+          value: "2",
+          ref: "B",
+          anchorId: ANCHOR.id,
+        },
+      ],
+      findings: [
+        {
+          id: "STRUCT-01|A|Assets/CSV/UnitData.csv",
+          ruleId: "STRUCT-01",
+          severity: "major",
+          confidence: "exact",
+          title: "Row width differs from the header",
+          message: "1 of 2 data rows differ.",
+          anchors: [ANCHOR.id],
+          derivation: ["Header cell count: 2."],
+        },
+      ],
+      plan: {
+        units: [
+          {
+            index: 0,
+            files: ["Assets/CSV/UnitData.csv"],
+            estimatedBytes: 120,
+            payload: '[{"path":"Assets/CSV/UnitData.csv"}]',
+          },
+        ],
+        skeleton: {
+          files: [
+            {
+              path: "Assets/CSV/UnitData.csv",
+              kind: "table",
+              status: "changed",
+              counts: { added: 0, removed: 0, changed: 0 },
+              changedSymbols: [],
+              headerColumns: 2,
+            },
+          ],
+          importEdges: [],
+        },
+        partition: { clusters: [{ id: "cluster-1", files: ["Assets/CSV/UnitData.csv"] }] },
+      },
+    };
+    expect(DigestBundleSchema.parse(digest)).toEqual(digest);
+    expect(() =>
+      DigestBundleSchema.parse({
+        ...digest,
+        findings: [{ ...digest.findings[0], severity: "blocker" }],
       }),
     ).toThrow();
   });

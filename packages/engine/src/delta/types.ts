@@ -46,6 +46,13 @@ export interface SymbolChange {
   readonly beforeHash: string;
   /** FNV-1a hash of the ref B source slice. */
   readonly afterHash: string;
+  /**
+   * Raw literal initializer text in ref A when the declaration initializes from a single
+   * literal (enum member, field, variable). Absent otherwise — absence is honest.
+   */
+  readonly beforeValue?: string;
+  /** Raw literal initializer text in ref B; see {@link beforeValue}. */
+  readonly afterValue?: string;
 }
 
 /** Per-file delta for one `.fcc`/`.fcg` script. */

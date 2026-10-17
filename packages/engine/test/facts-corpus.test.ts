@@ -31,6 +31,8 @@ describe("FC corpus fact gate", () => {
   });
 
   it("builds raw-faithful, deterministic facts for every corpus file", () => {
+    let totalValues = 0;
+    let totalComparisons = 0;
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       const path = relative(corpusRoot, file).split("\\").join("/");
@@ -55,9 +57,33 @@ describe("FC corpus fact gate", () => {
             str.rawText,
           );
         }
+        for (const value of fileFacts.values) {
+          expect(source.slice(value.span.offset, value.span.offset + value.span.length)).toBe(
+            value.rawText,
+          );
+        }
+        for (const comparison of fileFacts.comparisons) {
+          expect(
+            source.slice(
+              comparison.leftSpan.offset,
+              comparison.leftSpan.offset + comparison.leftSpan.length,
+            ),
+          ).toBe(comparison.leftText);
+          expect(
+            source.slice(
+              comparison.rightSpan.offset,
+              comparison.rightSpan.offset + comparison.rightSpan.length,
+            ),
+          ).toBe(comparison.rightText);
+        }
+        totalValues += fileFacts.values.length;
+        totalComparisons += fileFacts.comparisons.length;
       }
 
       expect(buildFactBundle([{ path, source }])).toEqual(bundle);
     }
+
+    expect(totalValues).toBeGreaterThan(100);
+    expect(totalComparisons).toBeGreaterThan(10);
   }, 120_000);
 });
