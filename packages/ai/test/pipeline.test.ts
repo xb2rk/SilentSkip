@@ -106,6 +106,7 @@ describe("runReviewPipeline v2", () => {
     expect(result.structuredFindings.findings).toHaveLength(2);
     expect(result.report.verdict).toBe("needs_review");
     expect(result.report.themes).toHaveLength(2);
+    expect(result.themes.map((theme) => theme.id)).toEqual(["theme-1", "theme-2"]);
     expect(result.contextManifest.counts.evidence).toBe(4);
   });
 
@@ -371,6 +372,33 @@ describe("runReviewPipeline v2", () => {
         unknown.includes("Engine finding not interpreted"),
       ),
     ).toBe(false);
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("retries synthesize after a schema-invalid round instead of dying", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: (request) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: ((_request: unknown, callIndex: number) =>
+        (callIndex === 0 ? { verdict: "totally-fine" } : GOOD_REPORT) as unknown as Record<
+          string,
+          unknown
+        >) as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const synthesizeCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "synthesize",
+    );
+    expect(synthesizeCalls).toHaveLength(2);
+    expect(result.verification.issues.some((issue) => issue.kind === "synthesize-invalid")).toBe(
+      true,
+    );
     expect(result.report.verdict).toBe("needs_review");
   });
 });

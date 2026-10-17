@@ -54,8 +54,8 @@ let currentRunner: WorkflowRunner = () => {
   throw new Error("runner not configured for this test");
 };
 
-/** Anchor the scripted read pass cited — synthesize must reuse it (no new anchors allowed). */
-let scriptedReadAnchor = "";
+/** Anchors the scripted read pass cited — synthesize must reuse one (no new anchors allowed). */
+let scriptedReadAnchors: string[] = [];
 
 const scriptedRunner: WorkflowRunner = async (request) => {
   const stage = (JSON.parse(request.manifestJson) as { stage: string }).stage;
@@ -84,16 +84,21 @@ const scriptedRunner: WorkflowRunner = async (request) => {
       quantities?: { anchorId?: string | null }[];
       engineFindings?: { anchors?: string[] }[];
     };
-    scriptedReadAnchor =
-      facts.quantities?.find((quantity) => quantity.anchorId != null)?.anchorId ??
-      facts.engineFindings?.[0]?.anchors?.[0] ??
-      scriptedReadAnchor;
+    // Cite everything the pass can see, so the L1 coverage loop has nothing to chase.
+    scriptedReadAnchors = [
+      ...new Set([
+        ...(facts.quantities ?? [])
+          .map((quantity) => quantity.anchorId)
+          .filter((anchorId): anchorId is string => anchorId != null),
+        ...(facts.engineFindings ?? []).flatMap((finding) => finding.anchors ?? []),
+      ]),
+    ];
     return ok({
       findings: [
         {
           title: "Change under review",
           statement: `${file} changed`,
-          anchors: [scriptedReadAnchor],
+          anchors: scriptedReadAnchors.length > 0 ? scriptedReadAnchors : [firstAnchor.id],
           severity: "minor",
           confidence: "exact",
           claims: [],
@@ -118,7 +123,7 @@ const scriptedRunner: WorkflowRunner = async (request) => {
         {
           title: "Config change",
           statement: "_MOD constant changed",
-          anchors: [scriptedReadAnchor === "" ? firstAnchor.id : scriptedReadAnchor],
+          anchors: [scriptedReadAnchors[0] ?? firstAnchor.id],
           severity: "minor",
           confidence: "exact",
           claims: [],

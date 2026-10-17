@@ -76,6 +76,7 @@ export const VerifyIssueSchema = z.object({
     "map-invalid",
     "read-invalid",
     "dig-invalid",
+    "synthesize-invalid",
     "verdict-downgraded",
   ]),
   pass: z.enum(["map", "read", "dig", "synthesize"]),
@@ -108,10 +109,22 @@ export const ReviewContextManifestSchema = z.object({
   notes: z.array(z.string()),
 });
 
+/**
+ * One engine-validated theme of a run's partition — id, presentation name, file set. This is
+ * the change map of the report (E7.4); ids are `theme-1…n` in the engine's path order.
+ */
+export const RunThemeSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  files: z.array(z.string().min(1)),
+});
+
 /** Full persisted result of one run — everything the report UI needs (E5). */
 export const ReviewRunResultSchema = z.object({
   report: SynthesizeOutputSchema,
   passes: z.array(ReviewPassMetaSchema),
+  /** The run's theme partition (engine-validated change map); [] for legacy/fallback runs. */
+  themes: z.array(RunThemeSchema).default([]),
   verification: z.object({
     read: VerifyStatsSchema,
     dig: VerifyStatsSchema.nullable(),
@@ -184,6 +197,7 @@ export type VerifyIssue = z.infer<typeof VerifyIssueSchema>;
 export type VerifyStats = z.infer<typeof VerifyStatsSchema>;
 export type ReviewContextManifest = z.infer<typeof ReviewContextManifestSchema>;
 export type ReviewRunResult = z.infer<typeof ReviewRunResultSchema>;
+export type RunTheme = z.infer<typeof RunThemeSchema>;
 export type RunSummary = z.infer<typeof RunSummarySchema>;
 export type RunDetailResponse = z.infer<typeof RunDetailResponseSchema>;
 export type RunListResponse = z.infer<typeof RunListResponseSchema>;

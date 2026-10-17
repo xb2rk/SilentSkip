@@ -229,6 +229,7 @@ export class ReviewManager {
       const persisted: ReviewRunResult = {
         report: result.report,
         passes: [...result.passes],
+        themes: [...result.themes],
         verification: {
           read: result.verification.read,
           dig: result.verification.dig,
@@ -299,6 +300,7 @@ export class ReviewManager {
       const persisted: ReviewRunResult = {
         report: fallback.report,
         passes: [],
+        themes: [],
         verification: { read: ZERO_STATS, dig: null, synthesize: ZERO_STATS, issues: [] },
         contextManifest: {
           counts: { changeFacts: 0, linked: 0, contextItems: 0, evidence: 0, evidenceDropped: 0 },

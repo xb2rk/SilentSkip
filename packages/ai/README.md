@@ -52,7 +52,8 @@ The AI review pipeline (Insea): workflow client, context assembly, the v2 pass f
   each) with `facts.json` giving each unit its fact-store slice; **L1** re-reads units that
   produced no signal or whose engine findings were never cited (≤2 rounds), and whatever stays
   unread lands in `unknowns`; `dig` remains one focused round; **L3** re-runs `synthesize` with
-  linker issues as constraints (≤2 rounds). The **fact index + linker**
+  linker issues as constraints (≤2 rounds); a schema-invalid reply is a repairable round too
+  (`synthesize-invalid`), so one bad writer reply cannot kill the run. The **fact index + linker**
   (`src/facts/fact-index.ts`, `src/link/`) replaced the verifier: numbers travel only as
   `{{f:<factId>}}` placeholders the renderer fills from engine quantities; structural comparisons
   are typed claims the engine evaluates (a false claim kills its finding — the "17 vs 11 columns"
@@ -60,11 +61,14 @@ The AI review pipeline (Insea): workflow client, context assembly, the v2 pass f
   rejected; anchors resolve against the full registry; quotes must sit in cited snippets. SSE now
   reports per-unit progress (`unit`/`units`/`round` on stage events).
 
+- **Report v2 (E7.4)** — the run's engine-validated `themes` (id/name/files) persist with the
+  result (`ReviewRunResultSchema.themes`, `[]` for legacy/fallback runs); the run page opens on
+  a **theme change map** over the raw facts, findings split FACT (engine) / INTERPRETATION
+  (linked AI, "Cần xác minh" for unknown confidence, sorted last), with per-unit/per-round
+  progress in the live view.
+
 ## Planned scope
 
-- **Engine checks in the report (E7.3)** and **Report v2 (E7.4)** — STRUCT/TYPE/DANGLING findings
-  rendered as the FACT layer; AI prose as INTERPRETATION, with the "Cần xác minh" label for
-  unknown-confidence findings.
 - **What-If passes (E6)**: `whatif_answer` plus session-ledger context assembly, on top of the
   same linker and manifest discipline.
 

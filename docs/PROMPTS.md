@@ -21,6 +21,7 @@ is persisted with every pass in `contextManifests`.
 
 `map` → `read` × N units (round 1) → **L1** re-reads (≤2 rounds) → `dig` (one focused round) →
 **L2** claims already evaluated at the link boundary → `synthesize` → **L3** revise (≤2 rounds).
+Schema-invalid replies (map/read/dig/synthesize) are repairable rounds, never run-ending.
 Every `read` call gets its unit's `facts.json`; citations are checked against the **full digest
 registry**, never against the budgeted evidence pack.
 
@@ -31,7 +32,7 @@ registry**, never against the budgeted evidence pack.
 | `map` | Refine the engine partition into themes by choosing **file ids** (`f1…fN`); every changed file exactly once (set equality enforced); invalid output re-runs ≤2 rounds with repair constraints, else the engine partition falls back | `MapOutputSchema` |
 | `read` | One reading unit per call (every unit, every run); findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
 | `dig` | One focused round: queries resolved deterministically against the full anchor registry (≤40 anchors) | `DigOutputSchema` |
-| `synthesize` | Final writer: verdict, score, per-theme narratives, findings carried forward unchanged — may not add anchors or claims | `SynthesizeOutputSchema` |
+| `synthesize` | Final writer: verdict, score, per-theme narratives, findings carried forward unchanged — may not add anchors or claims. A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
 
 ## Guards around the passes (linker — `packages/ai/src/link/`)
 

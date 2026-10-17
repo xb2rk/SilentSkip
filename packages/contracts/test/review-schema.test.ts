@@ -45,8 +45,9 @@ const RESULT = {
     recommendedTests: [],
     unknowns: [],
   },
+  themes: [{ id: "theme-1", name: "Script", files: ["Assets/Scripts/Config.fcg"] }],
   passes: [
-    { pass: "map", promptVersion: "2.0.0", latencyMs: 400, salvage: "clean" },
+    { pass: "map", promptVersion: "2.1.0", latencyMs: 400, salvage: "clean" },
     { pass: "read", promptVersion: "2.0.0", latencyMs: 900, salvage: "clean", unit: 1, round: 1 },
     { pass: "synthesize", promptVersion: "2.0.0", latencyMs: 1200, salvage: "clean" },
   ],

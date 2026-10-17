@@ -76,16 +76,21 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
 
 1. `POST /api/reviews` inserts a `runs` row (`running`) and returns `202 { runId }` immediately —
    the pipeline runs in the background, driven by `src/reviews.ts` (`ReviewManager`).
-2. The manager loads the digest (shared `digest-input.ts`), then runs `runReviewPipeline`:
-   `digest_read` → optional single `dig` round → `synthesize`, with the citation verifier on every
-   pass boundary. Progress relays as SSE events through the run's channel (replay buffer + live
-   subscribers; the channel closes after the terminal event).
+2. The manager loads the digest (shared `digest-input.ts`), then runs `runReviewPipeline` (v2,
+   decision #28): `map` (file-id partition) → `read` × N reading units → **L1** coverage re-reads
+   → one `dig` round → `synthesize` → **L3** verify→revise, with the linker on every boundary and
+   repair rounds for schema drift (map/read/dig/synthesize). Progress relays as SSE events
+   through the run's channel (replay buffer + live subscribers; `unit`/`units`/`round` on stage
+   events; the channel closes after the terminal event).
 3. Result, verification stats and per-pass manifests persist to `runs` + `contextManifests`.
    Cancel aborts in-flight calls via `AbortController` and persists `cancelled`. AI failure falls
    back to the deterministic report (run still `completed`, carrying `fallbackReason`).
 4. The web starts runs from Compare, navigates to `/runs/$runId`, consumes the SSE stream (with
-   2 s polling as a converging fallback) and renders the report: change facts, findings with
-   evidence dialogs, and the AI notes tab.
+   2 s polling as a converging fallback) and renders report v2: the theme change map
+   (`themes` persisted with the run — engine-validated partition; AI names/narratives labelled
+   interpretation) over the raw change facts, the findings tab split FACT (engine checks) /
+   INTERPRETATION (linked AI findings, unverified ones labelled "Cần xác minh" and sorted
+   last), and the AI notes tab with the audit trail.
 
 ## 4. Package map and dependency rules
 

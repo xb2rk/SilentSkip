@@ -47,6 +47,11 @@ try {
       {
         totalMs,
         passes: result.passes,
+        themes: result.themes.map((theme) => ({
+          id: theme.id,
+          name: theme.name,
+          files: theme.files,
+        })),
         context: result.contextManifest.counts,
         contextNotes: result.contextManifest.notes,
         structuredFindings: result.structuredFindings.findings.length,

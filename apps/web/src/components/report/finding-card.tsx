@@ -85,6 +85,11 @@ export function FindingCard({ finding, anchorsById, onAnchorClick }: FindingCard
         <span className="inline-flex h-5 items-center rounded-md border border-border/70 px-1.5 text-[10.5px] text-muted-foreground">
           {t(CONFIDENCE_LABEL_KEYS[finding.confidence])}
         </span>
+        {finding.confidence === "unknown" && (
+          <span className="inline-flex h-5 items-center rounded-md bg-amber-500/15 px-1.5 text-[10.5px] font-medium text-amber-700 dark:text-amber-400">
+            {t("run.needsVerification")}
+          </span>
+        )}
         <h3 className="text-[13px] font-semibold">{finding.title}</h3>
       </div>
       <p className="mt-2 text-[12.5px] leading-relaxed">{finding.statement}</p>

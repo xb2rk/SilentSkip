@@ -10,6 +10,7 @@ import { ChangeFacts } from "@/components/report/change-facts";
 import { EngineFindingCard } from "@/components/report/engine-finding-card";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
 import { FindingCard } from "@/components/report/finding-card";
+import { ThemeMap } from "@/components/report/theme-map";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ interface StageState {
   readonly latencyMs?: number;
   readonly unit?: number;
   readonly units?: number;
+  readonly round?: number;
 }
 
 /** Fold the streamed stage events into one state per pipeline stage. */
@@ -67,10 +69,12 @@ function stageStates(events: readonly ReviewStreamEvent[]): Record<StageName, St
   };
   for (const event of events) {
     if (event.type !== "stage") continue;
-    const progress =
-      event.unit === undefined || event.units === undefined
+    const progress = {
+      ...(event.unit === undefined || event.units === undefined
         ? {}
-        : { unit: event.unit, units: event.units };
+        : { unit: event.unit, units: event.units }),
+      ...(event.round === undefined ? {} : { round: event.round }),
+    };
     states[event.stage] =
       event.state === "started"
         ? { state: "active", ...progress }
@@ -107,9 +111,10 @@ function summarizeVerification(result: ReviewRunResult): VerificationSummary {
 }
 
 /**
- * Run report (E5) — live progress while the run executes, then the three-layer report:
- * "Đã thay đổi" (engine facts), "Thiếu-đứt" (verified findings), "Ghi chú" (AI prose, clearly
- * labelled). Every citation opens the exact anchored span in the evidence dialog.
+ * Run report (E5, report v2 at E7.4) — live progress while the run executes, then the report:
+ * "Bản đồ" (theme map + raw change facts), "Thiếu-đứt" (engine facts + linked AI findings,
+ * unverified ones labelled "Cần xác minh" and sorted last), "Ghi chú" (AI prose, clearly
+ * labelled interpretation). Every citation opens the exact anchored span in the evidence dialog.
  */
 export function RunPage() {
   const { runId } = useParams({ from: "/runs/$runId" });
@@ -152,6 +157,13 @@ export function RunPage() {
       (a, b) => rank[a.severity] - rank[b.severity] || (a.id < b.id ? -1 : 1),
     );
   }, [digestQuery.data]);
+  /** AI findings with verified ones first — "Cần xác minh" (unknown) sinks to the bottom. */
+  const aiFindings = useMemo(() => {
+    const rank = (confidence: string) => (confidence === "unknown" ? 1 : 0);
+    return [...(run?.result?.report.findings ?? [])].sort(
+      (a, b) => rank(a.confidence) - rank(b.confidence) || (a.title < b.title ? -1 : 1),
+    );
+  }, [run]);
 
   if (runQuery.isPending) {
     return (
@@ -266,6 +278,13 @@ export function RunPage() {
                       {t("run.stageReadProgress", { unit: state.unit, units: state.units })}
                     </span>
                   )}
+                  {(stage === "read" || stage === "synthesize") &&
+                    state.round !== undefined &&
+                    state.round > 1 && (
+                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                        {t("run.roundProgress", { round: state.round })}
+                      </span>
+                    )}
                   {state.latencyMs !== undefined && (
                     <span className="text-[11.5px] text-muted-foreground tabular-nums">
                       {t("run.passLatency", { ms: state.latencyMs })}
@@ -379,7 +398,7 @@ export function RunPage() {
             <TabsList>
               <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>
               <TabsTrigger value="findings">
-                {t("run.tabFindings")} ({engineFindings.length + result.report.findings.length})
+                {t("run.tabFindings")} ({engineFindings.length + aiFindings.length})
               </TabsTrigger>
               <TabsTrigger value="notes">{t("run.tabNotes")}</TabsTrigger>
             </TabsList>
@@ -405,11 +424,27 @@ export function RunPage() {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <ChangeFacts
-                  digest={digestQuery.data}
-                  anchorsById={anchorsById}
-                  onAnchorClick={setAnchor}
-                />
+                <div className="space-y-4">
+                  <ThemeMap
+                    themes={result.themes}
+                    narratives={result.report.themes}
+                    digest={digestQuery.data}
+                    engineFindings={engineFindings}
+                    aiFindings={aiFindings}
+                  />
+                  <details className="rounded-lg border border-border/60 p-3">
+                    <summary className="cursor-pointer text-[12px] font-medium">
+                      {t("run.rawDetailsTitle")}
+                    </summary>
+                    <div className="pt-3">
+                      <ChangeFacts
+                        digest={digestQuery.data}
+                        anchorsById={anchorsById}
+                        onAnchorClick={setAnchor}
+                      />
+                    </div>
+                  </details>
+                </div>
               )}
             </TabsContent>
 
@@ -437,20 +472,20 @@ export function RunPage() {
                   ))}
                 </div>
               )}
-              {engineFindings.length > 0 && result.report.findings.length > 0 && (
+              {aiFindings.length > 0 && (
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-[12.5px] font-semibold">
                     {t("run.processFindingsTitle")}
                   </span>
                   <Badge variant="secondary" className="font-normal">
-                    {result.report.findings.length}
+                    {aiFindings.length}
                   </Badge>
                 </div>
               )}
-              {engineFindings.length === 0 && result.report.findings.length === 0 ? (
+              {engineFindings.length === 0 && aiFindings.length === 0 ? (
                 <p className="text-[12.5px] text-muted-foreground">{t("run.findingsEmpty")}</p>
               ) : (
-                result.report.findings.map((finding) => (
+                aiFindings.map((finding) => (
                   <FindingCard
                     key={`${finding.title}:${finding.statement}`}
                     finding={finding}

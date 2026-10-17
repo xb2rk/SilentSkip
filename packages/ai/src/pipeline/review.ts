@@ -22,7 +22,7 @@ import { type DigPassResult, runDigPass } from "../passes/dig.js";
 import { mergeStructured, type StructuredFindings } from "../passes/digest-step.js";
 import { type NormalizedTheme, normalizeThemes, runMapPass } from "../passes/map.js";
 import { type ReadPassResult, runReadPass } from "../passes/read.js";
-import { runSynthesizePass } from "../passes/synthesize.js";
+import { runSynthesizePass, type SynthesizePassResult } from "../passes/synthesize.js";
 import type { PassConfig, PassMeta, WorkflowRunner } from "../passes/types.js";
 
 /** Coverage loop bound: after this many reading rounds the rest is reported, not chased. */
@@ -75,6 +75,8 @@ export interface PipelineVerification {
 /** Everything one review run produced, with honest per-pass metadata and linker counts. */
 export interface ReviewPipelineResult {
   readonly report: SynthesizeOutput;
+  /** The engine-validated theme partition this run used — the report change map (E7.4). */
+  readonly themes: readonly NormalizedTheme[];
   readonly structuredFindings: StructuredFindings;
   readonly passes: readonly PassMeta[];
   readonly contextManifest: ReviewContextManifest;
@@ -371,11 +373,31 @@ export async function runReviewPipeline(
   let constraints: string[] = [];
   for (let round = 1; round <= MAX_SYNTHESIZE_ROUNDS; round++) {
     await notify({ stage: "synthesize", state: "started", round });
-    const synthesize = await runSynthesizePass(
-      deps,
-      { context, structured, themes, constraints, round },
-      input.signal,
-    );
+    let synthesize: SynthesizePassResult | undefined;
+    try {
+      synthesize = await runSynthesizePass(
+        deps,
+        { context, structured, themes, constraints, round },
+        input.signal,
+      );
+    } catch (error) {
+      // Schema drift is a repairable round here too — never lose the readings to one bad reply.
+      if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+      issues.push({
+        kind: "synthesize-invalid",
+        pass: "synthesize",
+        target: "synthesize",
+        detail: `synthesize output failed schema validation: ${error.details ?? error.message}`,
+      });
+      constraints = [
+        `Your previous output failed validation: ${error.details ?? error.message}`,
+        "Reply with strict JSON only, exactly the specified keys and enum values.",
+      ];
+      continue;
+    }
+    if (synthesize === undefined) {
+      continue;
+    }
     await notify({
       stage: "synthesize",
       state: "completed",
@@ -399,6 +421,7 @@ export async function runReviewPipeline(
 
   return {
     report,
+    themes,
     structuredFindings: structured,
     passes,
     contextManifest: context.manifest,

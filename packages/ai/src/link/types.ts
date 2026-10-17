@@ -25,6 +25,7 @@ export type LinkIssueKind =
   | "map-invalid"
   | "read-invalid"
   | "dig-invalid"
+  | "synthesize-invalid"
   | "verdict-downgraded";
 
 /** One linker issue — kind, pass, target and a human-readable detail. */
