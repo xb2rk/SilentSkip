@@ -10,6 +10,7 @@
 export type AiErrorCode =
   | "not-configured" // URL or API key missing — the AI layer is optional by design
   | "http-error" // the workflow endpoint answered with a non-2xx status (or a non-JSON body)
+  | "invalid-output" // the model answered, but the payload failed schema validation
   | "timeout" // the per-request timeout elapsed
   | "cancelled" // the caller aborted (user cancel)
   | "network"; // transport failure before any usable HTTP response

@@ -11,8 +11,18 @@
  *   sees; context assembly and manifests (not server memory) provide continuity.
  */
 
+export * from "./context/build.js";
+export * from "./context/types.js";
 export * from "./errors.js";
 export * from "./insea/canary.js";
 export * from "./insea/client.js";
 export * from "./insea/types.js";
 export * from "./insea/unwrap.js";
+export * from "./passes/dig.js";
+export * from "./passes/digest-read.js";
+export * from "./passes/digest-step.js";
+export * from "./passes/parse-output.js";
+export * from "./passes/synthesize.js";
+export * from "./passes/types.js";
+export * from "./pipeline/review.js";
+export * from "./prompts/registry.js";

@@ -9,10 +9,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "canary": "tsx scripts/canary.ts"
+    "canary": "tsx scripts/canary.ts",
+    "review:once": "tsx scripts/review-once.ts"
   },
   "dependencies": {
-    "@craftland-qa/contracts": "workspace:*"
+    "@craftland-qa/contracts": "workspace:*",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

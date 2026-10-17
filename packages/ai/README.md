@@ -16,15 +16,24 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
   auth, unwrap and salvage; `ok: true` only when the model honours the JSON contract. Run it for
   real with `pnpm --filter @craftland-qa/ai canary` (reads the repo-root `.env`). Last verified
   against Insea project 25537: ok, ~1.8s, salvage `clean` (2026-10-17).
+- **Pass library + review pipeline (E4.2)** — versioned prompt registry (`digest_read` / `dig` /
+  `synthesize` at 1.0.0, shared anti-hallucination rules, snapshot-tested); context assembly
+  (`task.json`, `changes.json`, `journeys.json`, `context.json` + `anchors.jsonl`) under a hard
+  evidence budget (200 anchors / 600 KB) with an honest dropped-count note; strict output schemas
+  (model drift → `AiError` `invalid-output`, never silent); `dig` resolves `needMore` queries
+  deterministically (substring match → ≤40 focused anchors, exactly one round); `mergeReadOutputs`
+  dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (Sample
+  `e96f6ff→418d7d6f`): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
+  7 unknowns / 3 answers — and the dig pass honestly reported its 3 unanswered queries.
 
 ## Planned scope
 
-- **Passes**: `digest_read → [dig] → synthesize` with a versioned prompt registry
-  (`docs/PROMPTS.md`, golden snapshots in tests).
 - **Citation verifier (mandatory)**: every claim must reference evidence-anchor IDs from the
   context manifest; unanchored claims are stripped and counted (stats surface in the UI).
 - **Deterministic fallback**: when the model times out or fails verification, the deterministic
   engine output is presented instead — the UI never depends on a flaky call.
+- **Streaming + persistence (E4.3/E4.4)**: SSE progress, cancel, and per-run manifests/reports
+  saved to SQLite.
 
 ## Hard rules
 
@@ -38,4 +47,5 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
 ```sh
 pnpm --filter @craftland-qa/ai test      # offline: fetch is mocked
 pnpm --filter @craftland-qa/ai canary    # real round-trip against the configured workflow
+pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>  # real pipeline (dev server must be up)
 ```
