@@ -345,10 +345,13 @@ export class ReviewManager {
       state: event.state,
       ...(event.latencyMs === undefined ? {} : { latencyMs: event.latencyMs }),
       ...(event.salvage === undefined ? {} : { salvage: event.salvage }),
+      ...(event.unit === undefined ? {} : { unit: event.unit }),
+      ...(event.units === undefined ? {} : { units: event.units }),
+      ...(event.round === undefined ? {} : { round: event.round }),
     });
   }
 
-  /** One `context_manifests` row per executed pass — what was sent, the call stats, verifier counts. */
+  /** One `context_manifests` row per executed pass — what was sent, the call stats, linker counts. */
   private persistManifests(
     runId: string,
     result: Awaited<ReturnType<typeof runReviewPipeline>>,
@@ -357,11 +360,13 @@ export class ReviewManager {
     const totalBytes = Buffer.byteLength(sectionsJson, "utf8");
     for (const meta of result.passes) {
       const stats =
-        meta.pass === "digest_read"
+        meta.pass === "read"
           ? result.verification.read
           : meta.pass === "dig"
             ? result.verification.dig
-            : result.verification.synthesize;
+            : meta.pass === "synthesize"
+              ? result.verification.synthesize
+              : null;
       this.deps.db
         .insert(contextManifests)
         .values({
@@ -372,7 +377,12 @@ export class ReviewManager {
           passId: meta.pass,
           sectionsJson,
           totalBytes,
-          aiCallJson: JSON.stringify({ latencyMs: meta.latencyMs, salvage: meta.salvage }),
+          aiCallJson: JSON.stringify({
+            latencyMs: meta.latencyMs,
+            salvage: meta.salvage,
+            ...(meta.unit === undefined ? {} : { unit: meta.unit }),
+            ...(meta.round === undefined ? {} : { round: meta.round }),
+          }),
           verifiedStatsJson: stats === null ? null : JSON.stringify(stats),
           createdAt: new Date(),
         })

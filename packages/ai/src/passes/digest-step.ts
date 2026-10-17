@@ -1,27 +1,34 @@
-import type { DigestReadFinding, DigestReadOutput, DigOutput } from "@craftland-qa/contracts";
+import type { ReadFinding, TypedClaim } from "@craftland-qa/contracts";
 
-/** The structured, deduplicated findings that flow into `synthesize` — anchor ids, no prose. */
+/**
+ * The deterministic merge step between reading and writing (E7.2).
+ *
+ * Findings arrive already linked (anchors verified, placeholders rendered, claims evaluated —
+ * only true claims survive), so the merge is pure set arithmetic: dedupe by statement + anchors
+ * + claim key, order by severity. No model involvement.
+ */
+
+/** The deduplicated, linked reading output that flows into `synthesize` — facts, no prose. */
 export interface StructuredFindings {
-  readonly findings: readonly DigestReadFinding[];
-  readonly unknowns: readonly string[];
-  readonly negativeResults: readonly string[];
-  readonly answers: readonly string[];
+  readonly findings: ReadFinding[];
+  readonly unknowns: string[];
+  readonly negativeResults: string[];
+  readonly answers: string[];
 }
 
 const SEVERITY_RANK = { critical: 0, major: 1, minor: 2, info: 3 } as const;
 
-/**
- * The deterministic `[dig]` step: merge pass 1 with its focused follow-up.
- *
- * Findings are deduplicated by (normalized statement + sorted anchors) — first occurrence wins,
- * so pass-1 wording is preferred — then ordered by severity. No model involvement: this is the
- * seam where the citation verifier (E4.3) will later sit before `synthesize`.
- */
-export function mergeReadOutputs(read: DigestReadOutput, dig?: DigOutput): StructuredFindings {
-  const findings: DigestReadFinding[] = [];
+/** Merges every read/dig output into the structured set `synthesize` works from. */
+export function mergeStructured(input: {
+  readonly findings: readonly ReadFinding[];
+  readonly unknowns: readonly string[];
+  readonly negativeResults: readonly string[];
+  readonly answers: readonly string[];
+}): StructuredFindings {
+  const findings: ReadFinding[] = [];
   const seen = new Set<string>();
-  for (const finding of [...read.findings, ...(dig?.findings ?? [])]) {
-    const key = `${normalizeStatement(finding.statement)}|${[...finding.anchors].sort().join(",")}`;
+  for (const finding of input.findings) {
+    const key = `${normalizeStatement(finding.statement)}|${[...finding.anchors].sort().join(",")}|${claimKey(finding.claims)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     findings.push(finding);
@@ -33,10 +40,17 @@ export function mergeReadOutputs(read: DigestReadOutput, dig?: DigOutput): Struc
   );
   return {
     findings,
-    unknowns: dedupe([...read.unknowns, ...(dig?.unknowns ?? [])]),
-    negativeResults: dedupe(read.negativeResults),
-    answers: dig?.answers ?? [],
+    unknowns: dedupe(input.unknowns),
+    negativeResults: dedupe(input.negativeResults),
+    answers: dedupe(input.answers),
   };
+}
+
+function claimKey(claims: readonly TypedClaim[]): string {
+  return claims
+    .map((claim) => `${claim.subject}${claim.relation}${claim.object}`)
+    .sort()
+    .join(";");
 }
 
 function normalizeStatement(statement: string): string {

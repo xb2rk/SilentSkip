@@ -1,7 +1,7 @@
 # @craftland-qa/ai
 
-The AI review pipeline (Insea): workflow client, context assembly, the pass library
-(`digest_read → [dig] → synthesize`, `whatif_answer`) and the mandatory citation verifier.
+The AI review pipeline (Insea): workflow client, context assembly, the v2 pass flow
+(`map → read×N → [dig] → synthesize`, decision #28) and the linker that gates every citation.
 
 ## Landed
 
@@ -43,17 +43,35 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
   `insufficient_evidence` report summarising the change from engine stats — the UI never depends
   on a flaky call. `runReviewPipeline` takes an optional `onEvent` hook and emits stage
   started/completed around every pass; the server relays these over SSE.
+- **AI flow v2 (E7.2, decision #28)** — the single-shot digest read is gone. `map` refines the
+  engine's mechanical partition into themes (set-equality validated — every changed file exactly
+  once); `read` runs **once per reading unit, every run** (lossless units from `plan/`, ~60 KB
+  each) with `facts.json` giving each unit its fact-store slice; **L1** re-reads units that
+  produced no signal or whose engine findings were never cited (≤2 rounds), and whatever stays
+  unread lands in `unknowns`; `dig` remains one focused round; **L3** re-runs `synthesize` with
+  linker issues as constraints (≤2 rounds). The **fact index + linker**
+  (`src/facts/fact-index.ts`, `src/link/`) replaced the verifier: numbers travel only as
+  `{{f:<factId>}}` placeholders the renderer fills from engine quantities; structural comparisons
+  are typed claims the engine evaluates (a false claim kills its finding — the "17 vs 11 columns"
+  false-positive class is mechanically impossible); free digits outside facts/literals are
+  rejected; anchors resolve against the full registry; quotes must sit in cited snippets. SSE now
+  reports per-unit progress (`unit`/`units`/`round` on stage events).
 
 ## Planned scope
 
+- **Engine checks in the report (E7.3)** and **Report v2 (E7.4)** — STRUCT/TYPE/DANGLING findings
+  rendered as the FACT layer; AI prose as INTERPRETATION, with the "Cần xác minh" label for
+  unknown-confidence findings.
 - **What-If passes (E6)**: `whatif_answer` plus session-ledger context assembly, on top of the
-  same verifier and manifest discipline.
+  same linker and manifest discipline.
 
 ## Hard rules
 
 - The LLM is **never a fact source**: it reads digests, writes prose, and cites anchors. Facts
   come from `packages/engine`.
 - No user project content leaves the machine except the digested context the user explicitly ran.
+- Numbers travel as `{{f:<factId>}}` placeholders and structural comparisons as typed claims
+  (decision #28) — the linker rejects everything else; free digits have no path into a report.
 - Prompts live in the registry, not inline in code; changes get snapshot tests.
 
 ## Commands

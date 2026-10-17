@@ -35,6 +35,7 @@ export function buildFallbackReport(digest: DigestBundle, error: AiError): Fallb
         `${stats.tableFilesChanged} tables; symbols +${stats.symbolsAdded}/−${stats.symbolsRemoved}/` +
         `~${stats.symbolsChanged}; rows +${stats.rowsAdded}/−${stats.rowsRemoved}/~${stats.rowsChanged}.`,
       topConcerns: [],
+      themes: [],
       findings: [],
       recommendedTests: [],
       unknowns: [reason],

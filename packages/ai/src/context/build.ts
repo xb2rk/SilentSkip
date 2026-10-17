@@ -1,4 +1,4 @@
-import type { DigestBundle } from "@craftland-qa/contracts";
+import type { DigestBundle, DigestFinding } from "@craftland-qa/contracts";
 import type { InseaAttachment } from "../insea/types.js";
 import {
   CONTEXT_BUDGETS,
@@ -8,7 +8,7 @@ import {
 } from "./types.js";
 
 /**
- * Map every digest anchor to its evidence form — the authoritative registry the verifier checks
+ * Map every digest anchor to its evidence form — the authoritative registry the linker checks
  * citations against. The context's evidence pack is a budgeted slice of this same list.
  */
 export function evidenceAnchorsOf(digest: DigestBundle): EvidenceAnchor[] {
@@ -30,8 +30,9 @@ export function evidenceAnchorsOf(digest: DigestBundle): EvidenceAnchor[] {
  * files — changed values first (symbols and CSV cells), then row structure, removals, additions,
  * linked journeys, context items and finally every remaining anchor. The spread stops one noisy
  * file from eating the pack. Budgets (count, then bytes) drop from the tail and record honest
- * counts in the manifest. The pack is attention economy only — the verifier checks citations
- * against the full anchor registry, so a cited anchor outside the pack stays valid.
+ * counts in the manifest. The pack is attention economy only — the linker checks citations
+ * against the full anchor registry (and the fact store), so a cited anchor outside the pack
+ * stays valid.
  * No clocks, no environment reads — the same digest always produces the same context.
  */
 export function buildReviewContext(
@@ -66,6 +67,10 @@ export function buildReviewContext(
   if (referencedDropped > 0) {
     notes.push(`referenced anchors dropped by budget: ${referencedDropped}`);
   }
+  notes.push(
+    `reading plan: ${digest.plan.units.length} unit(s) over ${digest.plan.skeleton.files.length} changed file(s)`,
+  );
+  notes.push(`engine findings: ${digest.findings.length}`);
 
   return {
     taskPack: {
@@ -81,6 +86,9 @@ export function buildReviewContext(
     linked: digest.linked,
     contextItems: digest.context,
     evidence,
+    plan: digest.plan,
+    quantities: digest.quantities,
+    engineFindings: digest.findings,
     manifest: {
       counts: {
         changeFacts: digest.changeFacts.length,
@@ -121,7 +129,7 @@ export function serializeTaskFile(context: ReviewContext): InseaAttachment {
   );
 }
 
-/** Serialize the standard context files for pass 1 (`digest_read`). */
+/** Serialize the standard context files for the `dig`/`synthesize` passes. */
 export function serializeContextFiles(context: ReviewContext): InseaAttachment[] {
   return [
     serializeTaskFile(context),
@@ -130,6 +138,81 @@ export function serializeContextFiles(context: ReviewContext): InseaAttachment[]
     attachment("context.json", "application/json", JSON.stringify(context.contextItems, null, 2)),
     attachment("anchors.jsonl", "application/x-ndjson", serializeAnchorsJsonl(context.evidence)),
   ];
+}
+
+/**
+ * Serialize the change map as `skeleton.json` — every changed file, the import edges among
+ * them, the engine's base partition and the engine findings (map/read passes read this).
+ */
+export function serializeSkeletonFile(context: ReviewContext): InseaAttachment {
+  return attachment(
+    "skeleton.json",
+    "application/json",
+    JSON.stringify(
+      {
+        stats: context.taskPack.stats,
+        files: context.plan.skeleton.files,
+        importEdges: context.plan.skeleton.importEdges,
+        basePartition: context.plan.partition.clusters,
+        engineFindings: context.engineFindings,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/** Serialize one reading unit as `unit.json` — the payload a `read` pass works on. */
+export function serializeUnitFile(unit: {
+  readonly index: number;
+  readonly files: readonly string[];
+  readonly payload: string;
+}): InseaAttachment {
+  return attachment(
+    "unit.json",
+    "application/json",
+    JSON.stringify(
+      {
+        index: unit.index,
+        files: unit.files,
+        entries: JSON.parse(unit.payload) as unknown,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/** Serialize the fact store slice for one reading unit: quantities + relevant engine findings. */
+export function serializeFactsFile(
+  context: ReviewContext,
+  files: readonly string[],
+  findings: readonly DigestFinding[],
+): InseaAttachment {
+  const fileSet = new Set(files);
+  return attachment(
+    "facts.json",
+    "application/json",
+    JSON.stringify(
+      {
+        quantities: context.quantities.filter((quantity) => fileSet.has(quantity.file)),
+        engineFindings: findings,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/** Serialize the refined theme partition as `themes.json` (synthesize pass). */
+export function serializeThemesFile(
+  themes: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly files: readonly string[];
+  }[],
+): InseaAttachment {
+  return attachment("themes.json", "application/json", JSON.stringify(themes, null, 2));
 }
 
 /** Build the Insea `Manifest` field — exactly what was sent, with real byte sizes. */
@@ -160,7 +243,7 @@ function attachment(uploadName: string, mimeType: string, content: string): Inse
 
 function manifestKind(uploadName: string): "code" | "csv" | "diff" | "summary" | "other" {
   if (uploadName === "changes.json") return "diff";
-  if (uploadName === "task.json") return "summary";
+  if (uploadName === "task.json" || uploadName === "skeleton.json") return "summary";
   return "other";
 }
 

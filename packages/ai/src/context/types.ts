@@ -1,17 +1,21 @@
 import type {
   DigestChangeFact,
   DigestContextItem,
+  DigestFinding,
   DigestLinked,
+  DigestPlan,
+  DigestQuantity,
   DigestStats,
   ReviewLens,
 } from "@craftland-qa/contracts";
 
 /**
- * Context assembly types — everything a pass sees, and the honest accounting of it.
+ * Context assembly types (v2, E7.2) — everything a pass sees, and the honest accounting of it.
  *
- * The Insea service is stateless: each call gets a TaskPack (what to review), the digest's
- * change facts and journeys, a glossary, and an evidence pack of anchors. `manifest` records
- * exactly what was sent (and what was dropped by budget) so runs stay auditable.
+ * The Insea service is stateless: each call gets a TaskPack (what to review) plus the digest
+ * payloads a pass needs — change facts, journeys, the reading plan, the fact store, engine
+ * findings — and a budgeted evidence pack of anchors. `manifest` records exactly what was sent
+ * (and what was dropped by budget) so runs stay auditable.
  */
 
 /** One evidence anchor as sent to a pass — a strict subset of the digest anchor. */
@@ -55,6 +59,12 @@ export interface ReviewContext {
   readonly linked: readonly DigestLinked[];
   readonly contextItems: readonly DigestContextItem[];
   readonly evidence: readonly EvidenceAnchor[];
+  /** The reading plan: units (this is what `read` passes iterate) + skeleton + partition. */
+  readonly plan: DigestPlan;
+  /** The fact store — every number the model may cite travels through one of these ids. */
+  readonly quantities: readonly DigestQuantity[];
+  /** Engine findings (layer 3) that the reading flow must interpret — never sampled. */
+  readonly engineFindings: readonly DigestFinding[];
   readonly manifest: ReviewContextManifest;
 }
 

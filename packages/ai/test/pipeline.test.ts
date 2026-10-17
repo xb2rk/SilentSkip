@@ -1,87 +1,276 @@
+import type { ReadOutput, SynthesizeOutput } from "@craftland-qa/contracts";
 import { describe, expect, it } from "vitest";
+import type { InseaRunRequest } from "../src/index";
 import { runReviewPipeline } from "../src/index";
-import { ANCHOR_A_ATK, ANCHOR_B_ATK, ANCHOR_B_MOD, makeDigest } from "./helpers/digest-fixture";
-import { scriptedRunner } from "./helpers/scripted-runner";
+import {
+  ANCHOR_A_ATK,
+  ANCHOR_B_ATK,
+  ANCHOR_B_MOD,
+  makeDigest,
+  SCRIPT_PATH,
+  TABLE_PATH,
+} from "./helpers/digest-fixture";
+import { attachmentOf, type ScriptValue, scriptedRunner } from "./helpers/scripted-runner";
 
-const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" } as const;
+const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" };
 
-const READ = {
-  findings: [
-    { statement: "atk spike", anchors: [ANCHOR_B_ATK], severity: "major", confidence: "exact" },
+const MAP_OUTPUT = {
+  themes: [
+    { name: "Script", files: [SCRIPT_PATH] },
+    { name: "Data", files: [TABLE_PATH] },
   ],
-  unknowns: [],
-  negativeResults: [],
-  needMore: ["Config.fcg"],
 };
 
-const DIG = {
-  findings: [
-    { statement: "mod change", anchors: [ANCHOR_B_MOD], severity: "minor", confidence: "inferred" },
-  ],
-  unknowns: [],
-  answers: ["see Config.fcg"],
-};
+function reading(anchors: string[], needMore: string[] = []): ReadOutput {
+  const findings =
+    anchors.length === 0
+      ? []
+      : [
+          {
+            title: "Change under review",
+            statement: "The behavior changed",
+            anchors,
+            severity: "major" as const,
+            confidence: "exact" as const,
+            claims: [],
+          },
+        ];
+  return { findings, unknowns: [], negativeResults: [], needMore };
+}
 
-const REPORT = {
-  verdict: "needs_review",
-  qualityScore: 75,
-  executiveSummary: "Two changes.",
-  topConcerns: ["atk spike"],
-  findings: [
+function report(
+  findings: SynthesizeOutput["findings"],
+  themes: SynthesizeOutput["themes"],
+): SynthesizeOutput {
+  return {
+    verdict: "needs_review",
+    qualityScore: 80,
+    executiveSummary: "Two files changed.",
+    topConcerns: [],
+    themes,
+    findings,
+    recommendedTests: [],
+    unknowns: [],
+  };
+}
+
+const GOOD_REPORT = report(
+  [
     {
-      title: "atk",
-      statement: "atk spike",
-      anchors: [ANCHOR_B_ATK],
+      title: "Script constant",
+      statement: "The constant changed",
+      anchors: [ANCHOR_B_MOD],
       severity: "major",
       confidence: "exact",
+      claims: [],
+    },
+    {
+      title: "Data row",
+      statement: "The row changed",
+      anchors: [ANCHOR_B_ATK],
+      severity: "minor",
+      confidence: "exact",
+      claims: [],
     },
   ],
-  recommendedTests: ["wave 3"],
-  unknowns: [],
-};
+  [
+    { themeId: "theme-1", narrative: "Data changed." },
+    { themeId: "theme-2", narrative: "Script changed." },
+  ],
+);
 
-describe("runReviewPipeline", () => {
-  it("runs digest_read → dig → synthesize and reports honest meta", async () => {
-    const { runner, calls } = scriptedRunner({ digest_read: READ, dig: DIG, synthesize: REPORT });
+function unitFilesOf(request: InseaRunRequest): string {
+  const unit = attachmentOf(request, "unit.json");
+  const parsed = JSON.parse(unit?.content ?? "{}") as { files?: string[] };
+  return parsed.files?.[0] ?? "";
+}
+
+describe("runReviewPipeline v2", () => {
+  it("runs map → one read per unit → synthesize", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: (request) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
     const result = await runReviewPipeline(
-      { runner, config: CONFIG },
-      { digest: makeDigest(), goal: "Pacing" },
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
     );
-    expect(result.report).toEqual(REPORT);
-    expect(result.passes.map((meta) => meta.pass)).toEqual(["digest_read", "dig", "synthesize"]);
+    const stages = scripted.calls.map((call) => JSON.parse(call.manifestJson).stage as string);
+    expect(stages).toEqual(["map", "read", "read", "synthesize"]);
+    expect(result.passes.map((meta) => meta.pass)).toEqual(["map", "read", "read", "synthesize"]);
+    expect(result.verification.read.findingsChecked).toBe(2);
+    expect(result.verification.issues).toEqual([]);
     expect(result.structuredFindings.findings).toHaveLength(2);
+    expect(result.report.verdict).toBe("needs_review");
+    expect(result.report.themes).toHaveLength(2);
     expect(result.contextManifest.counts.evidence).toBe(4);
-    expect(calls.map((call) => (JSON.parse(call.manifestJson) as { stage: string }).stage)).toEqual(
-      ["digest_read", "dig", "synthesize"],
+  });
+
+  it("L1 re-reads units with engine findings left uninterpreted", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((_request: unknown, callIndex: number) => {
+        if (callIndex === 0) return reading([ANCHOR_B_MOD]) as unknown as Record<string, unknown>;
+        if (callIndex === 1) return reading([]) as unknown as Record<string, unknown>;
+        return reading([ANCHOR_A_ATK, ANCHOR_B_ATK]) as unknown as Record<string, unknown>;
+      }) as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
     );
+    const readCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "read",
+    );
+    expect(readCalls).toHaveLength(3);
+    expect(readCalls[2]?.prompt).toContain("Constraints from the previous round");
+    expect(readCalls[2]?.prompt).toContain("STRUCT-01");
+    expect(
+      result.structuredFindings.unknowns.some((unknown) =>
+        unknown.includes("Engine finding not interpreted"),
+      ),
+    ).toBe(false);
   });
 
-  it("skips dig when pass 1 does not ask for more (no recursion)", async () => {
-    const { runner, calls } = scriptedRunner({
-      digest_read: { ...READ, needMore: [] },
-      synthesize: REPORT,
+  it("reports engine findings as unknowns when reading never cites them", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((_request: unknown, callIndex: number) =>
+        callIndex === 0
+          ? (reading([ANCHOR_B_MOD]) as unknown as Record<string, unknown>)
+          : (reading([]) as unknown as Record<string, unknown>)) as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
     });
-    const result = await runReviewPipeline({ runner, config: CONFIG }, { digest: makeDigest() });
-    expect(result.passes.map((meta) => meta.pass)).toEqual(["digest_read", "synthesize"]);
-    expect(calls).toHaveLength(2);
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    expect(
+      result.structuredFindings.unknowns.some((unknown) =>
+        unknown.includes("Engine finding not interpreted"),
+      ),
+    ).toBe(true);
   });
 
-  it("strips anchors synthesize never verified and downgrades the verdict", async () => {
-    const drifted = {
-      ...REPORT,
-      findings: [{ ...REPORT.findings[0], anchors: [ANCHOR_A_ATK] }],
+  it("L3 re-runs synthesize with linker constraints", async () => {
+    const bad = report(
+      [
+        {
+          title: "Script constant",
+          statement: "The constant changed",
+          anchors: [ANCHOR_B_MOD],
+          severity: "major",
+          confidence: "exact",
+          claims: [],
+        },
+        {
+          title: "Invented",
+          statement: "Something new",
+          anchors: [ANCHOR_A_ATK],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
+        },
+      ],
+      [
+        { themeId: "theme-1", narrative: "Data changed." },
+        { themeId: "theme-2", narrative: "Script changed." },
+      ],
+    );
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: ((_request: unknown, callIndex: number) =>
+        (callIndex === 0 ? bad : GOOD_REPORT) as unknown as Record<string, unknown>) as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const synthesizeCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "synthesize",
+    );
+    expect(synthesizeCalls).toHaveLength(2);
+    expect(synthesizeCalls[1]?.prompt).toContain("Constraints from the previous round");
+    expect(result.verification.issues.some((issue) => issue.kind === "new-anchor")).toBe(true);
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("answers reading queries through one dig round", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD], ["scout"])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      dig: {
+        findings: [reading([ANCHOR_B_ATK]).findings[0]],
+        unknowns: [],
+        answers: ["Row changed"],
+      } as unknown as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const stages = scripted.calls.map((call) => JSON.parse(call.manifestJson).stage as string);
+    expect(stages).toContain("dig");
+    expect(result.structuredFindings.answers).toEqual(["Row changed"]);
+  });
+
+  it("skips map/read/dig when nothing changed", async () => {
+    const digest = makeDigest();
+    digest.changeFacts = [];
+    digest.quantities = [];
+    digest.findings = [];
+    digest.plan = {
+      units: [],
+      skeleton: { files: [], importEdges: [] },
+      partition: { clusters: [] },
     };
-    const { runner } = scriptedRunner({
-      digest_read: { ...READ, needMore: [] },
-      synthesize: drifted,
+    const scripted = scriptedRunner({
+      synthesize: report([], []) as unknown as ScriptValue,
     });
-    const result = await runReviewPipeline({ runner, config: CONFIG }, { digest: makeDigest() });
-    expect(result.report.findings).toHaveLength(0);
-    expect(result.report.verdict).toBe("insufficient_evidence");
-    const kinds = result.verification.issues.map((issue) => issue.kind);
-    expect(kinds).toContain("new-anchor");
-    expect(kinds).toContain("finding-unanchored");
-    expect(kinds).toContain("verdict-downgraded");
-    expect(result.verification.synthesize.anchorsStripped).toBe(1);
+    const result = await runReviewPipeline({ runner: scripted.runner, config: CONFIG }, { digest });
+    const stages = scripted.calls.map((call) => JSON.parse(call.manifestJson).stage as string);
+    expect(stages).toEqual(["synthesize"]);
+    expect(result.report.themes).toEqual([]);
+    expect(result.passes.map((meta) => meta.pass)).toEqual(["synthesize"]);
+  });
+
+  it("emits stage events with unit and round", async () => {
+    const events: string[] = [];
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      {
+        digest: makeDigest(),
+        onEvent: (event) => {
+          events.push(
+            `${event.stage}:${event.state}${event.unit === undefined ? "" : `:${event.unit}`}${event.round === undefined ? "" : `:r${event.round}`}`,
+          );
+        },
+      },
+    );
+    expect(events).toContain("map:started");
+    expect(events).toContain("read:started:1:r1");
+    expect(events).toContain("read:completed:2:r1");
+    expect(events).toContain("synthesize:completed:r1");
   });
 });

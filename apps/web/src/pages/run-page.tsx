@@ -37,12 +37,13 @@ const VERDICT_LABEL_KEYS: Record<Verdict, string> = {
   insufficient_evidence: "run.verdictInsufficient",
 };
 
-const STAGE_ORDER = ["digest", "digest_read", "dig", "synthesize"] as const;
+const STAGE_ORDER = ["digest", "map", "read", "dig", "synthesize"] as const;
 type StageName = (typeof STAGE_ORDER)[number];
 
 const STAGE_LABEL_KEYS: Record<StageName, string> = {
   digest: "run.stageDigest",
-  digest_read: "run.stageDigestRead",
+  map: "run.stageMap",
+  read: "run.stageRead",
   dig: "run.stageDig",
   synthesize: "run.stageSynthesize",
 };
@@ -50,23 +51,31 @@ const STAGE_LABEL_KEYS: Record<StageName, string> = {
 interface StageState {
   readonly state: "pending" | "active" | "done";
   readonly latencyMs?: number;
+  readonly unit?: number;
+  readonly units?: number;
 }
 
 /** Fold the streamed stage events into one state per pipeline stage. */
 function stageStates(events: readonly ReviewStreamEvent[]): Record<StageName, StageState> {
   const states: Record<StageName, StageState> = {
     digest: { state: "pending" },
-    digest_read: { state: "pending" },
+    map: { state: "pending" },
+    read: { state: "pending" },
     dig: { state: "pending" },
     synthesize: { state: "pending" },
   };
   for (const event of events) {
     if (event.type !== "stage") continue;
+    const progress =
+      event.unit === undefined || event.units === undefined
+        ? {}
+        : { unit: event.unit, units: event.units };
     states[event.stage] =
       event.state === "started"
-        ? { state: "active" }
+        ? { state: "active", ...progress }
         : {
             state: "done",
+            ...progress,
             ...(event.latencyMs === undefined ? {} : { latencyMs: event.latencyMs }),
           };
   }
@@ -245,6 +254,11 @@ export function RunPage() {
                   <span className={cn(state.state === "pending" && "text-muted-foreground")}>
                     {t(STAGE_LABEL_KEYS[stage])}
                   </span>
+                  {stage === "read" && state.unit !== undefined && (
+                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                      {t("run.stageReadProgress", { unit: state.unit, units: state.units })}
+                    </span>
+                  )}
                   {state.latencyMs !== undefined && (
                     <span className="text-[11.5px] text-muted-foreground tabular-nums">
                       {t("run.passLatency", { ms: state.latencyMs })}

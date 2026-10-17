@@ -173,6 +173,7 @@ describe("digest bundle schema", () => {
           value: "2",
           ref: "B",
           anchorId: ANCHOR.id,
+          file: "Assets/CSV/UnitData.csv",
         },
       ],
       findings: [

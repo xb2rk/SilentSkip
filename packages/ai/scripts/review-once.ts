@@ -1,9 +1,10 @@
 /**
  * One-shot real review: `pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>`.
  *
- * Fetches the digest from the local dev server, runs the full `digest_read → [dig] → synthesize`
- * pipeline against the live Insea workflow and prints the report plus honest per-pass stats.
- * Dev probe for E4 — nothing is persisted yet (run persistence lands with E4.4).
+ * Fetches the digest from the local dev server, runs the full v2 pipeline
+ * (`map → read×N → [dig] → synthesize` with the linker on every boundary) against the live
+ * Insea workflow and prints the report plus honest per-pass stats.
+ * Dev probe — server-side runs go through POST /api/reviews.
  */
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";

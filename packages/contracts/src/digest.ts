@@ -143,6 +143,8 @@ export const DigestQuantitySchema = z.object({
   value: z.string(),
   ref: AnchorRefSchema.nullable(),
   anchorId: z.string().nullable(),
+  /** Changed file this quantity belongs to — lets passes attach facts per reading unit. */
+  file: z.string().min(1),
 });
 
 /** Layer 3 — a deterministic engine finding: full-scope, fact-derived, never sampled. */

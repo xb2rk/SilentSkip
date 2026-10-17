@@ -1,167 +1,270 @@
+import type { MapOutput, ReadOutput } from "@craftland-qa/contracts";
 import { describe, expect, it } from "vitest";
 import {
   AiError,
   buildReviewContext,
-  mergeReadOutputs,
-  resolveNeedMore,
-  runDigestReadPass,
+  mergeStructured,
+  normalizeThemes,
   runDigPass,
+  runMapPass,
+  runReadPass,
   runSynthesizePass,
 } from "../src/index";
-import { ANCHOR_A_MOD, ANCHOR_B_ATK, makeDigest } from "./helpers/digest-fixture";
-import { firstCall, scriptedRunner } from "./helpers/scripted-runner";
+import { ANCHOR_B_ATK, makeDigest, SCRIPT_PATH, TABLE_PATH } from "./helpers/digest-fixture";
+import {
+  attachmentOf,
+  firstCall,
+  type ScriptValue,
+  scriptedRunner,
+} from "./helpers/scripted-runner";
 
-const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" } as const;
-const context = buildReviewContext(makeDigest(), { goal: "Check pacing" });
+const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" };
+const CONTEXT = buildReviewContext(makeDigest(), { goal: "Check pacing" });
 
-const READ_OUTPUT = {
-  findings: [
-    {
-      statement: "scout atk 100 → 120",
-      anchors: [ANCHOR_B_ATK],
-      severity: "major",
-      confidence: "exact",
-    },
-  ],
-  unknowns: ["clamp behavior unknown"],
-  negativeResults: ["no symbols removed"],
-  needMore: ["UnitData"],
-};
+function depsFor(script: Record<string, ScriptValue>): {
+  deps: { runner: ReturnType<typeof scriptedRunner>["runner"]; config: typeof CONFIG };
+  calls: ReturnType<typeof scriptedRunner>["calls"];
+} {
+  const scripted = scriptedRunner(script);
+  return { deps: { runner: scripted.runner, config: CONFIG }, calls: scripted.calls };
+}
 
-describe("runDigestReadPass", () => {
-  it("parses schema-valid output and reports pass meta", async () => {
-    const { runner, calls } = scriptedRunner({ digest_read: READ_OUTPUT });
-    const result = await runDigestReadPass({ runner, config: CONFIG }, context);
-    expect(result.output).toEqual(READ_OUTPUT);
-    expect(result.meta).toMatchObject({
-      pass: "digest_read",
-      promptVersion: "1.0.0",
+function reading(anchors: string[]): ReadOutput {
+  return {
+    findings: [
+      {
+        title: "Change under review",
+        statement: "The behavior changed",
+        anchors,
+        severity: "major",
+        confidence: "exact",
+        claims: [],
+      },
+    ],
+    unknowns: [],
+    negativeResults: [],
+    needMore: [],
+  };
+}
+
+describe("map pass", () => {
+  it("parses the map output and sends task + skeleton", async () => {
+    const output: MapOutput = {
+      themes: [
+        { name: "Sv", files: [SCRIPT_PATH] },
+        { name: "Tv", files: [TABLE_PATH] },
+      ],
+    };
+    const { deps, calls } = depsFor({ map: output as unknown as ScriptValue });
+    const result = await runMapPass(deps, CONTEXT);
+    expect(result.output).toEqual(output);
+    expect(result.meta).toEqual({
+      pass: "map",
+      promptVersion: "2.0.0",
+      latencyMs: 7,
       salvage: "clean",
     });
+    expect(calls.map((call) => call.prompt.length > 0)).toEqual([true]);
+    expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
+      "task.json",
+      "skeleton.json",
+    ]);
     const manifest = JSON.parse(firstCall(calls).manifestJson) as { stage: string };
-    expect(manifest.stage).toBe("digest_read");
+    expect(manifest.stage).toBe("map");
   });
 
-  it("fails loudly with invalid-output when the model drifts", async () => {
-    const { runner } = scriptedRunner({ digest_read: { findings: "nope" } });
-    const error = await runDigestReadPass({ runner, config: CONFIG }, context).catch(
-      (caught: unknown) => caught,
+  it("rejects drifted map output with a typed error", async () => {
+    const { deps } = depsFor({ map: { themes: "nope" } });
+    await expect(runMapPass(deps, CONTEXT)).rejects.toThrowError(
+      /map output failed schema validation/,
     );
-    expect(error).toBeInstanceOf(AiError);
-    expect(error).toMatchObject({ code: "invalid-output" });
   });
 });
 
-describe("resolveNeedMore + runDigPass", () => {
-  it("resolves queries to exact anchors deterministically", () => {
-    const focused = resolveNeedMore(context, ["UnitData", "Config.fcg", "   "]);
-    expect(focused.queries).toEqual(["UnitData", "Config.fcg"]);
-    const ids = focused.anchors.map((anchor) => anchor.id);
-    expect(ids).toContain(ANCHOR_B_ATK);
-    expect(ids).toContain(ANCHOR_A_MOD);
-    expect(resolveNeedMore(context, ["UnitData", "Config.fcg"])).toEqual(focused);
+describe("normalizeThemes", () => {
+  it("orders themes by first file and assigns stable engine ids", () => {
+    const normalized = normalizeThemes(
+      {
+        themes: [
+          { name: "Scripts", files: [SCRIPT_PATH] },
+          { name: "Data", files: [TABLE_PATH] },
+        ],
+      },
+      [SCRIPT_PATH, TABLE_PATH],
+    );
+    expect("themes" in normalized && normalized.themes).toEqual([
+      { id: "theme-1", name: "Data", files: [TABLE_PATH] },
+      { id: "theme-2", name: "Scripts", files: [SCRIPT_PATH] },
+    ]);
   });
 
-  it("resolves against the full registry when the evidence pack dropped anchors", () => {
-    const full = context.evidence;
-    const truncated = {
-      ...context,
-      evidence: full.filter((anchor) => anchor.id !== ANCHOR_B_ATK),
+  it("rejects unknown files, duplicates and missing coverage", () => {
+    expect(
+      normalizeThemes({ themes: [{ name: "x", files: ["nope.fcg"] }] }, [SCRIPT_PATH]),
+    ).toEqual({
+      error: 'theme "x" references a file that did not change: nope.fcg',
+    });
+    expect(
+      normalizeThemes(
+        {
+          themes: [
+            { name: "a", files: [SCRIPT_PATH] },
+            { name: "b", files: [SCRIPT_PATH] },
+          ],
+        },
+        [SCRIPT_PATH],
+      ),
+    ).toEqual({ error: `file appears in more than one theme: ${SCRIPT_PATH}` });
+    expect(
+      normalizeThemes({ themes: [{ name: "a", files: [SCRIPT_PATH] }] }, [SCRIPT_PATH, TABLE_PATH]),
+    ).toEqual({ error: `file not covered by any theme: ${TABLE_PATH}` });
+  });
+});
+
+describe("read pass", () => {
+  it("sends the unit, its facts slice, snippet anchors and the skeleton", async () => {
+    const { deps, calls } = depsFor({ read: reading([ANCHOR_B_ATK]) as unknown as ScriptValue });
+    const unit = CONTEXT.plan.units[0];
+    if (unit === undefined) throw new Error("fixture must have a unit");
+    const result = await runReadPass(deps, CONTEXT, unit, {
+      round: 1,
+      constraints: [],
+      relatedFindings: CONTEXT.engineFindings,
+      anchors: CONTEXT.evidence,
+    });
+    expect(result.output.findings).toHaveLength(1);
+    expect(result.meta).toEqual({
+      pass: "read",
+      promptVersion: "2.0.0",
+      latencyMs: 7,
+      salvage: "clean",
+      unit: 1,
+      round: 1,
+    });
+    expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
+      "task.json",
+      "unit.json",
+      "facts.json",
+      "anchors.jsonl",
+      "skeleton.json",
+    ]);
+    const facts = JSON.parse(attachmentOf(firstCall(calls), "facts.json")?.content ?? "{}") as {
+      quantities: unknown[];
     };
-    const packOnly = resolveNeedMore(truncated, ["scout,120"]);
-    expect(packOnly.anchors.map((anchor) => anchor.id)).not.toContain(ANCHOR_B_ATK);
-    const withRegistry = resolveNeedMore(truncated, ["scout,120"], full);
-    expect(withRegistry.anchors.map((anchor) => anchor.id)).toContain(ANCHOR_B_ATK);
+    expect(facts.quantities).toHaveLength(5);
+    expect(
+      (attachmentOf(firstCall(calls), "anchors.jsonl")?.content ?? "").split("\n"),
+    ).toHaveLength(4);
   });
 
-  it("sends queries and focus files and parses dig output", async () => {
-    const digOutput = { findings: [], unknowns: [], answers: ["The reader is GetBaseATK"] };
-    const { runner, calls } = scriptedRunner({ dig: digOutput });
-    const result = await runDigPass({ runner, config: CONFIG }, context, ["UnitData"]);
-    expect(result.output).toEqual(digOutput);
-    expect(result.focused.anchors.length).toBeGreaterThan(0);
-    const call = firstCall(calls);
-    expect(call.attachments.map((attachment) => attachment.uploadName)).toEqual([
+  it("carries round constraints into the prompt", async () => {
+    const { deps, calls } = depsFor({ read: reading([ANCHOR_B_ATK]) as unknown as ScriptValue });
+    const unit = CONTEXT.plan.units[0];
+    if (unit === undefined) throw new Error("fixture must have a unit");
+    await runReadPass(deps, CONTEXT, unit, {
+      round: 2,
+      constraints: ["STRUCT-01: Row width differs — anchors: x"],
+      relatedFindings: [],
+      anchors: [],
+    });
+    expect(firstCall(calls).prompt).toContain("Constraints from the previous round");
+    expect(firstCall(calls).prompt).toContain("STRUCT-01");
+  });
+});
+
+describe("dig pass", () => {
+  it("sends queries and focus, parses answers", async () => {
+    const { deps, calls } = depsFor({
+      dig: { findings: [], unknowns: [], answers: ["The row changed"] },
+    });
+    const result = await runDigPass(deps, CONTEXT, ["scout"], undefined, undefined);
+    expect(result.output.answers).toEqual(["The row changed"]);
+    expect(result.meta.pass).toBe("dig");
+    expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
       "task.json",
       "queries.json",
       "focus.jsonl",
     ]);
-    const manifest = JSON.parse(call.manifestJson) as { stage: string };
-    expect(manifest.stage).toBe("dig");
   });
 });
 
-describe("mergeReadOutputs", () => {
-  it("dedupes findings across passes and orders by severity", () => {
-    const read = {
+describe("mergeStructured", () => {
+  it("dedupes findings by statement + anchors + claims and orders by severity", () => {
+    const merged = mergeStructured({
       findings: [
         {
-          statement: "Config change",
-          anchors: ["a"],
-          severity: "minor" as const,
-          confidence: "inferred" as const,
+          title: "A",
+          statement: "risk",
+          anchors: [ANCHOR_B_ATK],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
         },
         {
-          statement: "atk spike",
-          anchors: ["b"],
-          severity: "major" as const,
-          confidence: "exact" as const,
+          title: "B",
+          statement: "  RISK ",
+          anchors: [ANCHOR_B_ATK],
+          severity: "major",
+          confidence: "exact",
+          claims: [],
+        },
+        {
+          title: "C",
+          statement: "other",
+          anchors: [ANCHOR_B_ATK],
+          severity: "critical",
+          confidence: "inferred",
+          claims: [],
         },
       ],
-      unknowns: ["u1"],
-      negativeResults: ["n1"],
-      needMore: [],
-    };
-    const dig = {
-      findings: [
-        {
-          statement: "ATK SPIKE",
-          anchors: ["b"],
-          severity: "critical" as const,
-          confidence: "exact" as const,
-        },
-        {
-          statement: "new risk",
-          anchors: ["c"],
-          severity: "critical" as const,
-          confidence: "inferred" as const,
-        },
-      ],
-      unknowns: ["U1", "u2"],
-      answers: ["answer"],
-    };
-    const merged = mergeReadOutputs(read, dig);
-    expect(merged.findings.map((finding) => finding.statement)).toEqual([
-      "new risk",
-      "atk spike",
-      "Config change",
-    ]);
-    expect(merged.findings[1]?.severity).toBe("major");
+      unknowns: ["u1", "U1", "u2"],
+      negativeResults: [],
+      answers: [],
+    });
+    expect(merged.findings.map((finding) => finding.title)).toEqual(["C", "A"]);
     expect(merged.unknowns).toEqual(["u1", "u2"]);
-    expect(merged.answers).toEqual(["answer"]);
-    expect(merged.negativeResults).toEqual(["n1"]);
   });
 });
 
-describe("runSynthesizePass", () => {
-  it("sends findings.json and anchors.jsonl and parses the report", async () => {
+describe("synthesize pass", () => {
+  it("sends findings, themes and anchors; records the round", async () => {
     const report = {
-      verdict: "pass_with_warnings",
-      qualityScore: 80,
-      executiveSummary: "s",
+      verdict: "needs_review",
+      qualityScore: 70,
+      executiveSummary: "One change.",
       topConcerns: [],
+      themes: [],
       findings: [],
       recommendedTests: [],
       unknowns: [],
     };
-    const { runner, calls } = scriptedRunner({ synthesize: report });
-    const structured = { findings: [], unknowns: [], negativeResults: [], answers: [] };
-    const result = await runSynthesizePass({ runner, config: CONFIG }, { context, structured });
-    expect(result.output).toEqual(report);
-    expect(firstCall(calls).attachments.map((attachment) => attachment.uploadName)).toEqual([
+    const { deps, calls } = depsFor({ synthesize: report });
+    const result = await runSynthesizePass(deps, {
+      context: CONTEXT,
+      structured: { findings: [], unknowns: [], negativeResults: [], answers: [] },
+      themes: [{ id: "theme-1", name: "Data", files: [TABLE_PATH] }],
+      constraints: [],
+      round: 1,
+    });
+    expect(result.output.verdict).toBe("needs_review");
+    expect(result.meta.round).toBe(1);
+    expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
       "task.json",
       "findings.json",
+      "themes.json",
       "anchors.jsonl",
     ]);
+  });
+
+  it("fails with invalid-output on drift", async () => {
+    const { deps } = depsFor({ synthesize: { verdict: "nope" } });
+    const attempt = runSynthesizePass(deps, {
+      context: CONTEXT,
+      structured: { findings: [], unknowns: [], negativeResults: [], answers: [] },
+      themes: [],
+      constraints: [],
+      round: 1,
+    });
+    await expect(attempt).rejects.toThrowError(AiError);
   });
 });

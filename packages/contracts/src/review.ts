@@ -51,23 +51,31 @@ export const StartReviewResponseSchema = z.object({
 
 /** Per-pass metadata persisted with the run (prompt version + latency + salvage rung). */
 export const ReviewPassMetaSchema = z.object({
-  pass: z.enum(["digest_read", "dig", "synthesize"]),
+  pass: z.enum(["map", "read", "dig", "synthesize"]),
   promptVersion: z.string().min(1),
   latencyMs: z.number().int().min(0),
   salvage: SalvageLadderSchema,
+  /** 1-based reading-unit index for `read` passes. */
+  unit: z.number().int().min(1).optional(),
+  /** 1-based coverage/revise round for passes re-run by the L1/L3 loops. */
+  round: z.number().int().min(1).optional(),
 });
 
-/** One verifier issue about a stripped or downgraded claim. */
+/** One verifier (linker) issue about a stripped or downgraded claim. */
 export const VerifyIssueSchema = z.object({
   kind: z.enum([
     "unknown-anchor",
     "new-anchor",
     "finding-unanchored",
-    "number-unverified",
+    "unknown-fact",
+    "free-number",
+    "claim-invalid",
+    "claim-false",
     "quote-unverified",
+    "theme-invalid",
     "verdict-downgraded",
   ]),
-  pass: z.enum(["digest_read", "dig", "synthesize"]),
+  pass: z.enum(["map", "read", "dig", "synthesize"]),
   target: z.string(),
   detail: z.string(),
 });
@@ -143,10 +151,15 @@ export const RunListResponseSchema = z.object({
 export const ReviewStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("stage"),
-    stage: z.enum(["digest", "digest_read", "dig", "synthesize"]),
+    stage: z.enum(["digest", "map", "read", "dig", "synthesize"]),
     state: z.enum(["started", "completed"]),
     latencyMs: z.number().int().optional(),
     salvage: SalvageLadderSchema.optional(),
+    /** 1-based reading-unit index and total, present on `read` events. */
+    unit: z.number().int().min(1).optional(),
+    units: z.number().int().min(1).optional(),
+    /** 1-based loop round, present when L1/L3 re-runs a pass. */
+    round: z.number().int().min(1).optional(),
   }),
   z.object({
     type: z.literal("completed"),

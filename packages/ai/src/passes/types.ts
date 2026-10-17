@@ -17,10 +17,14 @@ export interface PassConfig {
 
 /** Which pass produced a result, with the prompt version and honest transport facts. */
 export interface PassMeta {
-  readonly pass: "digest_read" | "dig" | "synthesize";
+  readonly pass: "map" | "read" | "dig" | "synthesize";
   readonly promptVersion: string;
   readonly latencyMs: number;
   readonly salvage: InseaSalvage;
+  /** 1-based reading-unit index for `read` passes. */
+  readonly unit?: number;
+  /** 1-based loop round when L1/L3 re-ran the pass. */
+  readonly round?: number;
 }
 
 /** Dependencies of every pass call. */

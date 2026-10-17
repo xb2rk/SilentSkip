@@ -40,11 +40,16 @@ const RESULT = {
     qualityScore: 82,
     executiveSummary: "One change.",
     topConcerns: ["atk spike"],
+    themes: [],
     findings: [],
     recommendedTests: [],
     unknowns: [],
   },
-  passes: [{ pass: "digest_read", promptVersion: "1.0.0", latencyMs: 900, salvage: "clean" }],
+  passes: [
+    { pass: "map", promptVersion: "2.0.0", latencyMs: 400, salvage: "clean" },
+    { pass: "read", promptVersion: "2.0.0", latencyMs: 900, salvage: "clean", unit: 1, round: 1 },
+    { pass: "synthesize", promptVersion: "2.0.0", latencyMs: 1200, salvage: "clean" },
+  ],
   verification: { read: ZERO_STATS, dig: null, synthesize: ZERO_STATS, issues: [] },
   contextManifest: {
     counts: { changeFacts: 1, linked: 1, contextItems: 1, evidence: 4, evidenceDropped: 0 },
@@ -69,7 +74,19 @@ describe("review schemas", () => {
   it("accepts every stream event shape and rejects unknown types", () => {
     const events = [
       { type: "stage", stage: "digest", state: "started" },
+      { type: "stage", stage: "map", state: "started" },
+      { type: "stage", stage: "read", state: "started", unit: 3, units: 8 },
       { type: "stage", stage: "synthesize", state: "completed", latencyMs: 12, salvage: "fence" },
+      {
+        type: "stage",
+        stage: "read",
+        state: "completed",
+        latencyMs: 900,
+        salvage: "clean",
+        unit: 2,
+        units: 8,
+        round: 1,
+      },
       { type: "completed", verdict: "pass", qualityScore: 90, findings: 3, fallbackReason: null },
       { type: "failed", error: "boom" },
       { type: "cancelled" },
@@ -78,6 +95,10 @@ describe("review schemas", () => {
       expect(ReviewStreamEventSchema.parse(event)).toEqual(event);
     }
     expect(ReviewStreamEventSchema.safeParse({ type: "exploded" }).success).toBe(false);
+    expect(
+      ReviewStreamEventSchema.safeParse({ type: "stage", stage: "digest_read", state: "started" })
+        .success,
+    ).toBe(false);
   });
 
   it("trims the start request and requires both refs", () => {

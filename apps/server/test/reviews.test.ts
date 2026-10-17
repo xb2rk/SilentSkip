@@ -54,53 +54,79 @@ let currentRunner: WorkflowRunner = () => {
   throw new Error("runner not configured for this test");
 };
 
+/** Anchor the scripted read pass cited — synthesize must reuse it (no new anchors allowed). */
+let scriptedReadAnchor = "";
+
 const scriptedRunner: WorkflowRunner = async (request) => {
   const stage = (JSON.parse(request.manifestJson) as { stage: string }).stage;
   const anchorsFile = request.attachments.find((item) => item.uploadName === "anchors.jsonl");
   const firstAnchor = JSON.parse(anchorsFile?.content.split("\n")[0] ?? "{}") as { id: string };
-  if (stage === "digest_read") {
-    return {
-      output: {
-        findings: [
-          {
-            statement: "Config constant changed",
-            anchors: [firstAnchor.id],
-            severity: "minor",
-            confidence: "exact",
-          },
-        ],
-        unknowns: [],
-        negativeResults: [],
-        needMore: [],
-      },
-      rawResult: "{}",
-      salvage: "clean",
-      latencyMs: 5,
+  const ok = (output: Record<string, unknown>) => ({
+    output,
+    rawResult: "{}",
+    salvage: "clean" as const,
+    latencyMs: 5,
+  });
+  if (stage === "map") {
+    return ok({
+      themes: [
+        { name: "Script", files: ["Assets/Scripts/Config.fcg"] },
+        { name: "Data", files: ["Assets/CSV/UnitData.csv"] },
+      ],
+    });
+  }
+  if (stage === "read") {
+    const unitFile = request.attachments.find((item) => item.uploadName === "unit.json");
+    const unit = JSON.parse(unitFile?.content ?? "{}") as { files?: string[] };
+    const file = unit.files?.[0] ?? "";
+    const factsFile = request.attachments.find((item) => item.uploadName === "facts.json");
+    const facts = JSON.parse(factsFile?.content ?? "{}") as {
+      quantities?: { anchorId?: string | null }[];
+      engineFindings?: { anchors?: string[] }[];
     };
+    scriptedReadAnchor =
+      facts.quantities?.find((quantity) => quantity.anchorId != null)?.anchorId ??
+      facts.engineFindings?.[0]?.anchors?.[0] ??
+      scriptedReadAnchor;
+    return ok({
+      findings: [
+        {
+          title: "Change under review",
+          statement: `${file} changed`,
+          anchors: [scriptedReadAnchor],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
+        },
+      ],
+      unknowns: [],
+      negativeResults: [],
+      needMore: [],
+    });
   }
   if (stage === "synthesize") {
-    return {
-      output: {
-        verdict: "needs_review",
-        qualityScore: 80,
-        executiveSummary: "Config and table changed.",
-        topConcerns: ["check _MOD"],
-        findings: [
-          {
-            title: "Config change",
-            statement: "_MOD constant changed",
-            anchors: [firstAnchor.id],
-            severity: "minor",
-            confidence: "exact",
-          },
-        ],
-        recommendedTests: ["run damage calc"],
-        unknowns: [],
-      },
-      rawResult: "{}",
-      salvage: "clean",
-      latencyMs: 5,
-    };
+    return ok({
+      verdict: "needs_review",
+      qualityScore: 80,
+      executiveSummary: "Config and table changed.",
+      topConcerns: ["check _MOD"],
+      themes: [
+        { themeId: "theme-1", narrative: "Data changed." },
+        { themeId: "theme-2", narrative: "Script changed." },
+      ],
+      findings: [
+        {
+          title: "Config change",
+          statement: "_MOD constant changed",
+          anchors: [scriptedReadAnchor === "" ? firstAnchor.id : scriptedReadAnchor],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
+        },
+      ],
+      recommendedTests: ["run damage calc"],
+      unknowns: [],
+    });
   }
   throw new Error(`unexpected stage: ${stage}`);
 };
@@ -197,7 +223,8 @@ describe("review runs", () => {
     const stream = await readStream(runId);
     expect(stream).toContain("event: stage");
     expect(stream).toContain('"stage":"digest"');
-    expect(stream).toContain('"stage":"digest_read"');
+    expect(stream).toContain('"stage":"map"');
+    expect(stream).toContain('"stage":"read"');
     expect(stream).toContain('"stage":"synthesize"');
     expect(stream).toContain("event: completed");
     expect(stream).toContain('"findings":1');
@@ -207,7 +234,7 @@ describe("review runs", () => {
     expect(detail.qualityScore).toBe(80);
     expect(detail.error).toBeNull();
     expect(detail.result?.report.findings).toHaveLength(1);
-    expect(detail.result?.passes.map((meta) => meta.pass)).toEqual(["digest_read", "synthesize"]);
+    expect(detail.result?.passes.map((meta) => meta.pass)).toEqual(["map", "read", "synthesize"]);
     expect(detail.result?.fallbackReason).toBeNull();
     expect(detail.result?.verification.read.findingsChecked).toBe(1);
 
@@ -216,8 +243,8 @@ describe("review runs", () => {
     expect(runRows[0]?.status).toBe("completed");
     expect(runRows[0]?.durationMs).not.toBeNull();
     const manifestRows = app.db.select().from(contextManifests).all();
-    expect(manifestRows.map((row) => row.passId).sort()).toEqual(["digest_read", "synthesize"]);
-    expect(manifestRows[0]?.promptVersion).toBe("1.0.0");
+    expect(manifestRows.map((row) => row.passId).sort()).toEqual(["map", "read", "synthesize"]);
+    expect(manifestRows[0]?.promptVersion).toBe("2.0.0");
   });
 
   it("lists runs newest first, optionally filtered by project", async () => {

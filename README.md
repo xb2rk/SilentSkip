@@ -13,8 +13,10 @@ technical docs are English.
 > verifier, the review-run API (SSE progress, cancel, deterministic fallback, SQLite persistence),
 > and the report UI (run page with evidence viewer + history). The full loop works end to end:
 > register a project → pick A/B → start a review → watch live progress → read a verified report.
-> E5.5 (report readability + calibration) shipped; **E7 (CSV facts sâu + STRUCT/TYPE checks) is
-> next, before E6** (decision #27).
+> E7 is being redesigned (decision #28): **E7.1 (engine core v2: facts v2, checks, reading plan,
+> digest v2) and E7.2 (AI flow v2: map → read×N units, fact-id citations, linker gates, L1/L3
+> loops) are in**; E7.3 (checks full) and E7.4 (report v2 + re-measure) are next, before E6
+> (decision #27).
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md),
 > [`docs/INSEA.md`](./docs/INSEA.md), [`docs/PROMPTS.md`](./docs/PROMPTS.md) and the per-package READMEs.
 

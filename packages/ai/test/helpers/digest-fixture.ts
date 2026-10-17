@@ -1,19 +1,28 @@
 import type { DigestBundle } from "@craftland-qa/contracts";
 
 /**
- * A small hand-built digest fixture for pass/pipeline tests.
- *
- * Shape mirrors a real digest: one changed script symbol (`_MOD`), one changed CSV cell
- * (`scout.atk`), one journey chain and one pinned convention — enough to exercise
- * evidence packing, query resolution and structured-findings merging without any engine call.
+ * The digest fixture of the AI test suite (v2): two changed files — a script whose `_MOD`
+ * constant changed and a CSV whose `scout.atk` cell changed — with quantities, one engine
+ * finding, a two-unit reading plan and four anchors. Everything the v2 flow needs to exercise
+ * map/read/dig/synthesize plus the linker.
  */
 
+/** Anchor ids used across the AI test suite — real digest format. */
 export const ANCHOR_A_MOD = "A:Assets/Scripts/Config.fcg:2:2:code";
 export const ANCHOR_B_MOD = "B:Assets/Scripts/Config.fcg:2:2:code";
 export const ANCHOR_A_ATK = "A:Assets/CSV/UnitData.csv:2:2:csv:r:scout:c:atk";
 export const ANCHOR_B_ATK = "B:Assets/CSV/UnitData.csv:2:2:csv:r:scout:c:atk";
 
-/** Build a fresh digest fixture (never shared/mutated between tests). */
+/** Paths of the two changed files. */
+export const SCRIPT_PATH = "Assets/Scripts/Config.fcg";
+export const TABLE_PATH = "Assets/CSV/UnitData.csv";
+
+/** Id of the engine finding the reading flow must interpret. */
+export const ENGINE_FINDING_ID = "STRUCT-01|B|Assets/CSV/UnitData.csv";
+
+const BLOB_SHA = "0000000000000000000000000000000000000000";
+
+/** Fresh digest fixture — every call returns a new object so tests can mutate freely. */
 export function makeDigest(): DigestBundle {
   return {
     schemaVersion: 2,
@@ -35,7 +44,7 @@ export function makeDigest(): DigestBundle {
     changeFacts: [
       {
         kind: "script",
-        path: "Assets/Scripts/Config.fcg",
+        path: SCRIPT_PATH,
         status: "changed",
         language: "fcg",
         symbolsAdded: [],
@@ -46,6 +55,8 @@ export function makeDigest(): DigestBundle {
             symbolKind: "field",
             beforeAnchorId: ANCHOR_A_MOD,
             afterAnchorId: ANCHOR_B_MOD,
+            beforeValue: "104729",
+            afterValue: "999983",
           },
         ],
         importsAdded: [],
@@ -53,7 +64,7 @@ export function makeDigest(): DigestBundle {
       },
       {
         kind: "table",
-        path: "Assets/CSV/UnitData.csv",
+        path: TABLE_PATH,
         status: "changed",
         headerChanged: false,
         columns: { before: 2, after: 2 },
@@ -82,7 +93,7 @@ export function makeDigest(): DigestBundle {
     linked: [
       {
         originKind: "csv-row",
-        originLabel: "Assets/CSV/UnitData.csv#scout",
+        originLabel: `${TABLE_PATH}#scout`,
         anchorId: ANCHOR_B_ATK,
         chains: [
           {
@@ -107,65 +118,155 @@ export function makeDigest(): DigestBundle {
     context: [
       {
         itemKind: "convention",
-        text: "binding: UnitData.csv rows are bound by enum index in CSVIndex.fcc",
+        text: "UnitData.csv rows are bound by an index enum in a header file",
         source: "profile",
         anchorId: null,
       },
     ],
     quantities: [
       {
-        id: "q:symbol-count|B|Assets/Scripts/Config.fcg|added",
+        id: `q:symbol-count|B|${SCRIPT_PATH}|added`,
         kind: "symbol-count",
-        subject: "Assets/Scripts/Config.fcg symbols added",
+        subject: `${SCRIPT_PATH} added symbols`,
         value: "0",
         ref: "B",
         anchorId: null,
+        file: SCRIPT_PATH,
       },
       {
-        id: "q:symbol-count|A|Assets/Scripts/Config.fcg|removed",
+        id: `q:symbol-count|A|${SCRIPT_PATH}|removed`,
         kind: "symbol-count",
-        subject: "Assets/Scripts/Config.fcg symbols removed",
+        subject: `${SCRIPT_PATH} removed symbols`,
         value: "0",
         ref: "A",
         anchorId: null,
+        file: SCRIPT_PATH,
       },
       {
-        id: "q:symbol-count|Assets/Scripts/Config.fcg|changed",
+        id: `q:symbol-count|${SCRIPT_PATH}|changed`,
         kind: "symbol-count",
-        subject: "Assets/Scripts/Config.fcg symbols changed",
+        subject: `${SCRIPT_PATH} changed symbols`,
         value: "1",
         ref: null,
         anchorId: null,
+        file: SCRIPT_PATH,
       },
       {
-        id: "q:value|A|Assets/Scripts/Config.fcg|_MOD",
+        id: `q:value|A|${SCRIPT_PATH}|_MOD`,
         kind: "value",
-        subject: "Assets/Scripts/Config.fcg _MOD (before)",
+        subject: "_MOD (before)",
         value: "104729",
         ref: "A",
         anchorId: ANCHOR_A_MOD,
+        file: SCRIPT_PATH,
       },
       {
-        id: "q:value|B|Assets/Scripts/Config.fcg|_MOD",
+        id: `q:value|B|${SCRIPT_PATH}|_MOD`,
         kind: "value",
-        subject: "Assets/Scripts/Config.fcg _MOD (after)",
+        subject: "_MOD (after)",
         value: "999983",
         ref: "B",
         anchorId: ANCHOR_B_MOD,
+        file: SCRIPT_PATH,
+      },
+      {
+        id: `q:column-count|A|${TABLE_PATH}`,
+        kind: "column-count",
+        subject: `${TABLE_PATH} columns (before)`,
+        value: "2",
+        ref: "A",
+        anchorId: null,
+        file: TABLE_PATH,
+      },
+      {
+        id: `q:column-count|B|${TABLE_PATH}`,
+        kind: "column-count",
+        subject: `${TABLE_PATH} columns (after)`,
+        value: "2",
+        ref: "B",
+        anchorId: null,
+        file: TABLE_PATH,
       },
     ],
-    findings: [],
+    findings: [
+      {
+        id: ENGINE_FINDING_ID,
+        ruleId: "STRUCT-01",
+        severity: "major",
+        confidence: "exact",
+        title: "Row width differs from the header",
+        message: `1 of 1 data rows in ${TABLE_PATH} (side B) differ from the header.`,
+        anchors: [ANCHOR_A_ATK, ANCHOR_B_ATK],
+        derivation: ["Header cell count on side B: 2."],
+      },
+    ],
     plan: {
-      units: [],
-      skeleton: { files: [], importEdges: [] },
-      partition: { clusters: [] },
+      units: [
+        {
+          index: 0,
+          files: [SCRIPT_PATH],
+          estimatedBytes: 140,
+          payload: JSON.stringify([
+            {
+              path: SCRIPT_PATH,
+              status: "changed",
+              language: "fcg",
+              symbolsChanged: [
+                { name: "_MOD", kind: "field", beforeValue: "104729", afterValue: "999983" },
+              ],
+            },
+          ]),
+        },
+        {
+          index: 1,
+          files: [TABLE_PATH],
+          estimatedBytes: 120,
+          payload: JSON.stringify([
+            {
+              path: TABLE_PATH,
+              status: "changed",
+              rowsChanged: [
+                { key: "scout", cells: [{ column: "atk", before: "100", after: "120" }] },
+              ],
+            },
+          ]),
+        },
+      ],
+      skeleton: {
+        files: [
+          {
+            path: SCRIPT_PATH,
+            kind: "script",
+            status: "changed",
+            language: "fcg",
+            counts: { added: 0, removed: 0, changed: 1 },
+            changedSymbols: ["_MOD"],
+            headerColumns: null,
+          },
+          {
+            path: TABLE_PATH,
+            kind: "table",
+            status: "changed",
+            counts: { added: 0, removed: 0, changed: 1 },
+            changedSymbols: [],
+            headerColumns: 2,
+          },
+        ],
+        importEdges: [],
+      },
+      partition: {
+        clusters: [
+          { id: "cluster-1", files: [SCRIPT_PATH] },
+          { id: "cluster-2", files: [TABLE_PATH] },
+        ],
+      },
     },
     anchors: [
       {
         id: ANCHOR_A_MOD,
         ref: "A",
-        file: "Assets/Scripts/Config.fcg",
-        blobSha: "0123456789abcdef0123456789abcdef01234567",
+        file: SCRIPT_PATH,
+        blobSha: BLOB_SHA,
         lineStart: 2,
         lineEnd: 2,
         snippet: "_MOD int = 104729",
@@ -174,8 +275,8 @@ export function makeDigest(): DigestBundle {
       {
         id: ANCHOR_B_MOD,
         ref: "B",
-        file: "Assets/Scripts/Config.fcg",
-        blobSha: "0123456789abcdef0123456789abcdef01234567",
+        file: SCRIPT_PATH,
+        blobSha: BLOB_SHA,
         lineStart: 2,
         lineEnd: 2,
         snippet: "_MOD int = 999983",
@@ -184,28 +285,28 @@ export function makeDigest(): DigestBundle {
       {
         id: ANCHOR_A_ATK,
         ref: "A",
-        file: "Assets/CSV/UnitData.csv",
-        blobSha: "abcdef0123456789abcdef0123456789abcdef01",
+        file: TABLE_PATH,
+        blobSha: BLOB_SHA,
         lineStart: 2,
         lineEnd: 2,
         snippet: "scout,100",
-        kind: "csv",
         loc: { rowKey: "scout", column: "atk" },
+        kind: "csv",
       },
       {
         id: ANCHOR_B_ATK,
         ref: "B",
-        file: "Assets/CSV/UnitData.csv",
-        blobSha: "abcdef0123456789abcdef0123456789abcdef01",
+        file: TABLE_PATH,
+        blobSha: BLOB_SHA,
         lineStart: 2,
         lineEnd: 2,
         snippet: "scout,120",
-        kind: "csv",
         loc: { rowKey: "scout", column: "atk" },
+        kind: "csv",
       },
     ],
     manifest: {
-      budgets: { maxJourneys: 12, maxAnchors: 500 },
+      budgets: { maxJourneys: 60, maxAnchors: 500 },
       counts: { changedScripts: 1, changedTables: 1, anchors: 4, journeys: 1, contextItems: 1 },
       selection: { journeyCandidates: 1, journeysSelected: 1, anchorsDropped: 0 },
       notes: [],

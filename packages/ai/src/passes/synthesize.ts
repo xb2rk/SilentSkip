@@ -3,6 +3,7 @@ import {
   buildPassManifestJson,
   serializeAnchorsJsonl,
   serializeTaskFile,
+  serializeThemesFile,
 } from "../context/build.js";
 import type { ReviewContext } from "../context/types.js";
 import type { InseaAttachment } from "../insea/types.js";
@@ -11,41 +12,45 @@ import type { StructuredFindings } from "./digest-step.js";
 import { parsePassOutput } from "./parse-output.js";
 import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
 
-/** Input of the final writer pass. */
+/** Input of one writer call. */
 export interface SynthesizePassInput {
   readonly context: ReviewContext;
   readonly structured: StructuredFindings;
+  readonly themes: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly files: readonly string[];
+  }[];
+  /** L3 constraints from the previous link round (empty on the first round). */
+  readonly constraints: readonly string[];
+  /** 1-based synthesize round. */
+  readonly round: number;
 }
 
-/** Result of the final writer pass. */
+/** Result of one writer call. */
 export interface SynthesizePassResult {
   readonly output: SynthesizeOutput;
   readonly meta: PassMeta;
 }
 
-/** Final writer — the report over structured findings; may not introduce new anchors. */
+/**
+ * Final writer — the report over linked findings. The pipeline re-runs it (L3, ≤2 rounds)
+ * with linker issues as constraints; each call is a fresh single-shot workflow call.
+ */
 export async function runSynthesizePass(
   deps: PassDeps,
   input: SynthesizePassInput,
   signal?: AbortSignal,
 ): Promise<SynthesizePassResult> {
-  const { context, structured } = input;
+  const { context, structured, themes, constraints, round } = input;
   const attachments: InseaAttachment[] = [
     serializeTaskFile(context),
     {
       uploadName: "findings.json",
       mimeType: "application/json",
-      content: JSON.stringify(
-        {
-          findings: structured.findings,
-          unknowns: structured.unknowns,
-          negativeResults: structured.negativeResults,
-          answers: structured.answers,
-        },
-        null,
-        2,
-      ),
+      content: JSON.stringify(structured, null, 2),
     },
+    serializeThemesFile(themes),
     {
       uploadName: "anchors.jsonl",
       mimeType: "application/x-ndjson",
@@ -55,7 +60,13 @@ export async function runSynthesizePass(
   const result = await deps.runner(
     buildRunRequest(
       deps,
-      buildSynthesizePrompt(context, structured.findings, structured.unknowns),
+      buildSynthesizePrompt(
+        context,
+        structured.findings.length,
+        themes,
+        structured.unknowns.length,
+        constraints,
+      ),
       buildPassManifestJson("synthesize", context, attachments),
       attachments,
       signal,
@@ -68,6 +79,7 @@ export async function runSynthesizePass(
       promptVersion: PROMPT_VERSIONS.synthesize,
       latencyMs: result.latencyMs,
       salvage: result.salvage,
+      round,
     },
   };
 }

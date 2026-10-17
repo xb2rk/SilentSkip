@@ -649,6 +649,7 @@ function collectQuantities(
         value: String(fact.symbolsAdded.length),
         ref: "B",
         anchorId: null,
+        file: fact.path,
       });
       add({
         id: `q:symbol-count|A|${fact.path}|removed`,
@@ -657,6 +658,7 @@ function collectQuantities(
         value: String(fact.symbolsRemoved.length),
         ref: "A",
         anchorId: null,
+        file: fact.path,
       });
       add({
         id: `q:symbol-count|${fact.path}|changed`,
@@ -665,6 +667,7 @@ function collectQuantities(
         value: String(fact.symbolsChanged.length),
         ref: null,
         anchorId: null,
+        file: fact.path,
       });
       for (const change of fact.symbolsChanged) {
         if (change.beforeValue !== undefined) {
@@ -675,6 +678,7 @@ function collectQuantities(
             value: change.beforeValue,
             ref: "A",
             anchorId: change.beforeAnchorId,
+            file: fact.path,
           });
         }
         if (change.afterValue !== undefined) {
@@ -685,6 +689,7 @@ function collectQuantities(
             value: change.afterValue,
             ref: "B",
             anchorId: change.afterAnchorId,
+            file: fact.path,
           });
         }
       }
@@ -702,6 +707,7 @@ function collectQuantities(
         value: String(fact.columns.before),
         ref: "A",
         anchorId: registry.add("A", fact.path, beforeSource, rowSpan(beforeHeader), "csv"),
+        file: fact.path,
       });
     }
     if (fact.columns.after !== null && afterHeader !== undefined && afterSource !== undefined) {
@@ -712,6 +718,7 @@ function collectQuantities(
         value: String(fact.columns.after),
         ref: "B",
         anchorId: registry.add("B", fact.path, afterSource, rowSpan(afterHeader), "csv"),
+        file: fact.path,
       });
     }
     add({
@@ -721,6 +728,7 @@ function collectQuantities(
       value: String(fact.rowsAdded.length),
       ref: "B",
       anchorId: null,
+      file: fact.path,
     });
     add({
       id: `q:row-count|A|${fact.path}|removed`,
@@ -729,6 +737,7 @@ function collectQuantities(
       value: String(fact.rowsRemoved.length),
       ref: "A",
       anchorId: null,
+      file: fact.path,
     });
     add({
       id: `q:row-count|${fact.path}|changed`,
@@ -737,6 +746,7 @@ function collectQuantities(
       value: String(fact.rowsChanged.length),
       ref: null,
       anchorId: null,
+      file: fact.path,
     });
   }
   return [...byId.values()].sort((a, b) => compareStrings(a.id, b.id));
