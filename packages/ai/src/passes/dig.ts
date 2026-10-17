@@ -24,11 +24,17 @@ export interface FocusedEvidence {
  * Resolve `needMore` queries to exact spans — deterministic, server-side, never a model call.
  * A query matches an anchor when its lowercase text appears in the anchor's snippet, file or
  * id. Anchors are collected in query order, deduplicated, capped at MAX_FOCUSED_ANCHORS.
+ *
+ * Resolution searches the full anchor registry when `allAnchors` is passed (the digest is the
+ * authority — the budgeted evidence pack is attention economy and may not contain every anchor
+ * the model read about in `changes.json`); it falls back to the evidence pack otherwise.
  */
 export function resolveNeedMore(
   context: ReviewContext,
   needMore: readonly string[],
+  allAnchors?: readonly EvidenceAnchor[],
 ): FocusedEvidence {
+  const pool = allAnchors ?? context.evidence;
   const queries = needMore.map((query) => query.trim()).filter((query) => query !== "");
   const seen = new Set<string>();
   const anchors: EvidenceAnchor[] = [];
@@ -36,7 +42,7 @@ export function resolveNeedMore(
   for (const query of queries) {
     const term = query.toLowerCase();
     const anchorIds: string[] = [];
-    for (const anchor of context.evidence) {
+    for (const anchor of pool) {
       if (anchors.length >= MAX_FOCUSED_ANCHORS) break;
       const haystack = `${anchor.id}\n${anchor.file}\n${anchor.snippet}`.toLowerCase();
       if (!haystack.includes(term)) continue;
@@ -58,14 +64,19 @@ export interface DigPassResult {
   readonly focused: FocusedEvidence;
 }
 
-/** Focused follow-up — answer pass 1's queries from resolved spans. One round, no recursion. */
+/**
+ * Focused follow-up — answer pass 1's queries from resolved spans. One round, no recursion.
+ * Pass `allAnchors` (the full digest registry) so queries can resolve anchors the evidence
+ * pack had to drop; without it, resolution is limited to the pack.
+ */
 export async function runDigPass(
   deps: PassDeps,
   context: ReviewContext,
   needMore: readonly string[],
   signal?: AbortSignal,
+  allAnchors?: readonly EvidenceAnchor[],
 ): Promise<DigPassResult> {
-  const focused = resolveNeedMore(context, needMore);
+  const focused = resolveNeedMore(context, needMore, allAnchors);
   const attachments: InseaAttachment[] = [
     serializeTaskFile(context),
     {

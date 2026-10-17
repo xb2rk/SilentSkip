@@ -26,7 +26,7 @@ export const ConventionEvidenceSchema = z.object({
 export const ConventionEntrySchema = z.object({
   id: z.string().min(1),
   kind: ConventionKindSchema,
-  /** Human-readable statement, e.g. "CSV tables are read via CSVIndex enums". */
+  /** Human-readable statement, e.g. "CSV tables are read through an index enum in a header file". */
   statement: z.string().min(1),
   evidence: z.array(ConventionEvidenceSchema),
   source: ConventionSourceSchema,

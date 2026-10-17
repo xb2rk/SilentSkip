@@ -62,6 +62,18 @@ describe("resolveNeedMore + runDigPass", () => {
     expect(resolveNeedMore(context, ["UnitData", "Config.fcg"])).toEqual(focused);
   });
 
+  it("resolves against the full registry when the evidence pack dropped anchors", () => {
+    const full = context.evidence;
+    const truncated = {
+      ...context,
+      evidence: full.filter((anchor) => anchor.id !== ANCHOR_B_ATK),
+    };
+    const packOnly = resolveNeedMore(truncated, ["scout,120"]);
+    expect(packOnly.anchors.map((anchor) => anchor.id)).not.toContain(ANCHOR_B_ATK);
+    const withRegistry = resolveNeedMore(truncated, ["scout,120"], full);
+    expect(withRegistry.anchors.map((anchor) => anchor.id)).toContain(ANCHOR_B_ATK);
+  });
+
   it("sends queries and focus files and parses dig output", async () => {
     const digOutput = { findings: [], unknowns: [], answers: ["The reader is GetBaseATK"] };
     const { runner, calls } = scriptedRunner({ dig: digOutput });

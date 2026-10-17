@@ -100,7 +100,13 @@ export async function runReviewPipeline(
     read.output.needMore.length > 0
       ? await (async () => {
           await notify({ stage: "dig", state: "started" });
-          const result = await runDigPass(deps, context, read.output.needMore, input.signal);
+          const result = await runDigPass(
+            deps,
+            context,
+            read.output.needMore,
+            input.signal,
+            authoritativeAnchors,
+          );
           await notify({
             stage: "dig",
             state: "completed",

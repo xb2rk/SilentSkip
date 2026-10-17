@@ -21,7 +21,8 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
   (`task.json`, `changes.json`, `journeys.json`, `context.json` + `anchors.jsonl`) under a hard
   evidence budget (200 anchors / 600 KB) with an honest dropped-count note; strict output schemas
   (model drift → `AiError` `invalid-output`, never silent); `dig` resolves `needMore` queries
-  deterministically (substring match → ≤40 focused anchors, exactly one round); `mergeReadOutputs`
+  deterministically (substring match against the full anchor registry → ≤40 focused anchors,
+  exactly one round); `mergeReadOutputs`
   dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (Sample
   `e96f6ff→418d7d6f`): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
   7 unknowns / 3 answers — and the dig pass honestly reported its 3 unanswered queries.

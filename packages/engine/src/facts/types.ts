@@ -127,7 +127,7 @@ export interface ImportFact {
   /** Stable identity: `${path}#import@${startOffset}`. */
   id: string;
   kind: "library" | "named";
-  /** Import path with quotes stripped (e.g. `Contracts/CSVIndex.fcc`). */
+  /** Import path with quotes stripped (e.g. `Data/Example.fcg`). */
   path: string;
   /** Imported symbol name for named imports. */
   imported?: string;
