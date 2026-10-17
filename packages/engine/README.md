@@ -44,13 +44,18 @@ eventually findings.
   `collectDiscoveryCandidates(bundle, relations)` produces the deterministic proposals the AI
   Discovery pass will review later — CSV-naming literals and import paths, each with evidence
   and no scoring. Guarded by fixture tests (`test/profile.test.ts`).
-- **Checks (E7.1)** — `runChecks({ base, current, delta, registerAnchor })`: deterministic
-  findings that run over the full scope, never sampled. `STRUCT-01` reports rows whose width
-  differs from the header (raw structure, nothing inferred about the "right" width);
-  `DANGLING-REF` reports a symbol removed in B whose same-name references in B resolve nowhere
-  while the A-side references resolved exactly to it. Every finding carries severity,
-  confidence, raw-structure witness anchors (registered into the digest registry) and a
-  derivation chain. Guarded by `test/checks.test.ts`.
+- **Checks (E7.1 → E7.3 full)** — `runChecks({ base, current, delta, registerAnchor, profile?, relations? })`:
+  deterministic findings that run over the full scope, never sampled. `STRUCT-01` row width vs
+  header (raw structure); `STRUCT-02` duplicate/empty row keys — the key column comes from a
+  `pin-binding` profile override (`exact`) or falls back to the first column (`inferred`; the
+  message says what to pin); `STRUCT-03` header hygiene (empty/duplicate/whitespace/unicode,
+  info); `TYPE-01` declared type row vs real values (mismatch → minor `defaulted`, leading zeros
+  → info); `BIND-03` channel ② candidate — an enum covering every header column (inferred;
+  pin-matched → `exact`, stale pin → its own finding); `BIND-04` channel ③ — a changed table no
+  code references (the absence is exact, the use stays unknown); `DANGLING-REF` removed symbol
+  with unresolved same-name references. Every finding carries severity, confidence, witness
+  anchors (registered into the digest registry) and a derivation chain. Guarded by
+  `test/checks.test.ts`.
 - **Reading plan (E7.1)** — `buildReadingPlan({ scripts, tables, graphEdges })`: the lossless
   compaction the AI flow reads — units contain every changed file exactly once (never split),
   packed in path order under a byte budget (~60 KB per unit), payloads keep every changed name

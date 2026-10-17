@@ -860,6 +860,8 @@ export function buildDigest(input: DigestInput): DigestBundle {
     base: checkSideOf(base, "A"),
     current: checkSideOf(current, "B"),
     delta,
+    ...(input.profile === undefined ? {} : { profile: input.profile }),
+    relations,
     registerAnchor: (ref, file, span, kind) => {
       const side = ref === "A" ? base : current;
       const source = side.sources.get(file);

@@ -293,6 +293,12 @@ const resources = {
         journeysNote: "Chuỗi từ giá trị thay đổi tới nơi code dùng nó — mỗi bước có dẫn chứng.",
         journeysEmpty: "Chưa dựng được luồng nào từ thay đổi này.",
         findingsEmpty: "Không có phát hiện nào vượt qua kiểm chứng.",
+        engineFindingsTitle: "Phát hiện engine (tất định)",
+        engineFindingsHint:
+          "Engine tính trên toàn bộ thay đổi — không bị ngân sách chú ý cắt. Bấm dẫn chứng để xem đúng dòng nguồn.",
+        engineDeterministic: "tất định",
+        derivationTitle: "Suy luận của engine",
+        processFindingsTitle: "AI tổng hợp (đã kiểm chứng liên kết)",
         consequenceLabel: "Ảnh hưởng",
         recommendationLabel: "Đề xuất",
         severityCritical: "Nghiêm trọng",

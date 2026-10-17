@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { ChangeFacts } from "@/components/report/change-facts";
+import { EngineFindingCard } from "@/components/report/engine-finding-card";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
 import { FindingCard } from "@/components/report/finding-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -145,6 +146,12 @@ export function RunPage() {
     () => new Map((digestQuery.data?.anchors ?? []).map((item) => [item.id, item])),
     [digestQuery.data],
   );
+  const engineFindings = useMemo(() => {
+    const rank = { critical: 0, major: 1, minor: 2, info: 3 } as const;
+    return [...(digestQuery.data?.findings ?? [])].sort(
+      (a, b) => rank[a.severity] - rank[b.severity] || (a.id < b.id ? -1 : 1),
+    );
+  }, [digestQuery.data]);
 
   if (runQuery.isPending) {
     return (
@@ -372,7 +379,7 @@ export function RunPage() {
             <TabsList>
               <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>
               <TabsTrigger value="findings">
-                {t("run.tabFindings")} ({result.report.findings.length})
+                {t("run.tabFindings")} ({engineFindings.length + result.report.findings.length})
               </TabsTrigger>
               <TabsTrigger value="notes">{t("run.tabNotes")}</TabsTrigger>
             </TabsList>
@@ -407,7 +414,40 @@ export function RunPage() {
             </TabsContent>
 
             <TabsContent value="findings" className="space-y-3 pt-2">
-              {result.report.findings.length === 0 ? (
+              {engineFindings.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12.5px] font-semibold">
+                      {t("run.engineFindingsTitle")}
+                    </span>
+                    <Badge variant="secondary" className="font-normal">
+                      {engineFindings.length}
+                    </Badge>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                    {t("run.engineFindingsHint")}
+                  </p>
+                  {engineFindings.map((finding) => (
+                    <EngineFindingCard
+                      key={finding.id}
+                      finding={finding}
+                      anchorsById={anchorsById}
+                      onAnchorClick={setAnchor}
+                    />
+                  ))}
+                </div>
+              )}
+              {engineFindings.length > 0 && result.report.findings.length > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[12.5px] font-semibold">
+                    {t("run.processFindingsTitle")}
+                  </span>
+                  <Badge variant="secondary" className="font-normal">
+                    {result.report.findings.length}
+                  </Badge>
+                </div>
+              )}
+              {engineFindings.length === 0 && result.report.findings.length === 0 ? (
                 <p className="text-[12.5px] text-muted-foreground">{t("run.findingsEmpty")}</p>
               ) : (
                 result.report.findings.map((finding) => (

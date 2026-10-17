@@ -40,11 +40,14 @@ describe("digest v2", () => {
     const digest = DigestBundleSchema.parse(buildDigest(INPUT));
 
     expect(digest.schemaVersion).toBe(2);
-    expect(digest.findings).toHaveLength(1);
-    const finding = digest.findings[0];
+    const struct01 = digest.findings.filter((finding) => finding.ruleId === "STRUCT-01");
+    expect(struct01).toHaveLength(1);
+    const finding = struct01[0];
     if (finding === undefined) throw new Error("expected a STRUCT-01 finding");
     expect(finding.ruleId).toBe("STRUCT-01");
     expect(finding.confidence).toBe("exact");
+    // Channel ③: the changed table has no code reference — surfaced as an exact info finding.
+    expect(digest.findings.some((item) => item.ruleId === "BIND-04")).toBe(true);
     if (finding.anchors.length === 0) throw new Error("expected witness anchors");
 
     const anchorIds = new Set(digest.anchors.map((anchor) => anchor.id));

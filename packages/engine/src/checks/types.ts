@@ -10,9 +10,11 @@
  * soft (never a hard block). Only `exact` findings may carry `critical`/`major` severity.
  */
 
+import type { ProjectProfile } from "@craftland-qa/contracts";
 import type { CsvTable } from "../csv/index.js";
 import type { DeltaBundle } from "../delta/index.js";
 import type { FactSpan, FileFacts } from "../facts/index.js";
+import type { RelationSet } from "../relations/index.js";
 
 /** Version of the check-finding JSON shape; bump when the structure changes. */
 export const CHECKS_SCHEMA_VERSION = 1;
@@ -45,6 +47,10 @@ export interface CheckInput {
   readonly current: CheckSide;
   readonly delta: DeltaBundle;
   readonly registerAnchor: RegisterAnchor;
+  /** Project profile (pins) — absent means pure engine conventions: first-column keys, no pins. */
+  readonly profile?: ProjectProfile;
+  /** Relations of the current side — lets binding checks see which tables code already names. */
+  readonly relations?: RelationSet;
 }
 
 /** A deterministic finding produced by one check. */
