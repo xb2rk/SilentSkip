@@ -8,17 +8,11 @@ import {
 } from "./types.js";
 
 /**
- * Assemble the context of a review run from a digest.
- *
- * Deterministic: anchors keep the digest order, budgets drop from the tail and record the
- * dropped count in the manifest. No clocks, no environment reads — the same digest always
- * produces the same context, which is what keeps runs and evals reproducible.
+ * Map every digest anchor to its evidence form — the authoritative registry the verifier checks
+ * citations against. The context's evidence pack is a budgeted slice of this same list.
  */
-export function buildReviewContext(
-  digest: DigestBundle,
-  input: ReviewContextInput = {},
-): ReviewContext {
-  const allEvidence: EvidenceAnchor[] = digest.anchors.map((anchor) => ({
+export function evidenceAnchorsOf(digest: DigestBundle): EvidenceAnchor[] {
+  return digest.anchors.map((anchor) => ({
     id: anchor.id,
     ref: anchor.ref,
     file: anchor.file,
@@ -27,21 +21,48 @@ export function buildReviewContext(
     kind: anchor.kind,
     snippet: anchor.snippet,
   }));
+}
+
+/**
+ * Assemble the context of a review run from a digest.
+ *
+ * Deterministic: anchors referenced by the digest's own payloads (change facts, linked journeys,
+ * context items) get evidence-pack priority — so the model can always resolve the ids it reads in
+ * `changes.json` / `journeys.json` / `context.json` — then the remaining anchors follow in digest
+ * order. Budgets drop from the tail (unreferenced first) and record the dropped counts in the
+ * manifest. No clocks, no environment reads — the same digest always produces the same context,
+ * which is what keeps runs and evals reproducible.
+ */
+export function buildReviewContext(
+  digest: DigestBundle,
+  input: ReviewContextInput = {},
+): ReviewContext {
+  const allEvidence = evidenceAnchorsOf(digest);
+
+  const referencedIds = collectReferencedAnchorIds(digest);
+  const referencedEvidence = allEvidence.filter((anchor) => referencedIds.has(anchor.id));
+  const restEvidence = allEvidence.filter((anchor) => !referencedIds.has(anchor.id));
+  const prioritized = [...referencedEvidence, ...restEvidence];
 
   const notes: string[] = [];
-  let evidence = allEvidence.slice(0, CONTEXT_BUDGETS.maxEvidenceAnchors);
-  const droppedByCount = allEvidence.length - evidence.length;
+  let evidence = prioritized.slice(0, CONTEXT_BUDGETS.maxEvidenceAnchors);
+  const droppedByCount = prioritized.length - evidence.length;
   while (
     evidence.length > 0 &&
     Buffer.byteLength(serializeAnchorsJsonl(evidence), "utf8") > CONTEXT_BUDGETS.maxEvidenceBytes
   ) {
     evidence = evidence.slice(0, evidence.length - 1);
   }
-  const dropped = allEvidence.length - evidence.length;
+  const dropped = prioritized.length - evidence.length;
   if (dropped > 0) {
     notes.push(
       `evidence anchors dropped: ${dropped} (by count: ${droppedByCount}, by bytes: ${dropped - droppedByCount})`,
     );
+  }
+  const keptIds = new Set(evidence.map((anchor) => anchor.id));
+  const referencedDropped = referencedEvidence.filter((anchor) => !keptIds.has(anchor.id)).length;
+  if (referencedDropped > 0) {
+    notes.push(`referenced anchors dropped by budget: ${referencedDropped}`);
   }
 
   return {
@@ -139,4 +160,40 @@ function manifestKind(uploadName: string): "code" | "csv" | "diff" | "summary" |
   if (uploadName === "changes.json") return "diff";
   if (uploadName === "task.json") return "summary";
   return "other";
+}
+
+/**
+ * Anchor ids the digest's own payloads reference — change facts, linked journeys, context items.
+ * The evidence pack prioritizes these so the model can always resolve ids it reads elsewhere.
+ */
+function collectReferencedAnchorIds(digest: DigestBundle): Set<string> {
+  const referenced = new Set<string>();
+  const add = (id: string | null): void => {
+    if (id !== null) referenced.add(id);
+  };
+  for (const fact of digest.changeFacts) {
+    if (fact.kind === "script") {
+      for (const ref of [...fact.symbolsAdded, ...fact.symbolsRemoved]) add(ref.anchorId);
+      for (const change of fact.symbolsChanged) {
+        add(change.beforeAnchorId);
+        add(change.afterAnchorId);
+      }
+    } else {
+      for (const row of [...fact.rowsAdded, ...fact.rowsRemoved]) add(row.anchorId);
+      for (const row of fact.rowsChanged) {
+        for (const cell of row.columnsChanged) {
+          add(cell.beforeAnchorId);
+          add(cell.afterAnchorId);
+        }
+      }
+    }
+  }
+  for (const item of digest.linked) {
+    add(item.anchorId);
+    for (const chain of item.chains) {
+      for (const node of chain.nodes) add(node.anchorId);
+    }
+  }
+  for (const item of digest.context) add(item.anchorId);
+  return referenced;
 }

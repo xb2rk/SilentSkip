@@ -1,3 +1,4 @@
+import type { DigestBundle } from "@craftland-qa/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildPassManifestJson,
@@ -62,6 +63,34 @@ describe("buildReviewContext", () => {
     expect(context.evidence).toHaveLength(200);
     expect(context.manifest.counts.evidenceDropped).toBe(50);
     expect(context.manifest.notes.join(" ")).toContain("evidence anchors dropped: 50");
+  });
+
+  it("prioritizes anchors referenced by change facts and journeys beyond the cap", () => {
+    const anchors: DigestBundle["anchors"] = Array.from({ length: 250 }, (_, index) => ({
+      id: `A:file${index}.fcg:1:1:code`,
+      ref: "A" as const,
+      file: `file${index}.fcg`,
+      blobSha: "0".repeat(40),
+      lineStart: 1,
+      lineEnd: 1,
+      snippet: `x${index}`,
+      kind: "code" as const,
+    }));
+    // The last anchor (would be dropped by position) is the one change facts reference.
+    anchors[249] = {
+      id: ANCHOR_B_ATK,
+      ref: "B",
+      file: "Assets/CSV/UnitData.csv",
+      blobSha: "0".repeat(40),
+      lineStart: 2,
+      lineEnd: 2,
+      snippet: "scout,120",
+      kind: "csv",
+    };
+    const context = buildReviewContext({ ...makeDigest(), anchors });
+    expect(context.evidence).toHaveLength(200);
+    expect(context.evidence[0]?.id).toBe(ANCHOR_B_ATK);
+    expect(context.manifest.notes.join(" ")).not.toContain("referenced anchors dropped");
   });
 
   it("serializes context files with real byte sizes in the manifest", () => {

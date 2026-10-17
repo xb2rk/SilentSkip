@@ -51,6 +51,13 @@ try {
         structuredFindings: result.structuredFindings.findings.length,
         structuredUnknowns: result.structuredFindings.unknowns.length,
         answers: result.structuredFindings.answers.length,
+        verification: {
+          read: result.verification.read,
+          dig: result.verification.dig,
+          synthesize: result.verification.synthesize,
+          issues: result.verification.issues.length,
+          issueSample: result.verification.issues.slice(0, 6),
+        },
         report: result.report,
       },
       null,

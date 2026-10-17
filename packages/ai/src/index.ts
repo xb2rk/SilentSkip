@@ -26,3 +26,4 @@ export * from "./passes/synthesize.js";
 export * from "./passes/types.js";
 export * from "./pipeline/review.js";
 export * from "./prompts/registry.js";
+export * from "./verify/index.js";

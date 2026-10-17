@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runReviewPipeline } from "../src/index";
-import { ANCHOR_B_ATK, ANCHOR_B_MOD, makeDigest } from "./helpers/digest-fixture";
+import { ANCHOR_A_ATK, ANCHOR_B_ATK, ANCHOR_B_MOD, makeDigest } from "./helpers/digest-fixture";
 import { scriptedRunner } from "./helpers/scripted-runner";
 
 const CONFIG = { workflowUrl: "https://example.test/run", apiKey: "k" } as const;
@@ -64,5 +64,24 @@ describe("runReviewPipeline", () => {
     const result = await runReviewPipeline({ runner, config: CONFIG }, { digest: makeDigest() });
     expect(result.passes.map((meta) => meta.pass)).toEqual(["digest_read", "synthesize"]);
     expect(calls).toHaveLength(2);
+  });
+
+  it("strips anchors synthesize never verified and downgrades the verdict", async () => {
+    const drifted = {
+      ...REPORT,
+      findings: [{ ...REPORT.findings[0], anchors: [ANCHOR_A_ATK] }],
+    };
+    const { runner } = scriptedRunner({
+      digest_read: { ...READ, needMore: [] },
+      synthesize: drifted,
+    });
+    const result = await runReviewPipeline({ runner, config: CONFIG }, { digest: makeDigest() });
+    expect(result.report.findings).toHaveLength(0);
+    expect(result.report.verdict).toBe("insufficient_evidence");
+    const kinds = result.verification.issues.map((issue) => issue.kind);
+    expect(kinds).toContain("new-anchor");
+    expect(kinds).toContain("finding-unanchored");
+    expect(kinds).toContain("verdict-downgraded");
+    expect(result.verification.synthesize.anchorsStripped).toBe(1);
   });
 });

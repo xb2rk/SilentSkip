@@ -25,14 +25,22 @@ The AI review pipeline (Insea): workflow client, context assembly, the pass libr
   dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (Sample
   `e96f6ff→418d7d6f`): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
   7 unknowns / 3 answers — and the dig pass honestly reported its 3 unanswered queries.
+- **Citation verifier (E4.3)** — deterministic and model-independent; runs on every pass boundary
+  inside `runReviewPipeline`. Checks per finding: cited anchor ids exist in the **full digest
+  registry** (the evidence pack is attention economy, the digest is the authority); `synthesize`
+  may not introduce anchors earlier passes never verified; zero surviving anchors removes the
+  finding (and an all-stripped report is forced to `insufficient_evidence`); every number must
+  trace to engine metrics, the goal, or the cited snippets (token boundaries — `75` does not pass
+  as `0.75`); quoted fragments must appear in the cited snippets. Nothing is silent: every strip
+  and downgrade emits a `VerifyIssue` and moves a counter in `PipelineVerification`. Real run
+  (Sample `e96f6ff→418d7d6f`): the read pass stripped 3 truly unknown ids and honestly downgraded 3
+  findings; synthesize introduced 0 new anchors and stripped 0.
 
 ## Planned scope
 
-- **Citation verifier (mandatory)**: every claim must reference evidence-anchor IDs from the
-  context manifest; unanchored claims are stripped and counted (stats surface in the UI).
 - **Deterministic fallback**: when the model times out or fails verification, the deterministic
   engine output is presented instead — the UI never depends on a flaky call.
-- **Streaming + persistence (E4.3/E4.4)**: SSE progress, cancel, and per-run manifests/reports
+- **Streaming + persistence (E4.4)**: SSE progress, cancel, and per-run manifests/reports
   saved to SQLite.
 
 ## Hard rules

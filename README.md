@@ -12,7 +12,8 @@ technical docs are English.
 > store, and the deterministic digest served over the first real API
 > (`GET /api/projects/:id/digest`) — all guarded by corpus gates (245 FC + 33 CSV).
 > E4 (AI pipeline) is in progress — the Insea client + canary are verified against the live
-> workflow; passes + citation verifier are next.
+> workflow, and the pass library + mandatory citation verifier are in (`review:once` runs the
+> full pipeline against the real workflow). Streaming + run persistence (E4.4) are next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > and the per-package READMEs.
 
