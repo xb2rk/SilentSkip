@@ -4,6 +4,7 @@ import {
   DiffSummarySchema,
   DigestBundleSchema,
   ErrorCodes,
+  LocalizationReportSchema,
   ProjectListResponseSchema,
   ProjectProfileSchema,
   ProjectProfileUpdateSchema,
@@ -12,7 +13,7 @@ import {
 } from "@craftland-qa/contracts";
 import type { AppDatabase } from "@craftland-qa/db";
 import { Hono } from "hono";
-import { loadDigest } from "../digest-input";
+import { loadDigest, loadLocalizationReport } from "../digest-input";
 import { diffSummary, projectRefs } from "../git";
 import { loadProjectProfile, saveProjectProfile } from "../profiles";
 import { addProject, getProject, listProjects, removeProject } from "../projects";
@@ -90,6 +91,18 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
       loadProjectProfile(deps.db, project.id),
     );
     return c.json(DigestBundleSchema.parse(digest));
+  });
+
+  /** Localization report (E9): deterministic LOC-01 for detected *key.csv tables. */
+  app.get("/:id/localization", async (c) => {
+    const project = getProject(deps.db, c.req.param("id"));
+    const base = c.req.query("base");
+    const current = c.req.query("current");
+    if (base === undefined || base === "" || current === undefined || current === "") {
+      throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `base` hoặc `current`");
+    }
+    const report = await loadLocalizationReport(project.rootPath, base, current);
+    return c.json(LocalizationReportSchema.parse(report));
   });
 
   return app;

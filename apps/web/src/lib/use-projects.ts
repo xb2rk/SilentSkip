@@ -3,6 +3,7 @@ import {
   DiffSummarySchema,
   DigestBundleSchema,
   FsListResponseSchema,
+  LocalizationReportSchema,
   ProjectListResponseSchema,
   ProjectProfileSchema,
   type ProjectProfileUpdate,
@@ -78,6 +79,25 @@ export function useDigest(
       DigestBundleSchema.parse(
         await fetchJson<unknown>(
           `/api/projects/${projectId}/digest?base=${encodeURIComponent(baseRef ?? "")}&current=${encodeURIComponent(currentRef ?? "")}`,
+        ),
+      ),
+  });
+}
+
+/** Deterministic LOC-01 localization report for one ref range (E9). */
+export function useLocalization(
+  projectId: string | null,
+  baseRef: string | null,
+  currentRef: string | null,
+) {
+  return useQuery({
+    queryKey: ["projects", projectId, "localization", baseRef, currentRef],
+    enabled: projectId !== null && baseRef !== null && currentRef !== null,
+    staleTime: GIT_STALE_MS,
+    queryFn: async () =>
+      LocalizationReportSchema.parse(
+        await fetchJson<unknown>(
+          `/api/projects/${projectId}/localization?base=${encodeURIComponent(baseRef ?? "")}&current=${encodeURIComponent(currentRef ?? "")}`,
         ),
       ),
   });

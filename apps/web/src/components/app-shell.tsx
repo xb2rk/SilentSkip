@@ -6,6 +6,7 @@ import {
   FolderGit2,
   GitCompareArrows,
   History,
+  Languages,
   LayoutDashboard,
   Search,
   Settings as SettingsIcon,
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
       { to: "/compare", labelKey: "nav.compare", icon: GitCompareArrows },
       { to: "/what-if", labelKey: "nav.whatIf", icon: Sparkles },
       { to: "/history", labelKey: "nav.history", icon: History },
+      { to: "/localization", labelKey: "nav.localization", icon: Languages },
     ],
   },
   {

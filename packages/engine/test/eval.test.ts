@@ -355,6 +355,16 @@ const CASES: readonly EvalCase[] = [
     profile: evalProfile({ overrides: [pinBinding(T, "GhostIndex")] }),
     verify: (finding) => expect(finding.id.endsWith("|pin-missing")).toBe(true),
   },
+  {
+    name: "LOC-01 duplicate localization key",
+    ruleId: "LOC-01",
+    before: { "Assets/Localization/key.csv": "Key,English,Vietnamese\nHELLO,Hello,Xin chào\n" },
+    after: {
+      "Assets/Localization/key.csv":
+        "Key,English,Vietnamese\nHELLO,Hello,Xin chào\nBYE,Bye,Tạm biệt\nBYE,Goodbye,Tạm biệt\n",
+    },
+    verify: (finding) => expect(finding.id).toContain("duplicate-key"),
+  },
 ];
 
 describe("E8 hardening gate - injected defects", () => {
@@ -404,6 +414,15 @@ const CLEAN_REFACTOR_AFTER = [
 ].join("\n");
 
 describe("E8 hardening gate - clean corpus (0 false positives)", () => {
+  it("an unchanged localization table is silent", () => {
+    const localization = "Key,English,Vietnamese\nHELLO,Hello,Xin chào\n";
+    const result = digest(
+      { "Assets/Localization/key.csv": localization },
+      { "Assets/Localization/key.csv": localization },
+    );
+    expect(result.findings).toEqual([]);
+  });
+
   it("a value-only CSV change behind a named loader is silent", () => {
     const result = digest(
       { [ITEM]: ITEM_TABLE, "Assets/Scripts/Loader.fcg": LOADER },

@@ -58,8 +58,8 @@ import {
 const SCRIPT_EXTENSION = /\.(fcc|fcg)$/iu;
 const TABLE_EXTENSION = /\.(csv|tsv)$/iu;
 
-/** Git blob hash — `sha1("blob <byteLength>\0" + content)`, byte-identical to what git stores. */
-function gitBlobSha(content: string): string {
+/** Git blob hash - `sha1("blob <byteLength>\0" + content)`, byte-identical to what git stores. */
+export function gitBlobSha(content: string): string {
   const header = `blob ${Buffer.byteLength(content, "utf8")}\0`;
   return createHash("sha1").update(header, "utf8").update(content, "utf8").digest("hex");
 }

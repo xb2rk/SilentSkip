@@ -54,6 +54,7 @@ import {
 } from "../csv/analysis.js";
 import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
 import { type CallFact, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
+import { checkLocalization } from "./localization.js";
 import { checkReaderProfile } from "./readers.js";
 import { checkForeignKeys, checkStructuredReferences } from "./references.js";
 import type { CheckFinding, CheckInput, CheckSide, RegisterAnchor } from "./types.js";
@@ -89,6 +90,7 @@ export function runChecks(input: CheckInput): CheckFinding[] {
     ...checkReaderProfile(input),
     ...checkForeignKeys(input),
     ...checkStructuredReferences(input),
+    ...checkLocalization(input),
     ...checkDanglingReferences(input),
     ...checkCallArity(input),
     ...checkOrphanAdditions(input),

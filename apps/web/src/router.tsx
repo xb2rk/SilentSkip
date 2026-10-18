@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { NotFoundPage } from "@/components/not-found";
 import { ComparePage } from "@/pages/compare-page";
 import { HistoryPage } from "@/pages/history-page";
+import { LocalizationPage } from "@/pages/localization-page";
 import { OverviewPage } from "@/pages/overview-page";
 import { ProjectProfilePage } from "@/pages/project-profile-page";
 import { RunPage } from "@/pages/run-page";
@@ -61,6 +62,18 @@ const historyRoute = createRoute({
   path: "/history",
   component: HistoryPage,
 });
+const localizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/localization",
+  validateSearch: (search: Record<string, unknown>) => {
+    const parsed: { projectId?: string; base?: string; current?: string } = {};
+    if (typeof search.projectId === "string") parsed.projectId = search.projectId;
+    if (typeof search.base === "string") parsed.base = search.base;
+    if (typeof search.current === "string") parsed.current = search.current;
+    return parsed;
+  },
+  component: LocalizationPage,
+});
 const runRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/runs/$runId",
@@ -92,6 +105,7 @@ const routeTree = rootRoute.addChildren([
   compareRoute,
   whatIfRoute,
   historyRoute,
+  localizationRoute,
   runRoute,
   toolsRoute,
   projectProfileRoute,

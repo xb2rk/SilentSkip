@@ -3,6 +3,7 @@ export * from "./error";
 export * from "./fs";
 export * from "./git";
 export * from "./health";
+export * from "./localization";
 export * from "./passes";
 export * from "./profile";
 export * from "./project";
