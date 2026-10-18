@@ -48,13 +48,14 @@ const CONVENTION_KIND_KEYS: Record<ConventionKind, string> = {
   other: "projectProfile.conventionKindOther",
 };
 
-type PinKind = Extract<OverrideKind, "pin-binding" | "pin-row-key">;
+type PinKind = Extract<OverrideKind, "pin-binding" | "pin-row-key" | "pin-fk">;
 
-const PIN_KINDS: readonly PinKind[] = ["pin-binding", "pin-row-key"];
+const PIN_KINDS: readonly PinKind[] = ["pin-binding", "pin-row-key", "pin-fk"];
 
 const OVERRIDE_KIND_KEYS: Record<OverrideKind, string> = {
   "pin-binding": "projectProfile.pinKindBinding",
   "pin-row-key": "projectProfile.pinKindRowKey",
+  "pin-fk": "projectProfile.pinKindFk",
   "suppress-finding": "projectProfile.overrideKindSuppress",
   "entity-note": "projectProfile.overrideKindNote",
 };
@@ -100,6 +101,7 @@ export function ProjectProfilePage() {
 
   const [pinKind, setPinKind] = useState<PinKind>("pin-binding");
   const [pinPath, setPinPath] = useState("");
+  const [pinColumn, setPinColumn] = useState("");
   const [pinValue, setPinValue] = useState("");
   const [pinNote, setPinNote] = useState("");
 
@@ -136,6 +138,7 @@ export function ProjectProfilePage() {
 
   function addPin(): void {
     if (profile === undefined || pinPath.trim() === "" || pinValue.trim() === "") return;
+    if (pinKind === "pin-fk" && pinColumn.trim() === "") return;
     persist({
       ...updateOf(profile),
       overrides: [
@@ -143,7 +146,10 @@ export function ProjectProfilePage() {
         {
           id: crypto.randomUUID(),
           kind: pinKind,
-          target: { csvPath: pinPath.trim() },
+          target: {
+            csvPath: pinPath.trim(),
+            ...(pinKind === "pin-fk" ? { rowKey: pinColumn.trim() } : {}),
+          },
           value: pinValue.trim(),
           ...(pinNote.trim() === "" ? {} : { note: pinNote.trim() }),
           createdAt: new Date().toISOString(),
@@ -151,6 +157,7 @@ export function ProjectProfilePage() {
       ],
     });
     setPinPath("");
+    setPinColumn("");
     setPinValue("");
     setPinNote("");
   }
@@ -425,7 +432,13 @@ export function ProjectProfilePage() {
                   {t("projectProfile.pinsDescription")}
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-[170px_1fr_1fr_auto] sm:items-end">
+              <div
+                className={
+                  pinKind === "pin-fk"
+                    ? "grid gap-2 sm:grid-cols-[140px_1fr_1fr_1fr_auto] sm:items-end"
+                    : "grid gap-2 sm:grid-cols-[170px_1fr_1fr_auto] sm:items-end"
+                }
+              >
                 <div className="space-y-1">
                   <Label className="text-meta">{t("projectProfile.pinType")}</Label>
                   <Select value={pinKind} onValueChange={(value) => setPinKind(value as PinKind)}>
@@ -442,7 +455,11 @@ export function ProjectProfilePage() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-meta">{t("projectProfile.csvPath")}</Label>
+                  <Label className="text-meta">
+                    {pinKind === "pin-fk"
+                      ? t("projectProfile.pinFkSource")
+                      : t("projectProfile.csvPath")}
+                  </Label>
                   <Input
                     value={pinPath}
                     onChange={(event) => setPinPath(event.target.value)}
@@ -450,23 +467,47 @@ export function ProjectProfilePage() {
                     className="font-mono"
                   />
                 </div>
+                {pinKind === "pin-fk" ? (
+                  <div className="space-y-1">
+                    <Label className="text-meta">{t("projectProfile.pinFkColumn")}</Label>
+                    <Input
+                      value={pinColumn}
+                      onChange={(event) => setPinColumn(event.target.value)}
+                      placeholder="ItemId"
+                      className="font-mono"
+                    />
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <Label className="text-meta">
                     {pinKind === "pin-binding"
                       ? t("projectProfile.pinEnum")
-                      : t("projectProfile.pinColumn")}
+                      : pinKind === "pin-fk"
+                        ? t("projectProfile.pinFkTarget")
+                        : t("projectProfile.pinColumn")}
                   </Label>
                   <Input
                     value={pinValue}
                     onChange={(event) => setPinValue(event.target.value)}
-                    placeholder={pinKind === "pin-binding" ? "ESpecialUnit" : "id"}
+                    placeholder={
+                      pinKind === "pin-binding"
+                        ? "ESpecialUnit"
+                        : pinKind === "pin-fk"
+                          ? "Assets/CSV/Item.csv#int"
+                          : "id"
+                    }
                     className="font-mono"
                   />
                 </div>
                 <Button
                   size="sm"
                   onClick={addPin}
-                  disabled={save.isPending || pinPath.trim() === "" || pinValue.trim() === ""}
+                  disabled={
+                    save.isPending ||
+                    pinPath.trim() === "" ||
+                    pinValue.trim() === "" ||
+                    (pinKind === "pin-fk" && pinColumn.trim() === "")
+                  }
                 >
                   <Plus className="size-3.5" />
                   {t("projectProfile.add")}

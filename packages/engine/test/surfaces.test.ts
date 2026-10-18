@@ -143,6 +143,16 @@ describe("silent-skip surfaces", () => {
     ]);
   });
 
+  it("uses every component of a composite row-key pin", () => {
+    const before = "id,slot,v\nPea,1,a\nPea,2,b\n";
+    const after = "id,slot,v\nPea,1,a\nPea,2,b\nPea,2,c\n";
+    const result = surfaces(table(before), table(after), profileWithPin(TABLE_PATH, "id,slot"));
+    const entry = result.delta.newSilent.find((item) => item.mechanism === "duplicate_key");
+    expect(entry).toBeDefined();
+    expect(entry?.rowKey).toBe("Pea\u001f2");
+    expect(entry?.detail).toContain('"Pea | 2"');
+  });
+
   it("records a ragged row as an inferred length-guard skip", () => {
     const result = surfaces(
       table("id,atk\nscout,100\n"),

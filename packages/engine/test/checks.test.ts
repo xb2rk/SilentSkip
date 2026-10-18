@@ -79,6 +79,35 @@ function profileWithPin(
   };
 }
 
+/** Minimal profile carrying several overrides (row-key pins, FK pins). */
+function profileWithOverrides(
+  overrides: {
+    kind: "pin-binding" | "pin-row-key" | "pin-fk";
+    csvPath: string;
+    rowKey?: string;
+    value: string;
+  }[],
+): ProjectProfile {
+  return {
+    projectId: "p1",
+    conventions: [],
+    readApiFamily: [],
+    overrides: overrides.map((override, index) => ({
+      id: `o${String(index)}`,
+      kind: override.kind,
+      target: {
+        csvPath: override.csvPath,
+        ...(override.rowKey === undefined ? {} : { rowKey: override.rowKey }),
+      },
+      value: override.value,
+      createdAt: "2026-01-01",
+    })),
+    coverage: null,
+    editorGenIndex: false,
+    updatedAt: "2026-01-01",
+  };
+}
+
 function firstFinding(findings: CheckFinding[]): CheckFinding {
   const finding = findings[0];
   if (finding === undefined) throw new Error("expected at least one finding");
@@ -248,7 +277,35 @@ describe("STRUCT-02 row keys", () => {
     const finding = firstFinding(findings);
     expect(finding.confidence).toBe("exact");
     expect(finding.message).not.toContain("pin the row-key column");
-    expect(finding.derivation[0]).toContain('pinned to column "id"');
+    expect(finding.derivation[0]).toContain('pinned to column(s) "id"');
+  });
+
+  it("supports a composite row-key pin", () => {
+    const before = "id,slot,v\nPea,1,a\nPea,2,b\n";
+    const after = "id,slot,v\nPea,1,a\nPea,2,b\nPea,2,c\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }], {
+        profile: profileWithPin(TABLE_PATH, "id,slot", "pin-row-key"),
+      }),
+      "STRUCT-02",
+    );
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("major");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain('key column "id, slot"');
+    expect(finding.message).toContain("1 duplicate row key(s)");
+  });
+
+  it("does not report repeats of one component under a composite pin", () => {
+    const before = "id,slot,v\nPea,1,a\nPea,2,b\n";
+    const after = "id,slot,v\nPea,1,a\nPea,2,b\nPea,3,c\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }], {
+        profile: profileWithPin(TABLE_PATH, "id,slot", "pin-row-key"),
+      }),
+      "STRUCT-02",
+    );
+    expect(findings).toHaveLength(0);
   });
 
   it("reports a pinned key column that does not exist in the header", () => {
@@ -665,5 +722,145 @@ describe("CALL-ARITY-01 receiver resolution", () => {
       "CALL-ARITY-01",
     );
     expect(findings).toEqual([]);
+  });
+});
+
+describe("REF-01 foreign keys", () => {
+  const ITEM = "Assets/CSV/Item.csv";
+  const LOOT = "Assets/CSV/Loot.csv";
+  const ITEM_TABLE = "id,title\n100,Sword\n200,Shield\n";
+  const LOOT_BEFORE = "id,item\nL1,100\n";
+  const LOOT_AFTER = "id,item\nL1,100\nL2,999\nL3,00100\n";
+  const PINS = profileWithOverrides([
+    { kind: "pin-row-key", csvPath: ITEM, value: "id" },
+    { kind: "pin-fk", csvPath: LOOT, rowKey: "item", value: `${ITEM}#int` },
+  ]);
+
+  it("reports values with no matching target row under the declared int cast", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_BEFORE },
+        ],
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_AFTER },
+        ],
+        { profile: PINS },
+      ),
+      "REF-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("major");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.id).toBe(`REF-01|B|${LOOT}|item|${ITEM}`);
+    expect(finding.message).toContain('"999"');
+    expect(finding.message).not.toContain('"00100"');
+    expect(finding.message).toContain("1 cell(s)");
+    // Source header + broken cell + target header.
+    expect(finding.anchors).toEqual([
+      `B:${LOOT}:1:1:csv`,
+      `B:${LOOT}:3:3:csv`,
+      `B:${ITEM}:1:1:csv`,
+    ]);
+  });
+
+  it("uses exact string matching when the cast is string", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_BEFORE },
+        ],
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: "id,item\nL1,100\nL3,00100\n" },
+        ],
+        {
+          profile: profileWithOverrides([
+            { kind: "pin-row-key", csvPath: ITEM, value: "id" },
+            { kind: "pin-fk", csvPath: LOOT, rowKey: "item", value: `${ITEM}#string` },
+          ]),
+        },
+      ),
+      "REF-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).message).toContain('"00100"');
+    expect(firstFinding(findings).derivation.join(" ")).toContain("exact string equality");
+  });
+
+  it("never concludes without a pinned target key", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_BEFORE },
+        ],
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_AFTER },
+        ],
+        {
+          profile: profileWithOverrides([
+            { kind: "pin-fk", csvPath: LOOT, rowKey: "item", value: `${ITEM}#int` },
+          ]),
+        },
+      ),
+      "REF-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).severity).toBe("info");
+    expect(firstFinding(findings).id).toContain("|target-key-inferred");
+  });
+
+  it("never concludes on an unknown cast", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_BEFORE },
+        ],
+        [
+          { path: ITEM, source: ITEM_TABLE },
+          { path: LOOT, source: LOOT_AFTER },
+        ],
+        {
+          profile: profileWithOverrides([
+            { kind: "pin-row-key", csvPath: ITEM, value: "id" },
+            { kind: "pin-fk", csvPath: LOOT, rowKey: "item", value: `${ITEM}#float` },
+          ]),
+        },
+      ),
+      "REF-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).id).toContain("|cast-unknown");
+  });
+
+  it("leaves composite target keys to REF-02 instead of guessing", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: ITEM, source: "id,title\n100,Sword\n" },
+          { path: LOOT, source: LOOT_BEFORE },
+        ],
+        [
+          { path: ITEM, source: "id,title\n100,Sword\n" },
+          { path: LOOT, source: LOOT_AFTER },
+        ],
+        {
+          profile: profileWithOverrides([
+            { kind: "pin-row-key", csvPath: ITEM, value: "id,title" },
+            { kind: "pin-fk", csvPath: LOOT, rowKey: "item", value: `${ITEM}#int` },
+          ]),
+        },
+      ),
+      "REF-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).id).toContain("|target-key-composite");
   });
 });

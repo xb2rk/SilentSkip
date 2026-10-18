@@ -147,4 +147,39 @@ describe("GET /api/projects/:id/digest", () => {
     expect(duplicate?.confidence).toBe("exact");
     expect(duplicate?.rowKey).toBe("scout");
   });
+
+  it("applies a composite row-key pin end to end", async () => {
+    const save = await app.request(`/api/projects/${gameId}/profile`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conventions: [],
+        readApiFamily: [],
+        overrides: [
+          {
+            id: "pin-unit-key",
+            kind: "pin-row-key",
+            target: { csvPath: "Assets/CSV/UnitData.csv" },
+            value: "id,atk",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        coverage: null,
+        editorGenIndex: false,
+      }),
+    });
+    expect(save.status).toBe(200);
+
+    const response = await app.request(
+      `/api/projects/${gameId}/digest?base=HEAD&current=${WORKTREE_REF}`,
+    );
+    expect(response.status).toBe(200);
+    const digest = DigestBundleSchema.parse(await response.json());
+    const entries = digest.surfaces.current.entries.filter(
+      (entry) => entry.table === "Assets/CSV/UnitData.csv",
+    );
+    expect(entries.some((entry) => entry.mechanism === "duplicate_key")).toBe(false);
+    const ragged = entries.find((entry) => entry.mechanism === "length_guard");
+    expect(ragged?.rowKey).toBe("scout\u001f120");
+  });
 });

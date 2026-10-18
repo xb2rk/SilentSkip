@@ -41,10 +41,15 @@ import {
   failsDeclaredType,
   isBlankRow,
   resolveRowKey,
+  rowKeyDisplay,
+  rowKeyIsEmpty,
+  rowKeyLabels,
+  rowKeyValue,
   rowSpan,
 } from "../csv/analysis.js";
 import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
 import { type CallFact, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
+import { checkForeignKeys } from "./references.js";
 import type { CheckFinding, CheckInput, CheckSide, RegisterAnchor } from "./types.js";
 
 /** Maximum mismatching-row witnesses attached to one STRUCT-01 finding. */
@@ -75,6 +80,7 @@ export function runChecks(input: CheckInput): CheckFinding[] {
     ...checkHeaderDrift(input),
     ...checkTypeRows(input),
     ...checkBindings(input),
+    ...checkForeignKeys(input),
     ...checkDanglingReferences(input),
     ...checkCallArity(input),
     ...checkOrphanAdditions(input),
@@ -401,6 +407,7 @@ function rowKeyFindingForSide(
   if (resolution.kind === "pin-missing") {
     const anchors: string[] = [];
     if (header !== undefined) anchors.push(input.registerAnchor(ref, path, rowSpan(header), "csv"));
+    const wanted = resolution.columns.map((name) => `"${name}"`).join(", ");
     return [
       {
         id: `STRUCT-02|${ref}|${path}|pin`,
@@ -409,13 +416,13 @@ function rowKeyFindingForSide(
         confidence: "exact",
         title: "Pinned row-key column is not in the header",
         message:
-          `The project profile pins the row key of ${path} to column "${resolution.column}", ` +
+          `The project profile pins the row key of ${path} to column(s) ${wanted}, ` +
           `but the header on side ${ref} has no such column. The pinned convention cannot apply.`,
         anchors,
         derivation: [
-          `Profile override (pin-row-key) for ${path}: key column "${resolution.column}".`,
+          `Profile override (pin-row-key) for ${path}: key column(s) ${wanted}.`,
           `Header cells on side ${ref}: ${(header?.cells ?? []).map((cell) => cell.text.trim()).join(", ")}.`,
-          "Exact text comparison — the pinned column was not found.",
+          "Exact text comparison — at least one pinned column was not found.",
         ],
       },
     ];
@@ -427,13 +434,12 @@ function rowKeyFindingForSide(
   const duplicates: { row: CsvRow; key: string }[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
-    const cell = row.cells[resolution.column];
-    const value = cell === undefined ? "" : cell.text.trim();
-    if (value === "") {
+    const value = rowKeyValue(row, resolution.columns);
+    if (rowKeyIsEmpty(value)) {
       empty.push(row);
       continue;
     }
-    if (seen.has(value)) duplicates.push({ row, key: value });
+    if (seen.has(value)) duplicates.push({ row, key: rowKeyDisplay(value) });
     else seen.add(value);
   }
   if (empty.length === 0 && duplicates.length === 0) return [];
@@ -450,7 +456,7 @@ function rowKeyFindingForSide(
   const parts: string[] = [];
   if (duplicates.length > 0) parts.push(`${duplicates.length} duplicate row key(s)`);
   if (empty.length > 0) parts.push(`${empty.length} empty row key(s)`);
-  const keyLabel = columnLabel(table, resolution.column);
+  const keyLabel = rowKeyLabels(table, resolution.columns);
   return [
     {
       id: `STRUCT-02|${ref}|${path}`,

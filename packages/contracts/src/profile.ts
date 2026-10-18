@@ -37,6 +37,7 @@ export const ConventionEntrySchema = z.object({
 export const OverrideKindSchema = z.enum([
   "pin-binding",
   "pin-row-key",
+  "pin-fk",
   "suppress-finding",
   "entity-note",
 ]);
@@ -54,7 +55,11 @@ export const OverrideEntrySchema = z.object({
   id: z.string().min(1),
   kind: OverrideKindSchema,
   target: OverrideTargetSchema,
-  /** Override value (e.g. the pinned binding target); free-form by design. */
+  /**
+   * Override value; free-form by design. `pin-fk` uses
+   * `<targetCsvPath>#<int|string|unknown>`, with `target.csvPath` as the referencing
+   * table and `target.rowKey` as the referencing column.
+   */
   value: z.string().optional(),
   note: z.string().optional(),
   createdAt: z.string().min(1),

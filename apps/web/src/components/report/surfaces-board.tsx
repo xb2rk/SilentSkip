@@ -48,6 +48,13 @@ interface GroupProps {
 }
 
 /** One diff bucket (new / fixed / unchanged), collapsed after the diff-touched ones. */
+const ROW_KEY_SEPARATOR = "\u001f";
+
+/** Composite keys arrive as `a\u001fb`; render them with a visible separator. */
+function displayRowKey(value: string): string {
+  return value.split(ROW_KEY_SEPARATOR).join(" | ");
+}
+
 function SurfaceGroup({
   title,
   entries,
@@ -81,7 +88,7 @@ function SurfaceGroup({
               </span>
               <span className="font-mono text-micro text-foreground/80">
                 {entry.table}
-                {entry.rowKey === "" ? "" : ` · ${entry.rowKey}`}
+                {entry.rowKey === "" ? "" : ` · ${displayRowKey(entry.rowKey)}`}
                 {entry.column === null ? "" : ` · ${entry.column}`}
               </span>
               <Badge variant="secondary" className="font-normal text-micro">

@@ -84,20 +84,44 @@ export function failsDeclaredType(declared: string, value: string): boolean {
   return false;
 }
 
+/** Separator between composite row-key parts; never rendered raw (use `rowKeyDisplay`). */
+export const ROW_KEY_SEPARATOR = "\u001f";
+
+/** Resolved row-key columns; one column for a simple key, several for a composite pin. */
+export function rowKeyValue(row: CsvRow, columns: readonly number[]): string {
+  return columns.map((column) => row.cells[column]?.text.trim() ?? "").join(ROW_KEY_SEPARATOR);
+}
+
+/** True when every component of a composite key is empty. */
+export function rowKeyIsEmpty(value: string): boolean {
+  return value.split(ROW_KEY_SEPARATOR).every((part) => part === "");
+}
+
+/** Human-readable composite key for findings, surfaces and the UI. */
+export function rowKeyDisplay(value: string): string {
+  return value.split(ROW_KEY_SEPARATOR).join(" | ");
+}
+
+/** Header labels of the pinned key columns, comma-joined for prose. */
+export function rowKeyLabels(table: CsvTable, columns: readonly number[]): string {
+  return columns.map((column) => columnLabel(table, column)).join(", ");
+}
+
 /** Row-key resolution of one table side. */
 export type RowKeyResolution =
   | {
       readonly kind: "resolved";
-      readonly column: number;
+      readonly columns: readonly number[];
       readonly exact: boolean;
       readonly note: string;
     }
-  | { readonly kind: "pin-missing"; readonly column: string };
+  | { readonly kind: "pin-missing"; readonly columns: readonly string[] };
 
 /**
- * Resolves the PK column of a table: a `pin-binding` override wins (exact), otherwise the first
- * column is the documented inferred convention. A pin that points at a missing header is
- * reported rather than silently ignored.
+ * Resolves the PK columns of a table: a `pin-row-key` override wins (exact). The value is a
+ * comma-separated header list, so composite keys (`ItemId,SortOrder`) are representable. Without
+ * a pin the first column is the documented inferred convention. A pin that points at missing
+ * headers is reported rather than silently ignored.
  */
 export function resolveRowKey(
   table: CsvTable,
@@ -112,27 +136,35 @@ export function resolveRowKey(
       override.value.trim() !== "",
   );
   if (pin !== undefined) {
-    const wanted = (pin.value ?? "").trim();
+    const wanted = (pin.value ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part !== "");
     const header = table.rows[0];
-    if (header !== undefined) {
-      const column = header.cells.findIndex((cell) => cell.text.trim() === wanted);
-      if (column >= 0) {
-        return {
-          kind: "resolved",
-          column,
-          exact: true,
-          note: `Row key pinned to column "${wanted}" via a project profile override (pin-row-key).`,
-        };
-      }
+    if (header === undefined || wanted.length === 0) {
+      return { kind: "pin-missing", columns: wanted };
     }
-    return { kind: "pin-missing", column: wanted };
+    const columns: number[] = [];
+    const missing: string[] = [];
+    for (const name of wanted) {
+      const column = header.cells.findIndex((cell) => cell.text.trim() === name);
+      if (column >= 0) columns.push(column);
+      else missing.push(name);
+    }
+    if (missing.length > 0) return { kind: "pin-missing", columns: missing };
+    return {
+      kind: "resolved",
+      columns,
+      exact: true,
+      note: `Row key pinned to column(s) ${wanted.map((name) => `"${name}"`).join(", ")} via a project profile override (pin-row-key).`,
+    };
   }
   const header = table.rows[0];
   if (header === undefined || header.cells.length === 0) return undefined;
   return {
     kind: "resolved",
-    column: 0,
+    columns: [0],
     exact: false,
-    note: `No row key pinned — the first column ("${columnLabel(table, 0)}") is used as the key (documented inferred convention).`,
+    note: `No row key pinned - the first column ("${columnLabel(table, 0)}") is used as the key (documented inferred convention).`,
   };
 }

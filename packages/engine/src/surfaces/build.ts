@@ -30,6 +30,9 @@ import {
   failsDeclaredType,
   isBlankRow,
   resolveRowKey,
+  rowKeyDisplay,
+  rowKeyIsEmpty,
+  rowKeyValue,
   rowSpan,
 } from "../csv/index.js";
 
@@ -97,8 +100,8 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
     const resolution = resolveRowKey(table, path, input.profile);
     const keyOf = (row: CsvRow): string => {
       if (resolution?.kind === "resolved") {
-        const value = row.cells[resolution.column]?.text.trim() ?? "";
-        if (value !== "") return value;
+        const value = rowKeyValue(row, resolution.columns);
+        if (!rowKeyIsEmpty(value)) return value;
       }
       return `#line:${row.line}`;
     };
@@ -166,8 +169,8 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
       const firstByKey = new Map<string, CsvRow>();
       const duplicates = new Map<string, CsvRow[]>();
       for (const row of dataRows) {
-        const key = row.cells[resolution.column]?.text.trim() ?? "";
-        if (key === "") continue;
+        const key = rowKeyValue(row, resolution.columns);
+        if (rowKeyIsEmpty(key)) continue;
         const first = firstByKey.get(key);
         if (first === undefined) {
           firstByKey.set(key, row);
@@ -191,7 +194,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
           mechanism: "duplicate_key",
           effect: "last_wins",
           confidence: "exact",
-          detail: `${all.length} row(s) share the pinned key "${key}" (lines ${all.map((row) => row.line).join(", ")}); last-wins loaders keep only the last row.`,
+          detail: `${all.length} row(s) share the pinned key "${rowKeyDisplay(key)}" (lines ${all.map((row) => row.line).join(", ")}); last-wins loaders keep only the last row.`,
           anchors: [
             headerAnchor,
             ...witnesses.map((row) => input.registerAnchor(ref, path, rowSpan(row), "csv")),
