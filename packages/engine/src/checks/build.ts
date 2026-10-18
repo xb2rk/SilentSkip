@@ -59,6 +59,9 @@ const MAX_KEY_WITNESSES = 8;
 /** Maximum cell witnesses attached to one STRUCT-03 / TYPE-01 finding. */
 const MAX_CELL_WITNESSES = 8;
 
+/** Maximum position witnesses attached to one DRIFT-01 finding. */
+const MAX_DRIFT_WITNESSES = 6;
+
 /** The FC type vocabulary that may appear in a CSV type row - the format axiom. */
 /** Non-ASCII range check for header hygiene. */
 const NON_ASCII_PATTERN = /[^\x20-\x7E]/u;
@@ -69,6 +72,7 @@ export function runChecks(input: CheckInput): CheckFinding[] {
     ...checkTableWidths(input),
     ...checkRowKeys(input),
     ...checkHeaderHygiene(input),
+    ...checkHeaderDrift(input),
     ...checkTypeRows(input),
     ...checkBindings(input),
     ...checkDanglingReferences(input),
@@ -564,6 +568,83 @@ function checkHeaderHygiene(input: CheckInput): CheckFinding[] {
   for (const delta of input.delta.tables) {
     findings.push(...hygieneFindingForSide(input, delta.path, "A", delta.status !== "added"));
     findings.push(...hygieneFindingForSide(input, delta.path, "B", delta.status !== "removed"));
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------------------------
+// DRIFT-01 — A/B header drift (rename or reorder at the same column count)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * DRIFT-01 — the header row changed between A and B while the column count stayed the same.
+ *
+ * A rename or reorder is the worst silent case for readers that address columns by position:
+ * the ordinal still exists, so nothing throws, but it now points at a different field
+ * (`wrong_column`). Name-based readers are equally exposed to a rename. Only structural facts
+ * are asserted: the before/after header cells. Whether any reader is positional is not known,
+ * so the message says "readers that ..." rather than claiming a runtime failure.
+ */
+function checkHeaderDrift(input: CheckInput): CheckFinding[] {
+  const findings: CheckFinding[] = [];
+  for (const delta of input.delta.tables) {
+    if (!delta.headerChanged || delta.status !== "changed") continue;
+    const beforeTable = input.base.tables.get(delta.path);
+    const afterTable = input.current.tables.get(delta.path);
+    if (beforeTable === undefined || afterTable === undefined) continue;
+    const beforeHeader = beforeTable.rows[0];
+    const afterHeader = afterTable.rows[0];
+    if (beforeHeader === undefined || afterHeader === undefined) continue;
+    const before = beforeHeader.cells.map((cell) => cell.text.trim());
+    const after = afterHeader.cells.map((cell) => cell.text.trim());
+    if (before.length !== after.length || before.length < 2) continue;
+
+    const changed: { index: number; before: string; after: string }[] = [];
+    for (const [index, name] of before.entries()) {
+      const next = after[index];
+      if (next !== undefined && next !== name) changed.push({ index, before: name, after: next });
+    }
+    if (changed.length === 0) continue;
+
+    const sameSet = [...before].sort().join("\u0000") === [...after].sort().join("\u0000");
+    const kind = sameSet ? "reordered" : "renamed";
+    const anchors: string[] = [
+      input.registerAnchor("A", delta.path, rowSpan(beforeHeader), "csv"),
+      input.registerAnchor("B", delta.path, rowSpan(afterHeader), "csv"),
+    ];
+    for (const change of changed.slice(0, MAX_DRIFT_WITNESSES)) {
+      const oldCell = beforeHeader.cells[change.index];
+      const newCell = afterHeader.cells[change.index];
+      if (oldCell !== undefined) {
+        anchors.push(input.registerAnchor("A", delta.path, cellSpan(oldCell), "csv"));
+      }
+      if (newCell !== undefined) {
+        anchors.push(input.registerAnchor("B", delta.path, cellSpan(newCell), "csv"));
+      }
+    }
+    const witnesses = changed
+      .slice(0, 4)
+      .map((change) => `#${change.index} "${change.before}" → "${change.after}"`)
+      .join(", ");
+    findings.push({
+      id: `DRIFT-01|B|${delta.path}`,
+      ruleId: "DRIFT-01",
+      severity: "critical",
+      confidence: "exact",
+      title: "A/B column drift",
+      message:
+        `Header row of ${delta.path} was ${kind} between A and B at the same column count ` +
+        `(${before.length} columns): ${witnesses}${changed.length > 4 ? `, +${changed.length - 4} more` : ""}. ` +
+        `Readers that address columns by position now read a different field; name-based readers ` +
+        `also miss renamed columns. Nothing throws at runtime - the value is simply wrong.`,
+      anchors,
+      derivation: [
+        `Column count is equal on both sides: ${before.length}.`,
+        `Header names compared by trimmed text at each 0-based position; ${changed.length} position(s) differ.`,
+        `Name set is ${sameSet ? "identical → reorder" : "different → rename"}.`,
+        "Whether any reader is positional is not known from CSV alone; the severity reflects the wrong_column exposure from the spec.",
+      ],
+    });
   }
   return findings;
 }

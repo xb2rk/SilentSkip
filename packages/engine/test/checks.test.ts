@@ -289,6 +289,48 @@ describe("STRUCT-03 header hygiene", () => {
   });
 });
 
+describe("DRIFT-01 header drift", () => {
+  it("flags a reordered header at the same column count as critical", () => {
+    const before = "id,atk,hp\n1,2,3\n";
+    const after = "id,hp,atk\n1,3,2\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }]),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.id).toBe(`DRIFT-01|B|${TABLE_PATH}`);
+    expect(finding.severity).toBe("critical");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain("reordered");
+    expect(finding.message).toContain('"atk" → "hp"');
+    expect(finding.anchors[0]).toBe(`A:${TABLE_PATH}:1:1:csv`);
+    expect(finding.anchors[1]).toBe(`B:${TABLE_PATH}:1:1:csv`);
+    expect(finding.anchors).toHaveLength(6);
+  });
+
+  it("flags a renamed header at the same column count as critical", () => {
+    const before = "id,atk,hp\n1,2,3\n";
+    const after = "id,attack,hp\n1,2,3\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }]),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(1);
+    expect(firstFinding(findings).message).toContain("renamed");
+  });
+
+  it("stays silent when a column is added or removed", () => {
+    const before = "id,atk\n1,2\n";
+    const after = "id,atk,hp\n1,2,3\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }]),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(0);
+  });
+});
+
 describe("TYPE-01 declared types", () => {
   const TABLE_TYPED = "id,price\nint,float\n1,2.5\n007,3.5\nx,4\n";
 
