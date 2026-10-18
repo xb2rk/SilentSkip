@@ -235,7 +235,7 @@ describe("what-if sessions", () => {
     const turnManifests = manifests.filter((row) => row.turnId === turnId);
     expect(turnManifests.length).toBe(1);
     expect(turnManifests[0]?.passId).toBe("whatif");
-    expect(turnManifests[0]?.promptVersion).toBe("1.0.0");
+    expect(turnManifests[0]?.promptVersion).toBe("1.0.1");
   });
 
   it("carries recent turns into the next question", async () => {

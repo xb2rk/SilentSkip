@@ -1,6 +1,6 @@
 import { execFile, spawnSync } from "node:child_process";
-import { type Dirent, readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   AppError,
@@ -299,6 +299,17 @@ function classifyKind(path: string): DiffFileKind {
 const SOURCE_EXTENSIONS = /\.(fcc|fcg|csv|tsv)$/iu;
 
 /**
+ * Canonical text form for comparisons: LF line endings only.
+ *
+ * Git stores text with LF and `core.autocrlf` checks it out as CRLF on Windows. Without
+ * canonicalization an unchanged file would look fully rewritten between the committed
+ * blob and the working tree. Line endings are not game logic, and anchors stay line-based.
+ */
+function canonicalSource(source: string): string {
+  return source.includes("\r\n") ? source.replace(/\r\n/g, "\n") : source;
+}
+
+/**
  * Read every FC/CSV source file at a ref in one `cat-file --batch` pass.
  *
  * Paths come from `ls-tree -r -z` (raw, unquoted); contents are decoded as UTF-8 text and
@@ -347,7 +358,7 @@ export async function readFilesAtRef(rootPath: string, ref: string): Promise<Sou
     const contentStart = newline + 1;
     files.push({
       path,
-      source: buffer.subarray(contentStart, contentStart + size).toString("utf8"),
+      source: canonicalSource(buffer.subarray(contentStart, contentStart + size).toString("utf8")),
     });
     offset = contentStart + size + 1; // skip the trailing newline after the content
     index += 1;
@@ -358,30 +369,39 @@ export async function readFilesAtRef(rootPath: string, ref: string): Promise<Sou
 /**
  * Read every FC/CSV source file from disk — the worktree side of a comparison.
  *
- * Skips `.git` and `node_modules`; paths are project-relative with forward slashes,
- * sorted for deterministic downstream bundles.
+ * Git decides the file set: tracked files plus untracked files that are not ignored
+ * (`git ls-files --cached --others --exclude-standard`). Build artifacts, logs and
+ * engine caches that the project's own `.gitignore` excludes must not enter the digest.
+ * Paths are project-relative with forward slashes, sorted for deterministic bundles.
  */
 export function readProjectFilesFromDisk(rootPath: string): SourceInput[] {
+  const result = spawnSync(
+    "git",
+    ["-C", rootPath, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    { maxBuffer: GIT_MAX_BUFFER, timeout: GIT_TIMEOUT_MS, windowsHide: true },
+  );
+  if (result.error !== undefined || result.status !== 0) {
+    throw new AppError(ErrorCodes.gitFailed, "git ls-files thất bại", {
+      cause: result.error,
+      details: result.stderr.toString("utf8").trim().slice(0, 2000),
+    });
+  }
+  const paths = [
+    ...new Set(
+      result.stdout
+        .toString("utf8")
+        .split("\0")
+        .filter((path) => path !== "" && SOURCE_EXTENSIONS.test(path)),
+    ),
+  ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const files: SourceInput[] = [];
-  const walk = (dir: string): void => {
-    let entries: Dirent[];
+  for (const path of paths) {
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      const absolute = join(rootPath, ...path.split("/"));
+      files.push({ path, source: canonicalSource(readFileSync(absolute, "utf8")) });
     } catch {
-      return;
+      // Deleted tracked files have no worktree content; the A/B delta reports the removal.
     }
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (entry.name === ".git" || entry.name === "node_modules") continue;
-        walk(join(dir, entry.name));
-      } else if (entry.isFile() && SOURCE_EXTENSIONS.test(entry.name)) {
-        const absolute = join(dir, entry.name);
-        const relativePath = relative(rootPath, absolute).split(sep).join("/");
-        files.push({ path: relativePath, source: readFileSync(absolute, "utf8") });
-      }
-    }
-  };
-  walk(rootPath);
-  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  }
   return files;
 }

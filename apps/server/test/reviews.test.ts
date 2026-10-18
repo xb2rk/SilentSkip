@@ -261,8 +261,8 @@ describe("review runs", () => {
     expect(runRows[0]?.durationMs).not.toBeNull();
     const manifestRows = app.db.select().from(contextManifests).all();
     expect(manifestRows.map((row) => row.passId).sort()).toEqual(["map", "read", "synthesize"]);
-    expect(manifestRows.find((row) => row.passId === "map")?.promptVersion).toBe("2.1.0");
-    expect(manifestRows.find((row) => row.passId === "read")?.promptVersion).toBe("2.2.0");
+    expect(manifestRows.find((row) => row.passId === "map")?.promptVersion).toBe("2.1.1");
+    expect(manifestRows.find((row) => row.passId === "read")?.promptVersion).toBe("2.2.1");
   });
 
   it("lists runs newest first, optionally filtered by project", async () => {

@@ -111,6 +111,23 @@ findings do reach the AI as engine findings, with `effectConfidence` attached.
   casts) — the pinned single-part form above is shipped.
 - Silent-skip mechanisms that require pinned loader intent.
 
+## Hardening gate (E8)
+
+`packages/engine/test/eval.test.ts` runs the real `buildDigest` pipeline over 20 injected defects
+(each must surface as its owning rule: STRUCT-01/02/03, TYPE-01, BIND-01/02/03, DRIFT-01, REF-01/02,
+DANGLING-REF, CALL-ARITY-01, ORPHAN-ADD-01) plus 3 clean cases that must yield zero findings: a
+value-only CSV change behind a named loader, a rename with both call and definition updated, and
+the checked-in 31-file Sample CSV corpus unchanged.
+
+```bash
+pnpm --filter @craftland-qa/engine exec vitest run test/eval.test.ts
+```
+
+The server readers are part of the gate: the worktree file set comes from
+`git ls-files --cached --others --exclude-standard` (ignored build artifacts never enter the
+digest), and CRLF is canonicalized to LF on both refs and worktree so `core.autocrlf` cannot
+fabricate whole-file changes.
+
 ## Tests
 
 ```bash

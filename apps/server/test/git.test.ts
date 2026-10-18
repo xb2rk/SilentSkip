@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AppError, ErrorCodes, WORKTREE_REF } from "@craftland-qa/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { diffSummary, getHead, projectRefs, resolveCommit } from "../src/git";
+import {
+  diffSummary,
+  getHead,
+  projectRefs,
+  readFilesAtRef,
+  readProjectFilesFromDisk,
+  resolveCommit,
+} from "../src/git";
 
 /**
  * Integration tests against a real temporary git repository. Git is a hard requirement of the
@@ -97,6 +104,49 @@ describe("git read layer", () => {
       code: ErrorCodes.unknownRef,
     });
     await expect(diffSummary(repo, WORKTREE_REF, "feature")).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("reads tracked and untracked sources but skips ignored files", () => {
+    const root = mkdtempSync(join(tmpdir(), "cqa-git-sources-"));
+    try {
+      git(root, ["init"]);
+      mkdirSync(join(root, "Assets", "CSV"), { recursive: true });
+      mkdirSync(join(root, "Temp"), { recursive: true });
+      writeFileSync(join(root, ".gitignore"), "Temp/\nlog.log\n");
+      writeFileSync(join(root, "Assets", "CSV", "Kept.csv"), "id\n1\n");
+      writeFileSync(join(root, "Assets", "CSV", "Win.csv"), "id\r\n1\r\n");
+      git(root, ["add", "-A"]);
+      git(root, ["commit", "-m", "initial"]);
+      writeFileSync(join(root, "Assets", "CSV", "New.csv"), "id\n2\n");
+      writeFileSync(join(root, "Temp", "Ignored.csv"), "id\n3\n");
+      writeFileSync(join(root, "log.log"), "noise");
+
+      const files = readProjectFilesFromDisk(root);
+      expect(files.map((file) => file.path)).toEqual([
+        "Assets/CSV/Kept.csv",
+        "Assets/CSV/New.csv",
+        "Assets/CSV/Win.csv",
+      ]);
+      expect(files.find((file) => file.path === "Assets/CSV/Win.csv")?.source).toBe("id\n1\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("canonicalizes CRLF blobs read at a ref", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cqa-git-crlf-"));
+    try {
+      git(root, ["init"]);
+      mkdirSync(join(root, "Assets", "CSV"), { recursive: true });
+      writeFileSync(join(root, "Assets", "CSV", "Win.csv"), "id\r\n1\r\n");
+      git(root, ["add", "-A"]);
+      git(root, ["commit", "-m", "initial"]);
+
+      const files = await readFilesAtRef(root, "HEAD");
+      expect(files.find((file) => file.path === "Assets/CSV/Win.csv")?.source).toBe("id\n1\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("handles a repository without commits", async () => {
