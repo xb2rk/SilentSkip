@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app";
 import { loadConfig } from "./config";
 import { createLogger } from "./logger";
+import { reconcileInterruptedRuns } from "./reviews";
 
 const config = loadConfig();
 const log = createLogger(config);
@@ -13,6 +14,10 @@ log.info({ version: PRODUCT_VERSION, env: config.nodeEnv }, "starting Craftland 
 
 const db = openDatabase(config.sqlitePath);
 migrateDatabase(db);
+const interrupted = reconcileInterruptedRuns(db);
+if (interrupted > 0) {
+  log.warn({ count: interrupted }, "marked interrupted review runs as failed");
+}
 log.info({ sqlitePath: config.sqlitePath }, "database ready");
 
 const app = createApp({ db, log, ai: { config: config.ai } });

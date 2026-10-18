@@ -19,12 +19,41 @@ import {
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
 import { type AppDatabase, contextManifests, runs } from "@craftland-qa/db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
 import { loadProjectProfile } from "./profiles";
 import { getProject } from "./projects";
 import { SseChannel } from "./sse-channel";
+
+/**
+ * Boot reconciliation: runs live in memory (channels + AbortControllers), so a process restart
+ * orphans every row still marked queued/running. Leaving them "running" forever lies in History
+ * and makes cancel a no-op. Mark them failed with an explicit reason; the user can start again.
+ */
+export function reconcileInterruptedRuns(db: AppDatabase): number {
+  const pending = db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(inArray(runs.status, ["queued", "running"]))
+    .all();
+  if (pending.length === 0) return 0;
+  db.update(runs)
+    .set({
+      status: "failed",
+      error:
+        "Máy chủ khởi động lại khi lượt review đang chạy — lượt này không hoàn tất. Hãy chạy lại.",
+      completedAt: new Date(),
+    })
+    .where(
+      inArray(
+        runs.id,
+        pending.map((row) => row.id),
+      ),
+    )
+    .run();
+  return pending.length;
+}
 
 /**
  * Review manager (E4.4): owns the lifecycle of A/B review runs.
