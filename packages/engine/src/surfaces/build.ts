@@ -1,11 +1,14 @@
 /**
  * Silent-skip surface (E8.1) — what the runtime silently does to CSV data, proven per row.
  *
- * The engine only emits effects it can derive from facts:
+ * The engine only emits effects it can derive from facts; the effect itself is a runtime
+ * convention unless pinned evidence removes the ambiguity:
  * - `length_guard`: a data row's width differs from the header. Loaders that guard on the column
- *   count skip such rows; the skip is a documented runtime convention, so confidence is inferred.
- * - `parse_fail`: a cell that cannot parse as its declared type row (exact value/type mismatch).
- * - `duplicate_key`: two rows share the same row key; last-wins loaders overwrite the earlier one.
+ *   count may skip such rows; the skip is a documented runtime convention, so confidence is inferred.
+ * - `parse_fail`: a cell that cannot parse as its declared type row (exact value/type mismatch);
+ *   the loader may default the cell (convention).
+ * - `duplicate_key`: two rows share the same pinned row key; last-wins loaders may overwrite the
+ *   earlier one (convention). The collision itself is exact.
  *
  * Row identity is the table plus PK value (profile pin or first-column fallback), never the row
  * number. A row with no key uses `#line:<n>` as a witness-only identity.
@@ -128,7 +131,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
         mechanism: "length_guard",
         effect: "skipped",
         confidence: "inferred",
-        detail: `Row ${row.line} has ${row.cells.length} cell(s) but the header has ${header.cells.length}; a length guard skips the row (runtime convention).`,
+        detail: `Row ${row.line} has ${row.cells.length} cell(s) but the header has ${header.cells.length}; a length guard may skip the row (runtime convention, inferred).`,
         anchors: [headerAnchor, input.registerAnchor(ref, path, rowSpan(row), "csv")],
       });
     }
@@ -156,7 +159,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
             mechanism: "parse_fail",
             effect: "defaulted",
             confidence: resolution?.kind === "resolved" && resolution.exact ? "exact" : "inferred",
-            detail: `"${value}" in column "${column}" does not parse as ${type}; the loader defaults the cell (parse_fail).`,
+            detail: `"${value}" in column "${column}" does not parse as ${type}; the loader may default the cell (parse_fail, inferred effect).`,
             anchors: [typeAnchor, input.registerAnchor(ref, path, cellSpan(cell), "csv")],
           });
         }
@@ -194,7 +197,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
           mechanism: "duplicate_key",
           effect: "last_wins",
           confidence: "exact",
-          detail: `${all.length} row(s) share the pinned key "${rowKeyDisplay(key)}" (lines ${all.map((row) => row.line).join(", ")}); last-wins loaders keep only the last row.`,
+          detail: `${all.length} row(s) share the pinned key "${rowKeyDisplay(key)}" (lines ${all.map((row) => row.line).join(", ")}); last-wins loaders may keep only the last row (inferred effect).`,
           anchors: [
             headerAnchor,
             ...witnesses.map((row) => input.registerAnchor(ref, path, rowSpan(row), "csv")),

@@ -155,6 +155,12 @@ export const DigestFindingSchema = z.object({
   ruleId: z.string(),
   severity: z.enum(["critical", "major", "minor", "info"]),
   confidence: z.enum(["exact", "inferred"]),
+  /**
+   * How certain the runtime effect is, separate from the observation itself.
+   * `confidence` says whether the facts were measured; this says whether the impact on the
+   * running game was proven. Absent means the check did not classify it.
+   */
+  effectConfidence: z.enum(["exact", "inferred", "unknown"]).optional(),
   title: z.string(),
   message: z.string(),
   anchors: z.array(z.string()),

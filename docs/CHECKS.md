@@ -9,6 +9,12 @@ finding carries `severity`, `confidence` and anchor ids back to both sides of th
 - `inferred` — the conclusion depends on an unpinned convention. The message says what to pin
   to make it exact; nothing is concluded silently.
 
+`confidence` describes the **observation** (were the facts measured?). A separate optional
+`effectConfidence` describes the **runtime impact** (was the consequence proven?). DRIFT-01,
+ORPHAN-ADD-01, BIND-01/02 and REF-01/02 mark the effect `inferred` unless a pinned reader profile
+removes the ambiguity; a finding can therefore be `exact` about the facts and `inferred` about
+what the game does with them.
+
 ## Shipped rules
 
 | Rule | What it proves | Default severity | Confidence |
@@ -17,14 +23,14 @@ finding carries `severity`, `confidence` and anchor ids back to both sides of th
 | `STRUCT-02` | Duplicate or empty row keys in a changed table. | `major` | `exact` with a `pin-row-key`; `inferred` on the first-column fallback |
 | `STRUCT-03` | Header hygiene: duplicate, empty, whitespace-padded or non-ASCII header cells. | `info` | `exact` |
 | `TYPE-01` | A data cell that fails the declared type row (`int`, `float`, `bool`, …). | `major` | `exact` |
-| `DRIFT-01` | A/B header change at stable column count (rename or reorder). Positional readers then read the wrong field without throwing. | `critical` | `exact` |
+| `DRIFT-01` | A/B header change at stable column count (rename or reorder). Positional readers may then read the wrong field without throwing. | `critical`; `info` for a reorder covered by a pinned name binding, `major` for a rename outside the pin | `exact` observation |
 | `BIND-03` | A changed table whose header cells exactly name the members of one current enum (candidate index binding). | `info` | `inferred`; `exact` with a matching `pin-binding` |
 | `BIND-04` | A changed table that no current string literal names and no enum covers. | `info` | `exact` (absence) |
 | `BIND-01` | A reader binding pinned by name names a column missing from the current header (the lookup disables the consumer). | `critical` | `exact` |
 | `BIND-02` | A pinned guard constant differs from the header width: larger is an out-of-bounds risk, smaller leaves trailing columns never read. | `critical` (OOB) / `major` | `exact` |
 | `DANGLING-REF` | A symbol removed on side B still has unresolved same-name references. | `major` | `exact` |
 | `CALL-ARITY-01` | A call whose argument count differs from the resolved declaration's parameter count. Receiver-aware; unresolvable or ambiguous targets stay silent. | `major` | `exact` |
-| `ORPHAN-ADD-01` | A function added on side B whose name appears in no reference, call or import in the whole current tree. | `info` | `exact` (absence) |
+| `ORPHAN-ADD-01` | A function added on side B whose name appears in no reference, call or import in any scanned source file. Dynamic asset binding (`.ui`/`.prefab` `funcKey`) is outside the scan. | `info` | `exact` (absence within source) |
 | `REF-01` | A pinned single-value foreign key with values that match no row key of the pinned target table. | `major` | `exact` |
 | `REF-02` | A pinned structured cell (`colon`/`pipe`, part N) whose values are malformed or match no row key of the pinned target table. Only the pinned part is interpreted; the rest of the cell is not. | `major` | `exact` |
 
@@ -84,12 +90,17 @@ engine never infers these from naming style or call shape.
 
 `runSurfaces` scans every CSV table on both refs and records only mechanisms it can prove:
 
-- `length_guard` — row cell count differs from the header (effect `skipped`, inferred).
-- `parse_fail` — a cell fails the declared type row (effect `defaulted`; exact when the row key
-  is pinned).
-- `duplicate_key` — duplicate keys under a **pinned** `pin-row-key` only (effect `last_wins`,
-  exact). First-column fallback is a candidate convention, not an identity, so it is not
-  surfaced; composite rows would otherwise look like collisions.
+- `length_guard` — row cell count differs from the header (effect `skipped`; the skip is a runtime
+  convention, so the effect is inferred).
+- `parse_fail` — a cell fails the declared type row (effect `defaulted`; exact value/type
+  mismatch, inferred loader behavior).
+- `duplicate_key` — duplicate keys under a **pinned** `pin-row-key` only (effect `last_wins`; the
+  collision is exact, the overwrite convention is inferred). First-column fallback is a candidate
+  convention, not an identity, so it is not surfaced; composite rows would otherwise look like
+  collisions.
+
+Surfaces are a deterministic panel for humans; they are not sent to the AI prompts. Reader-profile
+findings do reach the AI as engine findings, with `effectConfidence` attached.
 
 `fixed_skip` (type row) is expected and never counted. `nil_read`, `missing_binding`,
 `enum_fallback` and `ref_broken` need loader/FK intent pins and are not guessed.

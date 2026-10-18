@@ -378,6 +378,7 @@ describe("DRIFT-01 header drift", () => {
     expect(finding.id).toBe(`DRIFT-01|B|${TABLE_PATH}`);
     expect(finding.severity).toBe("critical");
     expect(finding.confidence).toBe("exact");
+    expect(finding.effectConfidence).toBe("inferred");
     expect(finding.message).toContain("reordered");
     expect(finding.message).toContain('"atk" → "hp"');
     expect(finding.anchors[0]).toBe(`A:${TABLE_PATH}:1:1:csv`);
@@ -404,6 +405,69 @@ describe("DRIFT-01 header drift", () => {
       "DRIFT-01",
     );
     expect(findings).toHaveLength(0);
+  });
+
+  it("downgrades a reorder covered by a pinned name binding", () => {
+    const before = "id,atk,hp\n1,2,3\n";
+    const after = "id,hp,atk\n1,3,2\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }], {
+        profile: profileWithReader({
+          bindings: [{ csvPath: TABLE_PATH, columns: ["id", "atk", "hp"] }],
+          guards: [],
+          structuredCells: [],
+        }),
+      }),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("info");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.effectConfidence).toBe("exact");
+    expect(finding.message).toContain("pinned name binding");
+    expect(finding.message).toContain("order is irrelevant");
+  });
+
+  it("keeps a rename outside the pin as a warning, not a fact", () => {
+    const before = "id,atk,hp\n1,2,3\n";
+    const after = "id,attack,hp\n1,2,3\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }], {
+        profile: profileWithReader({
+          bindings: [{ csvPath: TABLE_PATH, columns: ["id", "hp"] }],
+          guards: [],
+          structuredCells: [],
+        }),
+      }),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("major");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.effectConfidence).toBe("inferred");
+    expect(finding.message).toContain("outside that set");
+  });
+
+  it("keeps a missing pinned column critical", () => {
+    const before = "id,atk,hp\n1,2,3\n";
+    const after = "id,hp,atk\n1,3,2\n";
+    const findings = byRule(
+      checks([{ path: TABLE_PATH, source: before }], [{ path: TABLE_PATH, source: after }], {
+        profile: profileWithReader({
+          bindings: [{ csvPath: TABLE_PATH, columns: ["id", "ghost"] }],
+          guards: [],
+          structuredCells: [],
+        }),
+      }),
+      "DRIFT-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("critical");
+    expect(finding.effectConfidence).toBe("exact");
+    expect(finding.message).toContain('"ghost"');
   });
 });
 
@@ -560,6 +624,8 @@ describe("CALL-ARITY-01 / ORPHAN-ADD-01", () => {
     const finding = firstFinding(findings);
     expect(finding.severity).toBe("info");
     expect(finding.confidence).toBe("exact");
+    expect(finding.effectConfidence).toBe("inferred");
+    expect(finding.title).toContain("scanned source");
     expect(finding.message).toContain("Ghost");
     expect(finding.anchors).toHaveLength(1);
   });

@@ -24,6 +24,7 @@ export function checkReaderProfile(input: CheckInput): CheckFinding[] {
         ruleId: "BIND-01",
         severity: "info",
         confidence: "exact",
+        effectConfidence: "inferred",
         title: "Pinned reader table is not in the current tree",
         message: `The profile pins a name binding for ${binding.csvPath}, but no such CSV table exists on side B. Nothing was compared.`,
         anchors: [],
@@ -44,6 +45,7 @@ export function checkReaderProfile(input: CheckInput): CheckFinding[] {
       ruleId: "BIND-01",
       severity: "critical",
       confidence: "exact",
+      effectConfidence: "inferred",
       title: "Pinned name binding targets a missing column",
       message:
         `${binding.csvPath} is pinned as read by column name, but its header has no ` +
@@ -67,6 +69,7 @@ export function checkReaderProfile(input: CheckInput): CheckFinding[] {
         ruleId: "BIND-02",
         severity: "info",
         confidence: "exact",
+        effectConfidence: "inferred",
         title: "Pinned reader table is not in the current tree",
         message: `The profile pins a loop/guard constant for ${guard.csvPath}, but no such CSV table exists on side B. Nothing was compared.`,
         anchors: [],
@@ -87,6 +90,7 @@ export function checkReaderProfile(input: CheckInput): CheckFinding[] {
       ruleId: "BIND-02",
       severity: wider ? "critical" : "major",
       confidence: "exact",
+      effectConfidence: "inferred",
       title: "Pinned reader guard differs from the header width",
       message:
         `${guard.csvPath} is pinned with a loop/guard constant of ${String(guard.constant)} ` +

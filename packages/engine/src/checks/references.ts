@@ -96,6 +96,7 @@ function infoFinding(
     ruleId: "REF-01",
     severity: "info",
     confidence: "exact",
+    effectConfidence: "inferred",
     title,
     message,
     anchors,
@@ -256,6 +257,7 @@ export function checkForeignKeys(input: CheckInput): CheckFinding[] {
       ruleId: "REF-01",
       severity: "major",
       confidence: "exact",
+      effectConfidence: "inferred",
       title: "Foreign key value has no target row",
       message:
         `${broken.length} cell(s) in ${pin.sourcePath} column "${pin.sourceColumn}" do not match any ` +
@@ -431,6 +433,7 @@ export function checkStructuredReferences(input: CheckInput): CheckFinding[] {
       ruleId: "REF-02",
       severity: "major",
       confidence: "exact",
+      effectConfidence: "inferred",
       title: "Structured cell part has no target row",
       message:
         `${String(broken.length)} cell(s) in ${entry.csvPath} column "${entry.column}" have a ` +

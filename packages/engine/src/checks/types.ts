@@ -60,6 +60,11 @@ export interface CheckFinding {
   readonly ruleId: string;
   readonly severity: CheckSeverity;
   readonly confidence: CheckConfidence;
+  /**
+   * How certain the runtime effect is. The observation behind `confidence` can be exact while
+   * the consequence (a loader skipping a row, a consumer being disabled) is only a convention.
+   */
+  readonly effectConfidence?: "exact" | "inferred" | "unknown";
   readonly title: string;
   readonly message: string;
   /** Anchor ids of the witnesses, in reading order. */

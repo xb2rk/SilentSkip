@@ -73,6 +73,19 @@ export function EngineFindingCard({
         >
           {t(CONFIDENCE_LABEL_KEYS[finding.confidence])}
         </span>
+        {finding.effectConfidence !== undefined && finding.effectConfidence !== "exact" && (
+          <span
+            className={cn(
+              "inline-flex h-6 items-center rounded-md border border-border/60 px-2 text-micro text-muted-foreground",
+              finding.effectConfidence === "inferred" &&
+                "border-warning/40 text-warning dark:text-warning",
+            )}
+          >
+            {t(
+              finding.effectConfidence === "inferred" ? "run.effectInferred" : "run.effectUnknown",
+            )}
+          </span>
+        )}
         <span className="ml-auto text-micro text-muted-foreground">
           {t("run.engineDeterministic")}
         </span>

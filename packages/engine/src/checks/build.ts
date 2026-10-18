@@ -279,8 +279,9 @@ function collapseSegments(path: string): string | undefined {
 
 /**
  * ORPHAN-ADD-01 — a function added in B whose name appears in no reference, call or import
- * anywhere in the whole current codebase. The absence is exact (full-scope scan); whether it
- * is dead code or framework-invoked dynamically is not — hence `info` and the note/pin hint.
+ * in any scanned source file. The absence is exact within that scope; whether it is dead code
+ * or framework-invoked dynamically is not — hence `info` and the note/pin hint. Dynamic
+ * invocation through asset files (`.ui`/`.prefab` `funcKey`) is outside this scan.
  * Events are excluded: framework lifecycles can invoke them implicitly by convention.
  */
 function checkOrphanAdditions(input: CheckInput): CheckFinding[] {
@@ -307,12 +308,13 @@ function checkOrphanAdditions(input: CheckInput): CheckFinding[] {
         ruleId: "ORPHAN-ADD-01",
         severity: "info",
         confidence: "exact",
-        title: "Added symbol has no references in the current codebase",
-        message: `\`${symbol.name}\` was added to ${script.path} but no reference, call or import name in the whole current codebase mentions it. If the framework invokes it dynamically, record that as a note/pin; otherwise it is dead code.`,
+        effectConfidence: "inferred",
+        title: "Added function has no reference in scanned source",
+        message: `\`${symbol.name}\` was added to ${script.path} but no reference, call or import name in any scanned source file mentions it. Dynamic invocation (for example a funcKey in a .ui/.prefab asset) is outside this scan — record it as a note/pin; otherwise this may be dead code.`,
         anchors: [input.registerAnchor("B", script.path, symbol.nameSpan, "code")],
         derivation: [
-          `Every current file's references, call callees and import names were scanned for \`${symbol.name}\` — zero hits.`,
-          "The absence is exact (full-scope scan); why it is unreferenced is not.",
+          `Every scanned current file's references, call callees and import names were checked for \`${symbol.name}\` — zero hits.`,
+          "The absence is exact within scanned source; why it is unreferenced (dynamic binding, reflection, dead code) is not.",
         ],
       });
     }
@@ -598,6 +600,11 @@ function checkHeaderHygiene(input: CheckInput): CheckFinding[] {
  * (`wrong_column`). Name-based readers are equally exposed to a rename. Only structural facts
  * are asserted: the before/after header cells. Whether any reader is positional is not known,
  * so the message says "readers that ..." rather than claiming a runtime failure.
+ *
+ * A pinned `readerProfile.bindings` entry is evidence that this table is read by name. When all
+ * of its columns still exist on side B a reorder is harmless for that reader (info); a rename of
+ * columns outside the pin remains a warning (major), because other readers are unknown. A pinned
+ * column that disappeared is a definite failure for the pinned reader (critical/exact).
  */
 function checkHeaderDrift(input: CheckInput): CheckFinding[] {
   const findings: CheckFinding[] = [];
@@ -622,6 +629,34 @@ function checkHeaderDrift(input: CheckInput): CheckFinding[] {
 
     const sameSet = [...before].sort().join("\u0000") === [...after].sort().join("\u0000");
     const kind = sameSet ? "reordered" : "renamed";
+    const pinnedColumns =
+      input.profile?.readerProfile.bindings
+        .filter((binding) => binding.csvPath === delta.path)
+        .flatMap((binding) => binding.columns.map((column) => column.trim())) ?? [];
+    const missingPinnedColumns = pinnedColumns.filter((column) => !after.includes(column));
+    const bindingResolves = pinnedColumns.length > 0 && missingPinnedColumns.length === 0;
+
+    let severity: CheckFinding["severity"] = "critical";
+    let effectConfidence: NonNullable<CheckFinding["effectConfidence"]> = "inferred";
+    let readerNote = "";
+    if (missingPinnedColumns.length > 0) {
+      effectConfidence = "exact";
+      readerNote =
+        ` The pinned name binding includes ${missingPinnedColumns.map((column) => `"${column}"`).join(", ")}, ` +
+        "which is missing on side B — that lookup fails (also reported by BIND-01).";
+    } else if (bindingResolves && kind === "reordered") {
+      severity = "info";
+      effectConfidence = "exact";
+      readerNote =
+        ` A pinned name binding reads ${pinnedColumns.map((column) => `"${column}"`).join(", ")} by name, ` +
+        "so column order is irrelevant for that reader.";
+    } else if (bindingResolves) {
+      severity = "major";
+      readerNote =
+        ` A pinned name binding reads ${pinnedColumns.map((column) => `"${column}"`).join(", ")} by name ` +
+        "and all of them still exist; renamed columns outside that set may affect readers that use names.";
+    }
+
     const anchors: string[] = [
       input.registerAnchor("A", delta.path, rowSpan(beforeHeader), "csv"),
       input.registerAnchor("B", delta.path, rowSpan(afterHeader), "csv"),
@@ -640,23 +675,33 @@ function checkHeaderDrift(input: CheckInput): CheckFinding[] {
       .slice(0, 4)
       .map((change) => `#${change.index} "${change.before}" → "${change.after}"`)
       .join(", ");
+    const consequence =
+      bindingResolves && kind === "reordered"
+        ? "Readers not covered by that pin may still address columns by position; their behavior is unknown."
+        : bindingResolves
+          ? "Some readers may address columns by position or use other names; their behavior is unknown."
+          : "Readers that address columns by position may read a different field; name-based readers " +
+            "may miss renamed columns. Whether this project reads by position or name is not pinned, " +
+            "so the runtime effect is inferred. Nothing throws - the value can be silently wrong.";
     findings.push({
       id: `DRIFT-01|B|${delta.path}`,
       ruleId: "DRIFT-01",
-      severity: "critical",
+      severity,
       confidence: "exact",
+      effectConfidence,
       title: "A/B column drift",
       message:
         `Header row of ${delta.path} was ${kind} between A and B at the same column count ` +
         `(${before.length} columns): ${witnesses}${changed.length > 4 ? `, +${changed.length - 4} more` : ""}. ` +
-        `Readers that address columns by position now read a different field; name-based readers ` +
-        `also miss renamed columns. Nothing throws at runtime - the value is simply wrong.`,
+        `${consequence}${readerNote}`,
       anchors,
       derivation: [
         `Column count is equal on both sides: ${before.length}.`,
         `Header names compared by trimmed text at each 0-based position; ${changed.length} position(s) differ.`,
         `Name set is ${sameSet ? "identical → reorder" : "different → rename"}.`,
-        "Whether any reader is positional is not known from CSV alone; the severity reflects the wrong_column exposure from the spec.",
+        pinnedColumns.length === 0
+          ? "No name binding is pinned for this table; whether any reader is positional is not known from CSV alone."
+          : `Pinned name binding: ${pinnedColumns.map((column) => `"${column}"`).join(", ")}; ${missingPinnedColumns.length === 0 ? "all still present on side B." : `missing on side B: ${missingPinnedColumns.map((column) => `"${column}"`).join(", ")}.`}`,
       ],
     });
   }
