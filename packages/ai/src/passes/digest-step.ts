@@ -1,4 +1,4 @@
-import type { ReadFinding, TypedClaim } from "@craftland-qa/contracts";
+import type { ReadFinding, TypedClaim } from "@silentskip/contracts";
 
 /**
  * The deterministic merge step between reading and writing (E7.2).

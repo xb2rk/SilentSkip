@@ -7,7 +7,7 @@ import { API_VERSION, PRODUCT_VERSION } from "./version";
  */
 export const HealthResponseSchema = z.object({
   ok: z.literal(true),
-  product: z.literal("craftland-qa"),
+  product: z.literal("silentskip"),
   version: z.literal(PRODUCT_VERSION),
   apiVersion: z.literal(API_VERSION),
   uptimeSeconds: z.number(),

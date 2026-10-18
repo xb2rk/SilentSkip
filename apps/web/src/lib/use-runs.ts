@@ -6,7 +6,7 @@ import {
   StartReviewRequestSchema,
   StartReviewResponseSchema,
   SurfaceHistoryResponseSchema,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api";
 

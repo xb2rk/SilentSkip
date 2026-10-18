@@ -1,4 +1,4 @@
-import { type SynthesizeOutput, SynthesizeOutputSchema } from "@craftland-qa/contracts";
+import { type SynthesizeOutput, SynthesizeOutputSchema } from "@silentskip/contracts";
 import {
   buildPassManifestJson,
   serializeAnchorsJsonl,

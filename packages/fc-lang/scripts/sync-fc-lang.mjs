@@ -3,8 +3,8 @@
  * Re-sync the vendored fc-format-v4 toolchain + corpus from upstream.
  *
  * Usage:
- *   pnpm --filter @craftland-qa/fc-lang sync:fc-lang
- *   FC_LANG_UPSTREAM="D:\path\to\tools\fc-format-v4" pnpm --filter @craftland-qa/fc-lang sync:fc-lang
+ *   pnpm --filter @silentskip/fc-lang sync:fc-lang
+ *   FC_LANG_UPSTREAM="D:\path\to\tools\fc-format-v4" pnpm --filter @silentskip/fc-lang sync:fc-lang
  *
  * The upstream path defaults to the Craftland Studio workspace location. The script only
  * copies *into* this repo; upstream is never modified. After syncing, update PROVENANCE.md

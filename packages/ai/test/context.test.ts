@@ -1,4 +1,4 @@
-import type { DigestBundle } from "@craftland-qa/contracts";
+import type { DigestBundle } from "@silentskip/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildPassManifestJson,

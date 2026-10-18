@@ -7,7 +7,7 @@
 export type Theme = "light" | "dark" | "system";
 
 /** localStorage key shared with the index.html pre-hydration script. */
-export const THEME_STORAGE_KEY = "craftland-qa:theme";
+export const THEME_STORAGE_KEY = "silentskip:theme";
 
 /** Resolve the effective theme for a preference, consulting the OS when needed. */
 export function resolveTheme(theme: Theme): "light" | "dark" {

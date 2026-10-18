@@ -1,4 +1,4 @@
-# @craftland-qa/db
+# @silentskip/db
 
 Persistence layer: Drizzle schema, the `node:sqlite` client, and generated migrations.
 
@@ -29,5 +29,5 @@ The app runs `migrateDatabase()` at boot, so a fresh checkout works with no manu
 
 ## Testing
 
-`pnpm --filter @craftland-qa/db test` — schema tests run against `openDatabase(":memory:")`.
+`pnpm --filter @silentskip/db test` — schema tests run against `openDatabase(":memory:")`.
 Server tests use the same pattern; nothing ever touches the real user database in tests.

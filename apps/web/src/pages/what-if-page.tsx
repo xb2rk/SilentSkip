@@ -1,5 +1,5 @@
-import type { Anchor, WhatIfTurn } from "@craftland-qa/contracts";
-import { WORKTREE_REF } from "@craftland-qa/contracts";
+import type { Anchor, WhatIfTurn } from "@silentskip/contracts";
+import { WORKTREE_REF } from "@silentskip/contracts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Download,

@@ -1,4 +1,4 @@
-import type { DigestBundle, DigestFinding } from "@craftland-qa/contracts";
+import type { DigestBundle, DigestFinding } from "@silentskip/contracts";
 import { collectAnchorPriorities, evidenceAnchorsOf, selectEvidence } from "../context/build.js";
 import type { EvidenceAnchor, ReviewContextManifest, TaskPack } from "../context/types.js";
 import { buildFactIndex, type FactIndex } from "../facts/fact-index.js";

@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalizationReportSchema } from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase } from "@craftland-qa/db";
+import { LocalizationReportSchema } from "@silentskip/contracts";
+import { migrateDatabase, openDatabase } from "@silentskip/db";
 import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

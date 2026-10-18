@@ -3,7 +3,7 @@
  * Dev probe: run `buildDeltaBundle` over a real git ref range of a project.
  *
  * Usage:
- *   pnpm --filter @craftland-qa/engine probe:delta <projectRoot> <baseRef> <currentRef>
+ *   pnpm --filter @silentskip/engine probe:delta <projectRoot> <baseRef> <currentRef>
  *
  * Lists the files changed between the two refs, keeps `.fcc`/`.fcg`/`.csv`/`.tsv`,
  * reads before/after content via `git show`, and reports the delta summary

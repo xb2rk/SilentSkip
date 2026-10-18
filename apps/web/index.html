@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Craftland QA</title>
+    <title>SilentSkip</title>
     <script>
       // Prevent a theme/density flash before React mounts: apply the persisted theme
       // (or the dark-first default) and density to <html> as the very first thing the
@@ -11,7 +11,7 @@
       // web/src/lib/density.ts.
       (() => {
         try {
-          const stored = window.localStorage.getItem("craftland-qa:theme");
+          const stored = window.localStorage.getItem("silentskip:theme");
           const theme =
             stored === "light" || stored === "dark"
               ? stored
@@ -19,7 +19,7 @@
                 ? "light"
                 : "dark";
           document.documentElement.classList.toggle("dark", theme === "dark");
-          if (window.localStorage.getItem("craftland-qa:density") === "compact") {
+          if (window.localStorage.getItem("silentskip:density") === "compact") {
             document.documentElement.dataset.density = "compact";
           }
         } catch {

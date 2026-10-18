@@ -1,5 +1,5 @@
 {
-  "name": "@craftland-qa/engine",
+  "name": "@silentskip/engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     "probe:delta": "tsx scripts/probe-delta.ts"
   },
   "dependencies": {
-    "@craftland-qa/contracts": "workspace:*",
-    "@craftland-qa/fc-lang": "workspace:*"
+    "@silentskip/contracts": "workspace:*",
+    "@silentskip/fc-lang": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

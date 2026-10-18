@@ -5,7 +5,7 @@ import type {
   ReadFinding,
   ReviewLens,
   SynthesizeOutput,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { buildReviewContext, changeFileIds, evidenceAnchorsOf } from "../context/build.js";
 import type { EvidenceAnchor, ReviewContextManifest } from "../context/types.js";
 import { AiError } from "../errors.js";

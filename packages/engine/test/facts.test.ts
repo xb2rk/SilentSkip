@@ -1,4 +1,4 @@
-import { buildFactBundle, type FileFacts } from "@craftland-qa/engine";
+import { buildFactBundle, type FileFacts } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

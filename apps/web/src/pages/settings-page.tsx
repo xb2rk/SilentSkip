@@ -1,4 +1,4 @@
-import { PRODUCT_VERSION } from "@craftland-qa/contracts";
+import { PRODUCT_VERSION } from "@silentskip/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import {
@@ -41,7 +41,7 @@ const SECTIONS = [
 type SettingsSection = (typeof SECTIONS)[number]["id"];
 
 /** Display-only path; the real value arrives with the settings API (E4). */
-const DB_PATH = "%LOCALAPPDATA%\\CraftlandQA\\data.sqlite";
+const DB_PATH = "%LOCALAPPDATA%\\SilentSkip\\data.sqlite";
 
 /**
  * Settings screen: vertical section nav + working appearance controls (theme, density)

@@ -1,4 +1,4 @@
-import { AppError, ErrorCodes } from "@craftland-qa/contracts";
+import { AppError, ErrorCodes } from "@silentskip/contracts";
 
 /**
  * Minimal structural view of a Zod-like schema — keeps `apps/server` from depending on zod

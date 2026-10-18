@@ -1,7 +1,7 @@
 /**
  * Dev probe — run the E2 fact + CSV pipeline over a real project folder and report honestly.
  *
- * Usage: pnpm --filter @craftland-qa/engine probe:project -- <projectRoot>
+ * Usage: pnpm --filter @silentskip/engine probe:project -- <projectRoot>
  *
  * Collects every `.fcc`/`.fcg` and `.csv` under the folder (skipping `.git` and
  * `node_modules`), builds the fact bundle, and prints: file counts, parse diagnostics
@@ -36,7 +36,7 @@ function collectFiles(root: string, extensions: readonly string[]): string[] {
 
 const target = process.argv[2];
 if (!target) {
-  console.error("usage: pnpm --filter @craftland-qa/engine probe:project -- <projectRoot>");
+  console.error("usage: pnpm --filter @silentskip/engine probe:project -- <projectRoot>");
   process.exit(2);
 }
 const root = resolve(target);

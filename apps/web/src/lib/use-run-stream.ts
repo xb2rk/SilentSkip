@@ -1,4 +1,4 @@
-import { type ReviewStreamEvent, ReviewStreamEventSchema } from "@craftland-qa/contracts";
+import { type ReviewStreamEvent, ReviewStreamEventSchema } from "@silentskip/contracts";
 import { useEffect, useState } from "react";
 
 /**

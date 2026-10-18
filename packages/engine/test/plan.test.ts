@@ -1,4 +1,4 @@
-import { buildReadingPlan, type PlanInput, type ReadingPlan } from "@craftland-qa/engine";
+import { buildReadingPlan, type PlanInput, type ReadingPlan } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

@@ -1,7 +1,7 @@
 # Prompt passes
 
 Prompts are code. They live in the versioned registry `packages/ai/src/prompts/registry.ts`
-(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.1 —
+(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.2 —
 snapshot-tested); passes reference them by version, and the version is persisted with every pass
 in `contextManifests`.
 
@@ -31,7 +31,7 @@ functions — explain behaviour first) and file-balanced snippet anchors (≤40/
 unit is read in chunks (`chunk C of K`). Citations are checked against the **full digest
 registry**, never against the budgeted evidence pack.
 
-The **What-If pass** (`whatif` 1.0.1) answers one question per turn: Insea is stateless, so every
+The **What-If pass** (`whatif` 1.0.2) answers one question per turn: Insea is stateless, so every
 call reconstructs context from the task pack, the session ledger, recent turns, pins (boosted to the
 front of the evidence pack) and the latest verified run report of the same comparison; `linkAnswer`
 then gates the answer like every other pass.

@@ -1,4 +1,4 @@
-import type { Anchor } from "@craftland-qa/contracts";
+import type { Anchor } from "@silentskip/contracts";
 import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";

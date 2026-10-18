@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AiError, type WorkflowRunner } from "@craftland-qa/ai";
+import { serve } from "@hono/node-server";
+import { AiError, type WorkflowRunner } from "@silentskip/ai";
 import {
   ErrorEnvelopeSchema,
   ProjectSummarySchema,
@@ -10,9 +11,8 @@ import {
   RunDetailResponseSchema,
   RunListResponseSchema,
   StartReviewResponseSchema,
-} from "@craftland-qa/contracts";
-import { contextManifests, migrateDatabase, openDatabase, runs } from "@craftland-qa/db";
-import { serve } from "@hono/node-server";
+} from "@silentskip/contracts";
+import { contextManifests, migrateDatabase, openDatabase, runs } from "@silentskip/db";
 import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";

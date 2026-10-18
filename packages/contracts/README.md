@@ -1,4 +1,4 @@
-# @craftland-qa/contracts
+# @silentskip/contracts
 
 Single source of truth for every payload that crosses the HTTP boundary. Both the server and the
 web app parse data through these Zod schemas — the types they use are always `z.infer` aliases of
@@ -34,4 +34,4 @@ the schemas, never hand-written duplicates.
 
 ## Testing
 
-`pnpm --filter @craftland-qa/contracts test` — schema smoke tests live in `test/`.
+`pnpm --filter @silentskip/contracts test` — schema smoke tests live in `test/`.

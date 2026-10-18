@@ -3,8 +3,8 @@ import type {
   LocalizationIssue,
   LocalizationIssueKind,
   LocalizationTableReport,
-} from "@craftland-qa/contracts";
-import { WORKTREE_REF } from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
+import { WORKTREE_REF } from "@silentskip/contracts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Languages, MessageCircleQuestion, RefreshCw, TriangleAlert } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";

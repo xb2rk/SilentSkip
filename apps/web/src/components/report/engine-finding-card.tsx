@@ -1,4 +1,4 @@
-import type { Anchor, DigestFinding } from "@craftland-qa/contracts";
+import type { Anchor, DigestFinding } from "@silentskip/contracts";
 import { cn } from "cn";
 import { ChevronDown, ChevronRight, MessageCircleQuestion } from "lucide-react";
 import { useState } from "react";

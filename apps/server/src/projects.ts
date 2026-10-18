@@ -1,6 +1,6 @@
 import { basename } from "node:path";
-import { AppError, ErrorCodes, type ProjectSummary } from "@craftland-qa/contracts";
-import { type AppDatabase, projects } from "@craftland-qa/db";
+import { AppError, ErrorCodes, type ProjectSummary } from "@silentskip/contracts";
+import { type AppDatabase, projects } from "@silentskip/db";
 import { desc, eq } from "drizzle-orm";
 import { assertAddableProjectPath, samePath } from "./paths";
 

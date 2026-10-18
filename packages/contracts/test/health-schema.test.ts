@@ -4,7 +4,7 @@ import { API_VERSION, HealthResponseSchema, PRODUCT_VERSION } from "../src/index
 describe("HealthResponseSchema", () => {
   const valid = {
     ok: true as const,
-    product: "craftland-qa" as const,
+    product: "silentskip" as const,
     version: PRODUCT_VERSION,
     apiVersion: API_VERSION,
     uptimeSeconds: 42,

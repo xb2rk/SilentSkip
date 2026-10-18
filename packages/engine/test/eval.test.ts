@@ -5,8 +5,8 @@ import type {
   OverrideEntry,
   ProjectProfile,
   ReaderProfile,
-} from "@craftland-qa/contracts";
-import { buildDigest } from "@craftland-qa/engine";
+} from "@silentskip/contracts";
+import { buildDigest } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

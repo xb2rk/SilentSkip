@@ -1,5 +1,5 @@
 /**
- * Real round-trip canary: `pnpm --filter @craftland-qa/ai canary`.
+ * Real round-trip canary: `pnpm --filter @silentskip/ai canary`.
  *
  * Loads the repo-root `.env` (the same file the server reads), probes the configured Insea
  * workflow and prints the outcome as JSON. Exit code 1 when unconfigured, unreachable, or when

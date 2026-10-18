@@ -7,7 +7,7 @@ import {
   StartWhatIfSessionRequestSchema,
   WhatIfSessionDetailResponseSchema,
   WhatIfSessionListResponseSchema,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { WhatIfManager } from "../whatif";

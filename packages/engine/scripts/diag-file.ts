@@ -1,17 +1,17 @@
 /**
  * Dev probe — print the first parse diagnostics of one `.fcc`/`.fcg` file with source context.
  *
- * Usage: pnpm --filter @craftland-qa/engine exec tsx scripts/diag-file.ts <file>
+ * Usage: pnpm --filter @silentskip/engine exec tsx scripts/diag-file.ts <file>
  *
  * Used during hardening sessions to characterise problem files without hiding anything:
  * every diagnostic line is shown next to the exact source line it points at.
  */
 import { readFileSync } from "node:fs";
-import { lex, parseGraphFile, parseHeaderFile } from "@craftland-qa/fc-lang";
+import { lex, parseGraphFile, parseHeaderFile } from "@silentskip/fc-lang";
 
 const target = process.argv[2];
 if (!target) {
-  console.error("usage: pnpm --filter @craftland-qa/engine exec tsx scripts/diag-file.ts <file>");
+  console.error("usage: pnpm --filter @silentskip/engine exec tsx scripts/diag-file.ts <file>");
   process.exit(2);
 }
 

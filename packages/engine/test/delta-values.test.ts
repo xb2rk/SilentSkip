@@ -1,4 +1,4 @@
-import { buildDeltaBundle, type SymbolChange } from "@craftland-qa/engine";
+import { buildDeltaBundle, type SymbolChange } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

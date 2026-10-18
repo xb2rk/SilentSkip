@@ -2,7 +2,7 @@
  * Recently used project paths for the add-project dialog, persisted in localStorage.
  * Local-only convenience — nothing here ever leaves the machine.
  */
-const STORAGE_KEY = "craftland-qa:recent-project-paths";
+const STORAGE_KEY = "silentskip:recent-project-paths";
 const MAX_RECENT = 5;
 
 /** Newest first. Never throws (corrupted storage is treated as empty). */

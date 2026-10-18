@@ -3,7 +3,7 @@ import type {
   DigestFinding,
   DigestQuantity,
   TypedClaim,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import type { EvidenceAnchor } from "../context/types.js";
 
 /**

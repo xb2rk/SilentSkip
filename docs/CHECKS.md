@@ -166,7 +166,7 @@ checked-in 31-file Sample CSV corpus unchanged, and an `EResCSV` link that only 
 editorGen indexing enabled.
 
 ```bash
-pnpm --filter @craftland-qa/engine exec vitest run test/eval.test.ts
+pnpm --filter @silentskip/engine exec vitest run test/eval.test.ts
 ```
 
 The server readers are part of the gate: the worktree file set comes from
@@ -177,7 +177,7 @@ fabricate whole-file changes.
 ## Tests
 
 ```bash
-pnpm --filter @craftland-qa/engine test
+pnpm --filter @silentskip/engine test
 ```
 
 `packages/engine/test/checks.test.ts` covers STRUCT, TYPE, BIND, DRIFT, REF, CALL-ARITY and

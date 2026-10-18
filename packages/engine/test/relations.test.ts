@@ -3,7 +3,7 @@ import {
   buildRelations,
   type FactBundle,
   type Relation,
-} from "@craftland-qa/engine";
+} from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

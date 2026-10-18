@@ -1,4 +1,4 @@
-import type { DigestBundle, DigestFinding } from "@craftland-qa/contracts";
+import type { DigestBundle, DigestFinding } from "@silentskip/contracts";
 import type { InseaAttachment } from "../insea/types.js";
 import {
   CONTEXT_BUDGETS,

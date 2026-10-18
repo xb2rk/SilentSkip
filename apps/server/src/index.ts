@@ -1,7 +1,7 @@
 import "./env";
-import { PRODUCT_VERSION } from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase } from "@craftland-qa/db";
 import { serve } from "@hono/node-server";
+import { PRODUCT_VERSION } from "@silentskip/contracts";
+import { migrateDatabase, openDatabase } from "@silentskip/db";
 import { createApp } from "./app";
 import { loadConfig } from "./config";
 import { createLogger } from "./logger";
@@ -10,7 +10,7 @@ import { reconcileInterruptedRuns } from "./reviews";
 const config = loadConfig();
 const log = createLogger(config);
 
-log.info({ version: PRODUCT_VERSION, env: config.nodeEnv }, "starting Craftland QA server");
+log.info({ version: PRODUCT_VERSION, env: config.nodeEnv }, "starting SilentSkip server");
 
 const db = openDatabase(config.sqlitePath);
 migrateDatabase(db);

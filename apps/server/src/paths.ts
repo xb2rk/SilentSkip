@@ -1,7 +1,7 @@
 import { type Stats, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, parse, resolve } from "node:path";
-import { AppError, ErrorCodes } from "@craftland-qa/contracts";
+import { AppError, ErrorCodes } from "@silentskip/contracts";
 
 /**
  * Path normalization + registration guards.

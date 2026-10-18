@@ -17,7 +17,7 @@ export const PROMPT_VERSIONS = {
   read: "2.2.1",
   dig: "2.0.1",
   synthesize: "2.2.1",
-  whatif: "1.0.1",
+  whatif: "1.0.2",
 } as const;
 
 const SHARED_RULES = `Rules (non-negotiable):
@@ -198,7 +198,7 @@ export function buildWhatIfPrompt(context: WhatIfContext, question: string): str
     context.runSummary === null
       ? ""
       : "\n- report.json — the latest verified review report of this comparison (verdict, findings, unknowns)";
-  return `You are the What-If assistant of Craftland QA — a local A/B review tool for a Craftland Studio game project. A designer is asking follow-up questions about one A/B change set. Write the prose in VIETNAMESE.
+  return `You are the What-If assistant of SilentSkip — a local A/B review tool for a Craftland Studio game project. A designer is asking follow-up questions about one A/B change set. Write the prose in VIETNAMESE.
 
 ${SHARED_RULES}
 

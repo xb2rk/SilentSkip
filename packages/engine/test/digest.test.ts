@@ -3,7 +3,7 @@ import {
   DigestBundleSchema,
   emptyProjectProfile,
   type ProjectProfile,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { describe, expect, it } from "vitest";
 import { buildDigest, type DigestInput } from "../src/index.js";
 

@@ -7,7 +7,7 @@
  * so the logic lives in exactly one module.
  */
 
-import type { ProjectProfile } from "@craftland-qa/contracts";
+import type { ProjectProfile } from "@silentskip/contracts";
 import type { FactSpan } from "../facts/types.js";
 import type { CsvCell, CsvRow, CsvTable } from "./types.js";
 

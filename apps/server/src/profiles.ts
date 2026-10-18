@@ -4,8 +4,8 @@ import {
   type ProjectProfile,
   ProjectProfileSchema,
   type ProjectProfileUpdate,
-} from "@craftland-qa/contracts";
-import { type AppDatabase, projectProfiles } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import { type AppDatabase, projectProfiles } from "@silentskip/db";
 import { eq } from "drizzle-orm";
 import { getProject } from "./projects";
 

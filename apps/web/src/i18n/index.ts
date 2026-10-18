@@ -9,7 +9,7 @@ const resources = {
   vi: {
     translation: {
       app: {
-        product: "Craftland QA",
+        product: "SilentSkip",
         tagline: "Game Review & Ops",
         phase: "Phase 1 · AI review",
       },

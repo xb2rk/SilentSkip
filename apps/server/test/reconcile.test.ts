@@ -1,4 +1,4 @@
-import { migrateDatabase, openDatabase, projects, runs } from "@craftland-qa/db";
+import { migrateDatabase, openDatabase, projects, runs } from "@silentskip/db";
 import { describe, expect, it } from "vitest";
 import { reconcileInterruptedRuns } from "../src/reviews";
 

@@ -1,4 +1,4 @@
-import type { ProjectSummary } from "@craftland-qa/contracts";
+import type { ProjectSummary } from "@silentskip/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import {

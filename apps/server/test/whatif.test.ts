@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AiError, type InseaRunRequest, type WorkflowRunner } from "@craftland-qa/ai";
+import { serve } from "@hono/node-server";
+import { AiError, type InseaRunRequest, type WorkflowRunner } from "@silentskip/ai";
 import {
   ErrorEnvelopeSchema,
   PinListResponseSchema,
@@ -13,9 +14,8 @@ import {
   WhatIfSessionDetailResponseSchema,
   WhatIfSessionListResponseSchema,
   type WhatIfTurn,
-} from "@craftland-qa/contracts";
-import { contextManifests, migrateDatabase, openDatabase, sessionLedgers } from "@craftland-qa/db";
-import { serve } from "@hono/node-server";
+} from "@silentskip/contracts";
+import { contextManifests, migrateDatabase, openDatabase, sessionLedgers } from "@silentskip/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -235,7 +235,7 @@ describe("what-if sessions", () => {
     const turnManifests = manifests.filter((row) => row.turnId === turnId);
     expect(turnManifests.length).toBe(1);
     expect(turnManifests[0]?.passId).toBe("whatif");
-    expect(turnManifests[0]?.promptVersion).toBe("1.0.1");
+    expect(turnManifests[0]?.promptVersion).toBe("1.0.2");
   });
 
   it("carries recent turns into the next question", async () => {

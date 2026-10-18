@@ -60,7 +60,7 @@ registry. The web app never touches the disk — everything local goes through t
 ## Commands
 
 ```sh
-pnpm --filter @craftland-qa/server dev     # tsx watch on :3000
-pnpm --filter @craftland-qa/server test    # vitest (real git repos in temp dirs, :memory: sqlite)
-pnpm --filter @craftland-qa/server build   # tsc emit (packaging path)
+pnpm --filter @silentskip/server dev     # tsx watch on :3000
+pnpm --filter @silentskip/server test    # vitest (real git repos in temp dirs, :memory: sqlite)
+pnpm --filter @silentskip/server build   # tsc emit (packaging path)
 ```

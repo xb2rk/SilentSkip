@@ -4,7 +4,7 @@ import type {
   ReviewRunResult,
   ReviewStreamEvent,
   Verdict,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { cn } from "cn";
 import {

@@ -12,7 +12,7 @@
  * REF-02 (structured cells) is a later milestone; its pins are not guessed here.
  */
 
-import type { ProjectProfile } from "@craftland-qa/contracts";
+import type { ProjectProfile } from "@silentskip/contracts";
 import type { CsvRow, CsvTable } from "../csv/index.js";
 import {
   cellSpan,

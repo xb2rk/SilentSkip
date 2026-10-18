@@ -5,7 +5,7 @@ import type {
   WhatIfAnswer,
   WhatIfEvidence,
   WhatIfOutput,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import {
   evaluateClaim,
   type FactIndex,

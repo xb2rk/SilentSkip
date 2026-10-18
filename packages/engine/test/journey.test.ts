@@ -3,8 +3,8 @@
  * honesty paths (dead value, truncation, unknown origins) and determinism.
  */
 
-import type { FactBundle, Journey, RelationSet } from "@craftland-qa/engine";
-import { buildFactBundle, buildJourney, buildRelations } from "@craftland-qa/engine";
+import type { FactBundle, Journey, RelationSet } from "@silentskip/engine";
+import { buildFactBundle, buildJourney, buildRelations } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 const FCG = `import "Strings.fcc" as Strings

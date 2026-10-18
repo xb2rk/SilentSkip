@@ -14,8 +14,8 @@ import {
   type GitRefKind,
   type ProjectRefsResponse,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
-import type { SourceInput } from "@craftland-qa/engine";
+} from "@silentskip/contracts";
+import type { SourceInput } from "@silentskip/engine";
 
 /**
  * Read-only git access (E1) plus source content readers (E3): all FC/CSV files at a ref

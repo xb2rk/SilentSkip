@@ -1,4 +1,4 @@
-import type { ProjectSummary } from "@craftland-qa/contracts";
+import type { ProjectSummary } from "@silentskip/contracts";
 import {
   createContext,
   type ReactNode,
@@ -16,7 +16,7 @@ import { useProjects } from "@/lib/use-projects";
  * the first project becomes active automatically so single-project users never have to pick.
  */
 
-const ACTIVE_PROJECT_KEY = "craftland-qa:active-project";
+const ACTIVE_PROJECT_KEY = "silentskip:active-project";
 
 interface ProjectContextValue {
   readonly projects: readonly ProjectSummary[];

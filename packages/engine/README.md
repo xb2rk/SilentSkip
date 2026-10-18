@@ -1,4 +1,4 @@
-# @craftland-qa/engine
+# @silentskip/engine
 
 The deterministic analysis core — the part that turns a repository into facts, relations and
 eventually findings.
@@ -86,13 +86,13 @@ eventually findings.
 
 ## Dev probes
 
-- `pnpm --filter @craftland-qa/engine probe:project <projectRoot>` — runs the fact + CSV
+- `pnpm --filter @silentskip/engine probe:project <projectRoot>` — runs the fact + CSV
   pipeline over a real project folder: parse problems, fact totals, resolution stats, CSV
   anomalies, determinism, timing. Exits 1 on parse problems or non-determinism.
-- `pnpm --filter @craftland-qa/engine probe:delta <projectRoot> <baseRef> <currentRef>` — runs
+- `pnpm --filter @silentskip/engine probe:delta <projectRoot> <baseRef> <currentRef>` — runs
   the delta pipeline over a real git range: changed script/table files, symbol and row changes,
   determinism. Exits 1 on non-determinism.
-- `pnpm --filter @craftland-qa/engine exec tsx scripts/diag-file.ts <file>` — prints the
+- `pnpm --filter @silentskip/engine exec tsx scripts/diag-file.ts <file>` — prints the
   first parse diagnostics of one file with the exact source line for each.
 
 ## Planned scope

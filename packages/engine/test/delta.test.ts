@@ -6,8 +6,8 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { CsvTableDelta, DeltaBundle, ScriptFileDelta } from "@craftland-qa/engine";
-import { buildDeltaBundle } from "@craftland-qa/engine";
+import type { CsvTableDelta, DeltaBundle, ScriptFileDelta } from "@silentskip/engine";
+import { buildDeltaBundle } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 const FCG_BEFORE = `import "Convert.fcc" as Convert

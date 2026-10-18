@@ -11,7 +11,7 @@ import {
   TokenId,
   triviaKindOf,
   walkAst,
-} from "@craftland-qa/fc-lang";
+} from "@silentskip/fc-lang";
 import {
   type CallFact,
   type ComparisonFact,

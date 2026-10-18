@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FsListResponseSchema } from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase } from "@craftland-qa/db";
+import { FsListResponseSchema } from "@silentskip/contracts";
+import { migrateDatabase, openDatabase } from "@silentskip/db";
 import type { Hono } from "hono";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

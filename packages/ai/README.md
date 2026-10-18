@@ -1,4 +1,4 @@
-# @craftland-qa/ai
+# @silentskip/ai
 
 The AI review pipeline (Insea): workflow client, context assembly, the v2 pass flow
 (`map → read×N → [dig] → synthesize`, decision #28), the What-If chat (`whatif`, E6) and the
@@ -15,7 +15,7 @@ linker that gates every citation.
   `cancelled`, `network`) and a short body preview.
 - **Canary probe (E4.1)** — `canaryProbe(config)`: one tiny round-trip that exercises multipart,
   auth, unwrap and salvage; `ok: true` only when the model honours the JSON contract. Run it for
-  real with `pnpm --filter @craftland-qa/ai canary` (reads the repo-root `.env`). Last verified
+  real with `pnpm --filter @silentskip/ai canary` (reads the repo-root `.env`). Last verified
   against Insea project 25537: ok, ~1.8s, salvage `clean` (2026-10-17).
 - **Pass library + review pipeline (E4.2)** — versioned prompt registry (`digest_read` / `dig` /
   `synthesize` at 1.0.0, shared anti-hallucination rules, snapshot-tested); context assembly
@@ -79,7 +79,7 @@ linker that gates every citation.
   call-arity drift and named treatments of the new special-enemy and stat-service systems;
   229 anchors verified, hallucinated ids stripped honestly.
 
-- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.1) answers one question per turn over
+- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.2) answers one question per turn over
   the same machinery. Insea is stateless, so every call **reconstructs context**: task pack, the
   session ledger (mechanically composed from previous answers — no summarization call), recent raw
   turns, pins, and a 400-anchor evidence pack with **pinned anchors boosted to the front**, plus the
@@ -118,7 +118,7 @@ linker that gates every citation.
 ## Commands
 
 ```sh
-pnpm --filter @craftland-qa/ai test      # offline: fetch is mocked
-pnpm --filter @craftland-qa/ai canary    # real round-trip against the configured workflow
-pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>  # real pipeline (dev server must be up)
+pnpm --filter @silentskip/ai test      # offline: fetch is mocked
+pnpm --filter @silentskip/ai canary    # real round-trip against the configured workflow
+pnpm --filter @silentskip/ai review:once <projectId> <base> <current>  # real pipeline (dev server must be up)
 ```

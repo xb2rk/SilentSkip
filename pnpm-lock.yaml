@@ -17,16 +17,16 @@ importers:
 
   apps/server:
     dependencies:
-      '@craftland-qa/ai':
+      '@silentskip/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@craftland-qa/contracts':
+      '@silentskip/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@craftland-qa/db':
+      '@silentskip/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@craftland-qa/engine':
+      '@silentskip/engine':
         specifier: workspace:*
         version: link:../../packages/engine
       '@hono/node-server':
@@ -60,7 +60,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@craftland-qa/contracts':
+      '@silentskip/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@fontsource-variable/inter':
@@ -139,7 +139,7 @@ importers:
 
   packages/ai:
     dependencies:
-      '@craftland-qa/contracts':
+      '@silentskip/contracts':
         specifier: workspace:*
         version: link:../contracts
       zod:
@@ -193,10 +193,10 @@ importers:
 
   packages/engine:
     dependencies:
-      '@craftland-qa/contracts':
+      '@silentskip/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@craftland-qa/fc-lang':
+      '@silentskip/fc-lang':
         specifier: workspace:*
         version: link:../fc-lang
     devDependencies:

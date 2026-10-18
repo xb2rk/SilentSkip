@@ -1,4 +1,4 @@
-import type { ProjectProfile } from "@craftland-qa/contracts";
+import type { ProjectProfile } from "@silentskip/contracts";
 import {
   buildDeltaBundle,
   buildFactBundle,
@@ -8,7 +8,7 @@ import {
   parseCsv,
   type RegisterAnchor,
   runSurfaces,
-} from "@craftland-qa/engine";
+} from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

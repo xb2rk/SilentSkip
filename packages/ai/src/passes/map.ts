@@ -1,4 +1,4 @@
-import { type MapOutput, MapOutputSchema } from "@craftland-qa/contracts";
+import { type MapOutput, MapOutputSchema } from "@silentskip/contracts";
 import {
   buildPassManifestJson,
   serializeSkeletonFile,

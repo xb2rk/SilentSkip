@@ -5,7 +5,7 @@ import type {
   RunSummary,
   SurfaceHistoryEntry,
   Verdict,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, GitCompareArrows, TriangleAlert } from "lucide-react";
 import type { ReactElement } from "react";

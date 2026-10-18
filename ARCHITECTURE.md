@@ -1,11 +1,11 @@
 # Architecture
 
-How Craftland QA is put together, which rules are load-bearing, and where to plug in new work.
+How SilentSkip is put together, which rules are load-bearing, and where to plug in new work.
 Keep this file current whenever a boundary or invariant changes.
 
 ## 1. Purpose and principles
 
-Craftland QA compares two git refs of a Craftland Studio project (A/B) and explains what changed,
+SilentSkip compares two git refs of a Craftland Studio project (A/B) and explains what changed,
 with emphasis on **configuration ↔ code mismatches** that silently break games at runtime.
 
 Principles that shape every design decision:

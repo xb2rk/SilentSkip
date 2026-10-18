@@ -1,5 +1,5 @@
 {
-  "name": "@craftland-qa/server",
+  "name": "@silentskip/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@craftland-qa/ai": "workspace:*",
-    "@craftland-qa/contracts": "workspace:*",
-    "@craftland-qa/db": "workspace:*",
-    "@craftland-qa/engine": "workspace:*",
+    "@silentskip/ai": "workspace:*",
+    "@silentskip/contracts": "workspace:*",
+    "@silentskip/db": "workspace:*",
+    "@silentskip/engine": "workspace:*",
     "@hono/node-server": "^2.1.5",
     "drizzle-orm": "1.0.0-rc.4",
     "hono": "^4.13.13",

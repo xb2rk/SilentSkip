@@ -1,5 +1,5 @@
 /**
- * One-shot real review: `pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>`.
+ * One-shot real review: `pnpm --filter @silentskip/ai review:once <projectId> <base> <current>`.
  *
  * Fetches the digest from the local dev server, runs the full v2 pipeline
  * (`map → read×N → [dig] → synthesize` with the linker on every boundary) against the live
@@ -8,7 +8,7 @@
  */
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { type DigestBundle, DigestBundleSchema } from "@craftland-qa/contracts";
+import { type DigestBundle, DigestBundleSchema } from "@silentskip/contracts";
 import { AiError, createReviewDeps, runReviewPipeline } from "../src/index.js";
 
 const envPath = resolve(process.cwd(), "../../.env");
@@ -22,7 +22,7 @@ if (projectId === undefined || base === undefined || current === undefined) {
   process.exit(2);
 }
 
-const serverUrl = process.env.CRAFTLAND_SERVER_URL ?? "http://127.0.0.1:3000";
+const serverUrl = process.env.SILENTSKIP_SERVER_URL ?? "http://127.0.0.1:3000";
 const workflowUrl = process.env.AI_WORKFLOW_URL ?? null;
 const apiKey = process.env.AI_WORKFLOW_API_KEY ?? null;
 if (workflowUrl === null || apiKey === null) {

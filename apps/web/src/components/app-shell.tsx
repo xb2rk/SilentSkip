@@ -1,4 +1,4 @@
-import { PRODUCT_VERSION } from "@craftland-qa/contracts";
+import { PRODUCT_VERSION } from "@silentskip/contracts";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Activity,

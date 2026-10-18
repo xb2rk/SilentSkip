@@ -1,4 +1,4 @@
-import type { DigestBundle, SynthesizeOutput } from "@craftland-qa/contracts";
+import type { DigestBundle, SynthesizeOutput } from "@silentskip/contracts";
 import type { AiError } from "./errors.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { DigestBundle } from "@craftland-qa/contracts";
+import type { DigestBundle } from "@silentskip/contracts";
 
 /**
  * The digest fixture of the AI test suite (v2): two changed files — a script whose `_MOD`

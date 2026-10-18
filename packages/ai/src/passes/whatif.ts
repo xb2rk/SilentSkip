@@ -1,4 +1,4 @@
-import { type WhatIfOutput, WhatIfOutputSchema } from "@craftland-qa/contracts";
+import { type WhatIfOutput, WhatIfOutputSchema } from "@silentskip/contracts";
 import type { InseaAttachment } from "../insea/types.js";
 import { buildWhatIfPrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import {

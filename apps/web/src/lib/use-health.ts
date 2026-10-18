@@ -1,4 +1,4 @@
-import { HealthResponseSchema } from "@craftland-qa/contracts";
+import { HealthResponseSchema } from "@silentskip/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api";
 

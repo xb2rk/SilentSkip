@@ -1,6 +1,6 @@
-import { ErrorEnvelopeSchema, HealthResponseSchema } from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase } from "@craftland-qa/db";
 import { type ServerType, serve } from "@hono/node-server";
+import { ErrorEnvelopeSchema, HealthResponseSchema } from "@silentskip/contracts";
+import { migrateDatabase, openDatabase } from "@silentskip/db";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";

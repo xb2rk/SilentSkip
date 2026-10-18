@@ -1,6 +1,6 @@
 # Insea workflow integration
 
-How Craftland QA talks to the Insea workflow engine (workflow `25537`). The client lives in
+How SilentSkip talks to the Insea workflow engine (workflow `25537`). The client lives in
 `packages/ai/src/insea/`; the server config exposes it as `config.ai`.
 
 ## Wire contract
@@ -42,6 +42,6 @@ A run never fails flakily: AI unavailability produces the deterministic fallback
 (gitignored). Probes:
 
 ```sh
-pnpm --filter @craftland-qa/ai canary                       # strict-JSON canary, latency + salvage
-pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>   # full pipeline (server must be up)
+pnpm --filter @silentskip/ai canary                       # strict-JSON canary, latency + salvage
+pnpm --filter @silentskip/ai review:once <projectId> <base> <current>   # full pipeline (server must be up)
 ```

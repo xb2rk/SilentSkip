@@ -7,7 +7,7 @@ import {
   type BlameResponse,
   ErrorCodes,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { resolveCommit, runGit } from "./git";
 
 /**

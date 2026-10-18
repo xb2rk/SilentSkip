@@ -4,7 +4,7 @@ import type {
   DigestFinding,
   RunTheme,
   SynthesizeOutput,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { cn } from "cn";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";

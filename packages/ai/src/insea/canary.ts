@@ -22,7 +22,7 @@ const CANARY_PROMPT = `Return STRICT JSON only, no prose:
 const CANARY_MANIFEST = JSON.stringify({
   version: "1.0.0",
   stage: "canary",
-  goal: "Connectivity probe from Craftland QA",
+  goal: "Connectivity probe from SilentSkip",
   files: [{ uploadName: "canary.txt", relativePath: "canary.txt", kind: "other", byteSize: 6 }],
 });
 

@@ -1,7 +1,7 @@
 /**
- * Craftland QA deterministic analysis engine.
+ * SilentSkip deterministic analysis engine.
  *
- * Phase 1 / E2 lands the first real content: the FC syntax index (via @craftland-qa/fc-lang),
+ * Phase 1 / E2 lands the first real content: the FC syntax index (via @silentskip/fc-lang),
  * CSV parsing, syntax-graph relations and the Value Journey walker. Invariants that hold from
  * day one:
  * - Deterministic: same inputs + version => identical outputs (no clocks, no randomness).

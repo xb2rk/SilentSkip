@@ -38,9 +38,9 @@ primitives). The UI language is Vietnamese and fully i18n-keyed; technical docs 
 ## Commands
 
 ```sh
-pnpm --filter @craftland-qa/web dev        # Vite on http://127.0.0.1:5173 (proxies /api)
-pnpm --filter @craftland-qa/web build      # production bundle
-pnpm --filter @craftland-qa/web typecheck  # tsc --noEmit
+pnpm --filter @silentskip/web dev        # Vite on http://127.0.0.1:5173 (proxies /api)
+pnpm --filter @silentskip/web build      # production bundle
+pnpm --filter @silentskip/web typecheck  # tsc --noEmit
 ```
 
 The dev server binds `127.0.0.1` explicitly (Windows `localhost` may resolve to `::1`).

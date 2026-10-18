@@ -1,4 +1,4 @@
-import type { PassConfidence, TypedClaim } from "@craftland-qa/contracts";
+import type { PassConfidence, TypedClaim } from "@silentskip/contracts";
 
 /**
  * Linker types (E7.2, decision #28).

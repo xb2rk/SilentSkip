@@ -1,6 +1,6 @@
-import type { LocalizationReport } from "@craftland-qa/contracts";
-import { AppError, type DigestBundle, ErrorCodes, WORKTREE_REF } from "@craftland-qa/contracts";
-import { buildDigest, buildLocalizationReport } from "@craftland-qa/engine";
+import type { LocalizationReport } from "@silentskip/contracts";
+import { AppError, type DigestBundle, ErrorCodes, WORKTREE_REF } from "@silentskip/contracts";
+import { buildDigest, buildLocalizationReport } from "@silentskip/engine";
 import { readFilesAtRef, readProjectFilesFromDisk, resolveCommit } from "./git";
 
 interface ResolvedSources {

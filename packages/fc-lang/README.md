@@ -1,4 +1,4 @@
-# @craftland-qa/fc-lang
+# @silentskip/fc-lang
 
 Vendored **FC language toolchain** (`fc-format-v4`): lossless lexer, AST parser with guards,
 visitor, import sorter and formatter for Craftland Studio scripts (`.fcc`/`.fcg`).
@@ -16,13 +16,13 @@ lexing or parsing.
 | `test/corpus/**` | Checked-in copy of the sample project's FC sources (245 files) |
 | `test/formatter-corpus.test.ts` | Corpus gate: parse + format + reparse + semantic fingerprint |
 | `PROVENANCE.md` | Upstream path, revision, what was copied, deviations |
-| `scripts/sync-fc-lang.mjs` | Re-sync from upstream (`pnpm --filter @craftland-qa/fc-lang sync:fc-lang`) |
+| `scripts/sync-fc-lang.mjs` | Re-sync from upstream (`pnpm --filter @silentskip/fc-lang sync:fc-lang`) |
 
 ## Entry points
 
 ```ts
-import { lex, parseGraphFile, parseHeaderFile, formatSource } from "@craftland-qa/fc-lang";
-import { FC_LANG_UPSTREAM } from "@craftland-qa/fc-lang/vendored";
+import { lex, parseGraphFile, parseHeaderFile, formatSource } from "@silentskip/fc-lang";
+import { FC_LANG_UPSTREAM } from "@silentskip/fc-lang/vendored";
 ```
 
 Subpath exports (`/grammar`, `/lex`, `/syntax`, `/parser`, `/imports`, `/format`) mirror the
@@ -40,7 +40,7 @@ upstream barrels for consumers that want a narrower surface.
 ## Commands
 
 ```sh
-pnpm --filter @craftland-qa/fc-lang typecheck   # strict TS over src + test
-pnpm --filter @craftland-qa/fc-lang test        # includes the 245-file corpus gate
-pnpm --filter @craftland-qa/fc-lang sync:fc-lang # re-copy from upstream (env FC_LANG_UPSTREAM overrides path)
+pnpm --filter @silentskip/fc-lang typecheck   # strict TS over src + test
+pnpm --filter @silentskip/fc-lang test        # includes the 245-file corpus gate
+pnpm --filter @silentskip/fc-lang sync:fc-lang # re-copy from upstream (env FC_LANG_UPSTREAM overrides path)
 ```

@@ -1,4 +1,4 @@
-import { parseCsv } from "@craftland-qa/engine";
+import { parseCsv } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 import { expectRawFaithful } from "./helpers/invariants.js";
 

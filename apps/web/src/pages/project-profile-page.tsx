@@ -4,7 +4,7 @@ import type {
   OverrideKind,
   ProjectProfile,
   ProjectProfileUpdate,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, Info, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";

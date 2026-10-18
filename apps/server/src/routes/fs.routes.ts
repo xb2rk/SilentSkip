@@ -5,7 +5,7 @@ import {
   ErrorCodes,
   type FsDirectoryEntry,
   FsListResponseSchema,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Hono } from "hono";
 import { assertDirectoryExists, normalizePath, samePath } from "../paths";
 

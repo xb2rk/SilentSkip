@@ -2,7 +2,7 @@ import {
   type LocalizationReport,
   LocalizationReportSchema,
   type LocalizationTableReport,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { describe, expect, it } from "vitest";
 
 import { buildLocalizationReport } from "../src/localization/index.js";

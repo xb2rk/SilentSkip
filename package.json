@@ -1,5 +1,5 @@
 {
-  "name": "craftland-qa",
+  "name": "silentskip",
   "version": "0.1.0",
   "private": true,
   "description": "Local-first A/B review tool for Craftland Studio projects: CSV configs, FC code, and grounded AI review.",
@@ -15,7 +15,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "db:generate": "pnpm --filter @craftland-qa/db generate"
+    "db:generate": "pnpm --filter @silentskip/db generate"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

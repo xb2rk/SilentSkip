@@ -1,4 +1,4 @@
-import { type DigOutput, DigOutputSchema } from "@craftland-qa/contracts";
+import { type DigOutput, DigOutputSchema } from "@silentskip/contracts";
 import {
   buildPassManifestJson,
   serializeAnchorsJsonl,

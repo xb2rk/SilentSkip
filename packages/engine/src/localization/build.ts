@@ -7,7 +7,7 @@ import {
   type LocalizationSeverity,
   type LocalizationTableReport,
   type LocalizationTableStatus,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import type { CsvRow, CsvTable } from "../csv/index.js";
 import { cellSpan, isBlankRow, parseCsv, rowSpan } from "../csv/index.js";
 import { gitBlobSha } from "../digest/build.js";

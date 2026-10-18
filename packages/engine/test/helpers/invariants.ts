@@ -1,4 +1,4 @@
-import type { CsvTable } from "@craftland-qa/engine";
+import type { CsvTable } from "@silentskip/engine";
 import { expect } from "vitest";
 
 /**

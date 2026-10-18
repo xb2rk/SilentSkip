@@ -13,7 +13,7 @@ import { migrate } from "drizzle-orm/node-sqlite/migrator";
  * state. Async is reserved for the HTTP layer above it.
  */
 
-/** Concrete Drizzle handle type bound to the Craftland QA schema. */
+/** Concrete Drizzle handle type bound to the SilentSkip schema. */
 export type AppDatabase = ReturnType<typeof createDatabase>;
 
 function createDatabase(connectionPath: string) {

@@ -5,8 +5,8 @@ import {
   ErrorEnvelopeSchema,
   ProjectProfileSchema,
   ProjectSummarySchema,
-} from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import { migrateDatabase, openDatabase } from "@silentskip/db";
 import type { Hono } from "hono";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

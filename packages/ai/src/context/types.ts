@@ -8,7 +8,7 @@ import type {
   DigestQuantity,
   DigestStats,
   ReviewLens,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 
 /**
  * Context assembly types (v2, E7.2) — everything a pass sees, and the honest accounting of it.

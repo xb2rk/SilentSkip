@@ -1,5 +1,5 @@
 {
-  "name": "@craftland-qa/ai",
+  "name": "@silentskip/ai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "review:once": "tsx scripts/review-once.ts"
   },
   "dependencies": {
-    "@craftland-qa/contracts": "workspace:*",
+    "@silentskip/contracts": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

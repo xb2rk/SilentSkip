@@ -6,7 +6,7 @@ import {
   type PipelineStageEvent,
   runReviewPipeline,
   type WorkflowRunner,
-} from "@craftland-qa/ai";
+} from "@silentskip/ai";
 import {
   AppError,
   ErrorCodes,
@@ -17,8 +17,8 @@ import {
   type StartReviewRequest,
   type VerifyStats,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
-import { type AppDatabase, contextManifests, runs } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import { type AppDatabase, contextManifests, runs } from "@silentskip/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";

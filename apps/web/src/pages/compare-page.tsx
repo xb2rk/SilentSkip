@@ -7,7 +7,7 @@ import {
   type GitRef,
   type GitRefKind,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { TFunction } from "i18next";

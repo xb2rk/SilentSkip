@@ -1,9 +1,9 @@
 /**
- * Craftland QA AI layer, v2 (E7.2 — decision #28): the Insea workflow client, context assembly,
+ * SilentSkip AI layer, v2 (E7.2 — decision #28): the Insea workflow client, context assembly,
  * the multi-call reading flow (`map → read×N → [dig] → synthesize`) and the linker.
  *
  * Lane rules from the master plan:
- * - This package depends only on @craftland-qa/contracts — never on the engine — so passes,
+ * - This package depends only on @silentskip/contracts — never on the engine — so passes,
  *   clients and prompts can be tested and replaced in isolation.
  * - The LLM is never a source of facts: numbers travel as `{{f:<factId>}}` placeholders from the
  *   engine's fact store, structural claims are typed slots the engine evaluates, and the linker

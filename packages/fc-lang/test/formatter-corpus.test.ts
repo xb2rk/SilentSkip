@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { formatSource, lex, parseGraphFile, parseHeaderFile } from "@craftland-qa/fc-lang";
+import { formatSource, lex, parseGraphFile, parseHeaderFile } from "@silentskip/fc-lang";
 import { describe, expect, it } from "vitest";
 import { collectCorpusFiles } from "./helpers/corpus.js";
 import { semanticFingerprint } from "./helpers/semantic-fingerprint.js";

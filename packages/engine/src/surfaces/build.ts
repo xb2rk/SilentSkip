@@ -24,7 +24,7 @@ import type {
   SilentSkipMechanism,
   SilentSkipSide,
   SilentSkipSurface,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { dataRows, fkPins, normalize } from "../checks/references.js";
 import type { CheckInput, CheckSide } from "../checks/types.js";
 import type { CsvRow } from "../csv/index.js";

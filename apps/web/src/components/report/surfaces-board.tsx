@@ -4,7 +4,7 @@ import type {
   SilentSkipEntry,
   SilentSkipMechanism,
   SilentSkipSurface,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { cn } from "cn";
 import { useTranslation } from "react-i18next";
 import { AnchorChip } from "@/components/report/finding-card";

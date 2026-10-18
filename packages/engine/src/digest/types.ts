@@ -1,4 +1,4 @@
-import type { ProjectProfile } from "@craftland-qa/contracts";
+import type { ProjectProfile } from "@silentskip/contracts";
 import type { SourceInput } from "../facts/index.js";
 
 /** Digest schema version — bump when the shape of `DigestBundle` changes. */

@@ -1,4 +1,4 @@
-import type { RunSummary, Verdict } from "@craftland-qa/contracts";
+import type { RunSummary, Verdict } from "@silentskip/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { cn } from "cn";
 import {

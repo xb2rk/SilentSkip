@@ -8,8 +8,8 @@ import {
   RunListResponseSchema,
   StartReviewRequestSchema,
   StartReviewResponseSchema,
-} from "@craftland-qa/contracts";
-import type { AppDatabase } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import type { AppDatabase } from "@silentskip/db";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { blameLines, fileAttribution } from "../attribution";

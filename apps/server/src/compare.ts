@@ -7,9 +7,9 @@ import {
   type SilentSkipSurface,
   type SurfaceHistoryResponse,
   SurfaceHistoryResponseSchema,
-} from "@craftland-qa/contracts";
-import type { AppDatabase } from "@craftland-qa/db";
-import { runs } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import type { AppDatabase } from "@silentskip/db";
+import { runs } from "@silentskip/db";
 import { desc, eq } from "drizzle-orm";
 
 /**

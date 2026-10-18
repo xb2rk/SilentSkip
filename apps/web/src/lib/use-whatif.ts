@@ -7,7 +7,7 @@ import {
   WhatIfSessionListResponseSchema,
   type WhatIfStreamEvent,
   WhatIfStreamEventSchema,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { fetchJson } from "./api";

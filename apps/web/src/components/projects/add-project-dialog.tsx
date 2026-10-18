@@ -1,4 +1,4 @@
-import type { ProjectSummary } from "@craftland-qa/contracts";
+import type { ProjectSummary } from "@silentskip/contracts";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";

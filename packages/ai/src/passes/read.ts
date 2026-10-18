@@ -1,4 +1,4 @@
-import { type DigestFinding, type ReadOutput, ReadOutputSchema } from "@craftland-qa/contracts";
+import { type DigestFinding, type ReadOutput, ReadOutputSchema } from "@silentskip/contracts";
 import {
   buildPassManifestJson,
   serializeAnchorsJsonl,

@@ -1,11 +1,11 @@
 import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * Craftland QA database schema (SQLite via node:sqlite).
+ * SilentSkip database schema (SQLite via node:sqlite).
  *
  * Design notes:
  * - JSON payloads (reports, digests, manifests, ledgers) live in `*_json` text columns;
- *   their shapes are owned by `@craftland-qa/contracts`, not by this schema.
+ *   their shapes are owned by `@silentskip/contracts`, not by this schema.
  * - Enum-ish columns carry `$type<>()` unions so app code works with string unions while
  *   SQLite stores plain text (no CHECK constraints — invalid states are rejected at the
  *   contract (Zod) boundary, this schema is the persistence mirror).

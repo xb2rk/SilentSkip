@@ -8,7 +8,7 @@ import {
   runWhatIfPass,
   type WhatIfTurnInput,
   type WorkflowRunner,
-} from "@craftland-qa/ai";
+} from "@silentskip/ai";
 import {
   type AddPinRequest,
   AppError,
@@ -23,7 +23,7 @@ import {
   type WhatIfStreamEvent,
   type WhatIfTurn,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import {
   type AppDatabase,
   contextManifests,
@@ -32,7 +32,7 @@ import {
   sessionLedgers,
   sessions,
   turns,
-} from "@craftland-qa/db";
+} from "@silentskip/db";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";

@@ -1,5 +1,5 @@
-import { DigestBundleSchema } from "@craftland-qa/contracts";
-import { buildDigest } from "@craftland-qa/engine";
+import { DigestBundleSchema } from "@silentskip/contracts";
+import { buildDigest } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

@@ -19,7 +19,7 @@ import type {
   DigestTableChange,
   DigestWidthEntry,
   ProjectProfile,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { type CheckSide, runChecks } from "../checks/index.js";
 import { type CsvCell, type CsvRow, type CsvTable, parseCsv } from "../csv/index.js";
 import {

@@ -1,12 +1,12 @@
-import { type PassConfig, runInseaWorkflow, type WorkflowRunner } from "@craftland-qa/ai";
+import { type PassConfig, runInseaWorkflow, type WorkflowRunner } from "@silentskip/ai";
 import {
   API_VERSION,
   AppError,
   ErrorCodes,
   HealthResponseSchema,
   PRODUCT_VERSION,
-} from "@craftland-qa/contracts";
-import type { AppDatabase } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import type { AppDatabase } from "@silentskip/db";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -63,7 +63,7 @@ export function createApp(deps: AppDependencies): Hono {
     const database = checkDatabase(deps.db);
     const body = HealthResponseSchema.parse({
       ok: true,
-      product: "craftland-qa",
+      product: "silentskip",
       version: PRODUCT_VERSION,
       apiVersion: API_VERSION,
       uptimeSeconds: Math.round(process.uptime()),

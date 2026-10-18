@@ -6,8 +6,8 @@ import {
   AttributionResponseSchema,
   BlameResponseSchema,
   WORKTREE_REF,
-} from "@craftland-qa/contracts";
-import { migrateDatabase, openDatabase, runs } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import { migrateDatabase, openDatabase, runs } from "@silentskip/db";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";

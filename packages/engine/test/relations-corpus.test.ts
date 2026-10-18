@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildFactBundle, buildRelations } from "@craftland-qa/engine";
+import { buildFactBundle, buildRelations } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**

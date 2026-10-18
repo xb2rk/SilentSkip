@@ -5,7 +5,7 @@ copy of the sample project's checked-in FC sources. This file records exactly wh
 from where, and every intentional deviation. Re-sync with:
 
 ```sh
-pnpm --filter @craftland-qa/fc-lang sync:fc-lang
+pnpm --filter @silentskip/fc-lang sync:fc-lang
 ```
 
 ## Upstream

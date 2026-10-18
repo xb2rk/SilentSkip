@@ -11,8 +11,8 @@ import {
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
   SurfaceHistoryResponseSchema,
-} from "@craftland-qa/contracts";
-import type { AppDatabase } from "@craftland-qa/db";
+} from "@silentskip/contracts";
+import type { AppDatabase } from "@silentskip/db";
 import { Hono } from "hono";
 import { surfaceHistory } from "../compare";
 import { loadDigest, loadLocalizationReport } from "../digest-input";

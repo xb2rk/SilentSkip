@@ -10,7 +10,7 @@
  * soft (never a hard block). Only `exact` findings may carry `critical`/`major` severity.
  */
 
-import type { ProjectProfile } from "@craftland-qa/contracts";
+import type { ProjectProfile } from "@silentskip/contracts";
 import type { CsvTable } from "../csv/index.js";
 import type { DeltaBundle } from "../delta/index.js";
 import type { FactSpan, FileFacts } from "../facts/index.js";

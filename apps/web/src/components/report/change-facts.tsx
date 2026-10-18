@@ -3,7 +3,7 @@ import type {
   DigestBundle,
   DigestScriptChange,
   DigestTableChange,
-} from "@craftland-qa/contracts";
+} from "@silentskip/contracts";
 import { cn } from "cn";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";

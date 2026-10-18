@@ -1,4 +1,4 @@
-# Craftland QA
+# SilentSkip
 
 Local-first A/B review tool for Craftland Studio projects. It compares two git refs (A/B) across
 CSV configuration and FC code (`.fcc`/`.fcg`), surfaces configuration ↔ code mismatches that
@@ -66,14 +66,14 @@ Everything runs without configuration; copy `.env.example` to `.env` to override
 | `PORT` | `3000` | API server port |
 | `HOST` | `127.0.0.1` | Bind host — this tool is local-first |
 | `LOG_LEVEL` | `debug` in dev, `info` in production | pino log level |
-| `SQLITE_PATH` | `%LOCALAPPDATA%\CraftlandQA\data.sqlite` (Windows), `~/.craftland-qa/data.sqlite` | SQLite database file |
+| `SQLITE_PATH` | `%LOCALAPPDATA%\SilentSkip\data.sqlite` (Windows), `~/.silentskip/data.sqlite` | SQLite database file |
 | `AI_WORKFLOW_URL` | — | Insea workflow run endpoint |
 | `AI_WORKFLOW_API_KEY` | — | Bearer token for the endpoint |
 | `AI_WORKFLOW_TIMEOUT_MS` | `180000` | Per-request AI timeout |
 
 AI is optional: without `AI_WORKFLOW_URL`/`AI_WORKFLOW_API_KEY` reviews still complete with the
 deterministic fallback report. Verify connectivity with
-`pnpm --filter @craftland-qa/ai canary`.
+`pnpm --filter @silentskip/ai canary`.
 
 ### First run
 
@@ -103,10 +103,10 @@ deterministic fallback report. Verify connectivity with
 
 Diagnostic probes worth knowing:
 
-- `pnpm --filter @craftland-qa/ai canary` — one real Insea round-trip (latency, salvage rung).
-- `pnpm --filter @craftland-qa/ai review:once <projectId> <base> <current>` — the full review
+- `pnpm --filter @silentskip/ai canary` — one real Insea round-trip (latency, salvage rung).
+- `pnpm --filter @silentskip/ai review:once <projectId> <base> <current>` — the full review
   pipeline against a running dev server.
-- `pnpm --filter @craftland-qa/engine probe:project <root>` / `probe:delta <root> <base> <current>`
+- `pnpm --filter @silentskip/engine probe:project <root>` / `probe:delta <root> <base> <current>`
   — fact/CSV and delta pipelines over a real project, with determinism checks.
 
 ## Repository layout

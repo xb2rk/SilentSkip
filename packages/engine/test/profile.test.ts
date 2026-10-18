@@ -3,8 +3,8 @@
  * relations, with raw-faithful spans and honest evidence lines.
  */
 
-import type { FactBundle, RelationSet } from "@craftland-qa/engine";
-import { buildFactBundle, buildRelations, collectDiscoveryCandidates } from "@craftland-qa/engine";
+import type { FactBundle, RelationSet } from "@silentskip/engine";
+import { buildFactBundle, buildRelations, collectDiscoveryCandidates } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 const A = `import "Convert.fcc" as Convert

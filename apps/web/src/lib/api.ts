@@ -1,4 +1,4 @@
-import { AppError, type ErrorCode, ErrorCodes, ErrorEnvelopeSchema } from "@craftland-qa/contracts";
+import { AppError, type ErrorCode, ErrorCodes, ErrorEnvelopeSchema } from "@silentskip/contracts";
 import i18n from "@/i18n";
 
 /**

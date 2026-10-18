@@ -1,4 +1,4 @@
-import type { ReadOutput, SynthesizeOutput } from "@craftland-qa/contracts";
+import type { ReadOutput, SynthesizeOutput } from "@silentskip/contracts";
 import { describe, expect, it } from "vitest";
 import type { InseaRunRequest } from "../src/index";
 import { runReviewPipeline } from "../src/index";

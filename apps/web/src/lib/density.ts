@@ -8,7 +8,7 @@
 export type Density = "comfortable" | "compact";
 
 /** localStorage key, shared with the pre-hydration script in index.html. */
-export const DENSITY_STORAGE_KEY = "craftland-qa:density";
+export const DENSITY_STORAGE_KEY = "silentskip:density";
 
 /** Read the stored density; defaults to "comfortable" when unset or storage is blocked. */
 export function readStoredDensity(): Density {

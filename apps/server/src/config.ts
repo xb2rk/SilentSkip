@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { AppError, ErrorCodes } from "@craftland-qa/contracts";
+import { AppError, ErrorCodes } from "@silentskip/contracts";
 
 /**
  * Server configuration, resolved once at boot from environment variables with safe,
@@ -80,7 +80,7 @@ function parsePort(raw: string | undefined): number {
 function defaultSqlitePath(env: NodeJS.ProcessEnv): string {
   const localAppData = env.LOCALAPPDATA;
   if (localAppData !== undefined && localAppData !== "") {
-    return join(localAppData, "CraftlandQA", "data.sqlite");
+    return join(localAppData, "SilentSkip", "data.sqlite");
   }
-  return join(homedir(), ".craftland-qa", "data.sqlite");
+  return join(homedir(), ".silentskip", "data.sqlite");
 }

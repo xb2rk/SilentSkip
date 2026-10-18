@@ -1,4 +1,4 @@
-import type { SynthesizeOutput } from "@craftland-qa/contracts";
+import type { SynthesizeOutput } from "@silentskip/contracts";
 import { describe, expect, it } from "vitest";
 import {
   addLinkStats,
