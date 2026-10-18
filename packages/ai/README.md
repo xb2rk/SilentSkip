@@ -79,7 +79,7 @@ linker that gates every citation.
   call-arity drift and named treatments of the new special-enemy and stat-service systems;
   229 anchors verified, hallucinated ids stripped honestly.
 
-- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.0) answers one question per turn over
+- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.1) answers one question per turn over
   the same machinery. Insea is stateless, so every call **reconstructs context**: task pack, the
   session ledger (mechanically composed from previous answers — no summarization call), recent raw
   turns, pins, and a 400-anchor evidence pack with **pinned anchors boosted to the front**, plus the
@@ -93,6 +93,11 @@ linker that gates every citation.
   replay. Real smoke (Sample `refactor/localization→main`, 2 turns): grounded Vietnamese answer citing
   `SpecialUnitData.fcg:159`; follow-up carried `turns=1` + `pins=1` in its context and answered the
   spawn-flow question coherently.
+
+- **Honest engine effects (E8.2d)** — engine findings carry `effectConfidence` next to
+  `confidence` (observation vs runtime consequence). Shared prompt rules now require inferred or
+  unknown effects to be phrased as possibilities, never facts; all pass versions bumped by one
+  patch (map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.1).
 
 ## Planned scope
 

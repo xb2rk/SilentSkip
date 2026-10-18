@@ -13,11 +13,11 @@ import type { WhatIfContext } from "../whatif/context.js";
 
 /** Prompt versions per pass. Bump on any wording change. */
 export const PROMPT_VERSIONS = {
-  map: "2.1.0",
-  read: "2.2.0",
-  dig: "2.0.0",
-  synthesize: "2.2.0",
-  whatif: "1.0.0",
+  map: "2.1.1",
+  read: "2.2.1",
+  dig: "2.0.1",
+  synthesize: "2.2.1",
+  whatif: "1.0.1",
 } as const;
 
 const SHARED_RULES = `Rules (non-negotiable):
@@ -26,7 +26,8 @@ const SHARED_RULES = `Rules (non-negotiable):
 3. NUMBERS: write every number as a {{f:<factId>}} placeholder using a quantity id from facts.json. A deterministic scanner rejects free digits; the only digits allowed in text are those that are part of file names, rule ids or anchor ids exactly as they appear in the attached data.
 4. Structural comparisons between two numbers MUST use the "claims" typed slots {"subject":"<factId>","relation":"equals|differs","object":"<factId>"}. The engine evaluates every claim itself: a false claim or an unknown fact id invalidates its finding.
 5. Ground everything in the attached data. If a statement cannot be grounded, put it in "unknowns". "confidence": exact | inferred | unknown. "severity": critical | major | minor | info.
-6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.`;
+6. Engine findings may carry "effectConfidence": "exact" | "inferred" | "unknown". "confidence" describes the measured observation; "effectConfidence" describes the runtime consequence. If effectConfidence is "inferred" or "unknown", never state the runtime effect as fact: phrase it as a possible consequence and set your own finding confidence to inferred, or move the open question to "unknowns".
+7. Return STRICT JSON only — no prose, no markdown fences, no extra keys.`;
 
 /** The shared task-pack block every prompt ends with. */
 function taskPackBlock(context: { readonly taskPack: TaskPack }): string {

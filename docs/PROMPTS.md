@@ -1,7 +1,7 @@
 # Prompt passes
 
 Prompts are code. They live in the versioned registry `packages/ai/src/prompts/registry.ts`
-(`PROMPT_VERSIONS` per pass — map 2.1.0, read 2.2.0, dig 2.0.0, synthesize 2.2.0, whatif 1.0.0 —
+(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.1 —
 snapshot-tested); passes reference them by version, and the version is persisted with every pass
 in `contextManifests`.
 
@@ -16,6 +16,9 @@ in `contextManifests`.
    (`{"subject":"<factId>","relation":"equals|differs","object":"<factId>"}`) that the engine
    evaluates itself — a false claim or an unknown fact id invalidates its finding.
 5. Ungrounded statements belong in `unknowns`, never in findings.
+6. Engine findings carry `confidence` (the observation) and optional `effectConfidence` (the
+   runtime consequence). An inferred/unknown effect must be phrased as a possibility, never a
+   fact; the model's own finding confidence follows suit. Silent-skip surfaces never enter prompts.
 6. Strict JSON only — no prose around the object.
 
 ## The v2 flow
@@ -28,7 +31,7 @@ functions — explain behaviour first) and file-balanced snippet anchors (≤40/
 unit is read in chunks (`chunk C of K`). Citations are checked against the **full digest
 registry**, never against the budgeted evidence pack.
 
-The **What-If pass** (`whatif` 1.0.0) answers one question per turn: Insea is stateless, so every
+The **What-If pass** (`whatif` 1.0.1) answers one question per turn: Insea is stateless, so every
 call reconstructs context from the task pack, the session ledger, recent turns, pins (boosted to the
 front of the evidence pack) and the latest verified run report of the same comparison; `linkAnswer`
 then gates the answer like every other pass.

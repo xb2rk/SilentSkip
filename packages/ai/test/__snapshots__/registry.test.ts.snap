@@ -9,7 +9,8 @@ Rules (non-negotiable):
 3. NUMBERS: write every number as a {{f:<factId>}} placeholder using a quantity id from facts.json. A deterministic scanner rejects free digits; the only digits allowed in text are those that are part of file names, rule ids or anchor ids exactly as they appear in the attached data.
 4. Structural comparisons between two numbers MUST use the "claims" typed slots {"subject":"<factId>","relation":"equals|differs","object":"<factId>"}. The engine evaluates every claim itself: a false claim or an unknown fact id invalidates its finding.
 5. Ground everything in the attached data. If a statement cannot be grounded, put it in "unknowns". "confidence": exact | inferred | unknown. "severity": critical | major | minor | info.
-6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
+6. Engine findings may carry "effectConfidence": "exact" | "inferred" | "unknown". "confidence" describes the measured observation; "effectConfidence" describes the runtime consequence. If effectConfidence is "inferred" or "unknown", never state the runtime effect as fact: phrase it as a possible consequence and set your own finding confidence to inferred, or move the open question to "unknowns".
+7. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
 
 ## Queries from the reading flow
 1. scout chính xác đổi thế nào?
@@ -44,7 +45,8 @@ Rules (non-negotiable):
 3. NUMBERS: write every number as a {{f:<factId>}} placeholder using a quantity id from facts.json. A deterministic scanner rejects free digits; the only digits allowed in text are those that are part of file names, rule ids or anchor ids exactly as they appear in the attached data.
 4. Structural comparisons between two numbers MUST use the "claims" typed slots {"subject":"<factId>","relation":"equals|differs","object":"<factId>"}. The engine evaluates every claim itself: a false claim or an unknown fact id invalidates its finding.
 5. Ground everything in the attached data. If a statement cannot be grounded, put it in "unknowns". "confidence": exact | inferred | unknown. "severity": critical | major | minor | info.
-6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
+6. Engine findings may carry "effectConfidence": "exact" | "inferred" | "unknown". "confidence" describes the measured observation; "effectConfidence" describes the runtime consequence. If effectConfidence is "inferred" or "unknown", never state the runtime effect as fact: phrase it as a possible consequence and set your own finding confidence to inferred, or move the open question to "unknowns".
+7. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
 
 ## What to produce
 Strict JSON with exactly these keys:
@@ -77,7 +79,8 @@ Rules (non-negotiable):
 3. NUMBERS: write every number as a {{f:<factId>}} placeholder using a quantity id from facts.json. A deterministic scanner rejects free digits; the only digits allowed in text are those that are part of file names, rule ids or anchor ids exactly as they appear in the attached data.
 4. Structural comparisons between two numbers MUST use the "claims" typed slots {"subject":"<factId>","relation":"equals|differs","object":"<factId>"}. The engine evaluates every claim itself: a false claim or an unknown fact id invalidates its finding.
 5. Ground everything in the attached data. If a statement cannot be grounded, put it in "unknowns". "confidence": exact | inferred | unknown. "severity": critical | major | minor | info.
-6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
+6. Engine findings may carry "effectConfidence": "exact" | "inferred" | "unknown". "confidence" describes the measured observation; "effectConfidence" describes the runtime consequence. If effectConfidence is "inferred" or "unknown", never state the runtime effect as fact: phrase it as a possible consequence and set your own finding confidence to inferred, or move the open question to "unknowns".
+7. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
 
 ## What to produce
 Strict JSON with exactly these keys:
@@ -119,7 +122,8 @@ Rules (non-negotiable):
 3. NUMBERS: write every number as a {{f:<factId>}} placeholder using a quantity id from facts.json. A deterministic scanner rejects free digits; the only digits allowed in text are those that are part of file names, rule ids or anchor ids exactly as they appear in the attached data.
 4. Structural comparisons between two numbers MUST use the "claims" typed slots {"subject":"<factId>","relation":"equals|differs","object":"<factId>"}. The engine evaluates every claim itself: a false claim or an unknown fact id invalidates its finding.
 5. Ground everything in the attached data. If a statement cannot be grounded, put it in "unknowns". "confidence": exact | inferred | unknown. "severity": critical | major | minor | info.
-6. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
+6. Engine findings may carry "effectConfidence": "exact" | "inferred" | "unknown". "confidence" describes the measured observation; "effectConfidence" describes the runtime consequence. If effectConfidence is "inferred" or "unknown", never state the runtime effect as fact: phrase it as a possible consequence and set your own finding confidence to inferred, or move the open question to "unknowns".
+7. Return STRICT JSON only — no prose, no markdown fences, no extra keys.
 
 ## Review rubric (qualityScore 0-100 — how grounded and complete THIS review is, not the game's quality)
 - grounding (0-30): every claim carried from findings.json; no unsupported statements

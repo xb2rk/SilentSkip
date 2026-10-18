@@ -60,7 +60,7 @@ describe("map pass", () => {
     expect(result.output).toEqual(output);
     expect(result.meta).toEqual({
       pass: "map",
-      promptVersion: "2.1.0",
+      promptVersion: "2.1.1",
       latencyMs: 7,
       salvage: "clean",
     });
@@ -140,7 +140,7 @@ describe("read pass", () => {
     expect(result.output.findings).toHaveLength(1);
     expect(result.meta).toEqual({
       pass: "read",
-      promptVersion: "2.2.0",
+      promptVersion: "2.2.1",
       latencyMs: 7,
       salvage: "clean",
       unit: 1,
