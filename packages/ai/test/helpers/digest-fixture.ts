@@ -25,7 +25,7 @@ const BLOB_SHA = "0000000000000000000000000000000000000000";
 /** Fresh digest fixture — every call returns a new object so tests can mutate freely. */
 export function makeDigest(): DigestBundle {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     refs: {
       base: { ref: "HEAD~1", commitHash: "aaaa1111" },
       current: { ref: "WORKTREE", commitHash: null },
@@ -200,6 +200,13 @@ export function makeDigest(): DigestBundle {
         derivation: ["Header cell count on side B: 2."],
       },
     ],
+    surfaces: {
+      base: { ref: "A", entries: [], truncated: 0 },
+      current: { ref: "B", entries: [], truncated: 0 },
+      delta: { newSilent: [], fixed: [], unchanged: [] },
+      detectedMechanisms: [],
+      note: "Fixture: no silent-skip effects.",
+    },
     bodies: [
       {
         file: SCRIPT_PATH,

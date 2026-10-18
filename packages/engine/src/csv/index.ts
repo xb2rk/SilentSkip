@@ -5,5 +5,6 @@
  * goes through `parseCsv` so coordinate and raw-faithfulness guarantees hold everywhere.
  */
 
+export * from "./analysis.js";
 export * from "./parse.js";
 export * from "./types.js";

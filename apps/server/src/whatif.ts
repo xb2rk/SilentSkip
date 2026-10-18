@@ -36,6 +36,7 @@ import {
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
+import { loadProjectProfile } from "./profiles";
 import { getProject } from "./projects";
 import { SseChannel } from "./sse-channel";
 
@@ -236,7 +237,12 @@ export class WhatIfManager {
       .get();
     if (existing !== undefined) return this.projectPin(existing);
 
-    const digest = await loadDigest(project.rootPath, input.baseRef, input.currentRef);
+    const digest = await loadDigest(
+      project.rootPath,
+      input.baseRef,
+      input.currentRef,
+      loadProjectProfile(this.deps.db, input.projectId),
+    );
     if (!digest.anchors.some((anchor) => anchor.id === input.anchorId)) {
       throw new AppError(
         ErrorCodes.badRequest,
@@ -292,7 +298,12 @@ export class WhatIfManager {
     try {
       const contextStartedAt = Date.now();
       await emitStage("context", "started");
-      const digest = await loadDigest(project.rootPath, baseRef, currentRef);
+      const digest = await loadDigest(
+        project.rootPath,
+        baseRef,
+        currentRef,
+        loadProjectProfile(this.deps.db, project.id),
+      );
       const ledgerRow = this.deps.db
         .select()
         .from(sessionLedgers)

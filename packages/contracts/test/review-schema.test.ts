@@ -56,6 +56,13 @@ const RESULT = {
     counts: { changeFacts: 1, linked: 1, contextItems: 1, evidence: 4, evidenceDropped: 0 },
     notes: [],
   },
+  surfaces: {
+    base: { ref: "A", entries: [], truncated: 0 },
+    current: { ref: "B", entries: [], truncated: 0 },
+    delta: { newSilent: [], fixed: [], unchanged: [] },
+    detectedMechanisms: [],
+    note: "No silent-skip effects.",
+  },
   fallbackReason: null,
 };
 

@@ -22,6 +22,7 @@ import { type AppDatabase, contextManifests, runs } from "@craftland-qa/db";
 import { desc, eq } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
+import { loadProjectProfile } from "./profiles";
 import { getProject } from "./projects";
 import { SseChannel } from "./sse-channel";
 
@@ -177,7 +178,12 @@ export class ReviewManager {
     let digest: Awaited<ReturnType<typeof loadDigest>> | undefined;
     try {
       await channel.emit({ type: "stage", stage: "digest", state: "started" });
-      digest = await loadDigest(rootPath, input.baseRef, input.currentRef);
+      digest = await loadDigest(
+        rootPath,
+        input.baseRef,
+        input.currentRef,
+        loadProjectProfile(this.deps.db, input.projectId),
+      );
       await channel.emit({ type: "stage", stage: "digest", state: "completed" });
       const result = await runReviewPipeline(
         { runner: this.deps.runner, config: this.deps.config },
@@ -203,6 +209,7 @@ export class ReviewManager {
           counts: result.contextManifest.counts,
           notes: [...result.contextManifest.notes],
         },
+        surfaces: result.surfaces,
         fallbackReason: null,
       };
       this.persist(runId, {
@@ -269,6 +276,7 @@ export class ReviewManager {
           counts: { changeFacts: 0, linked: 0, contextItems: 0, evidence: 0, evidenceDropped: 0 },
           notes: [],
         },
+        surfaces: digest.surfaces,
         fallbackReason: fallback.reason,
       };
       this.persist(runId, {

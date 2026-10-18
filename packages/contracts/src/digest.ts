@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { SilentSkipSurfaceSchema } from "./surface";
+
 /**
  * Anchor + digest contracts — the JSON shapes of the fact sheet that is served to the UI
  * and, from E4, to the AI passes. Schemas are the source of truth; the server and the web
@@ -300,6 +302,8 @@ export const DigestBundleSchema = z.object({
   quantities: z.array(DigestQuantitySchema),
   /** Deterministic engine findings (layer 3). */
   findings: z.array(DigestFindingSchema),
+  /** Silent-skip surface per ref plus the A/B delta (E8). */
+  surfaces: SilentSkipSurfaceSchema,
   /** Body material: function bodies of added/changed functions (E7.5 reading depth). */
   bodies: z.array(DigestBodySchema),
   /** Reading plan: units + skeleton + base partition (E7 flow). */

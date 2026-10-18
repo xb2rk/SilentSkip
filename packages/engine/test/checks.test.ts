@@ -62,15 +62,17 @@ function byRule(findings: CheckFinding[], ruleId: string): CheckFinding[] {
   return findings.filter((finding) => finding.ruleId === ruleId);
 }
 
-/** Minimal profile carrying one `pin-binding` override. */
-function profileWithPin(csvPath: string, value: string): ProjectProfile {
+/** Minimal profile carrying one binding override (row-key column or index enum). */
+function profileWithPin(
+  csvPath: string,
+  value: string,
+  kind: "pin-binding" | "pin-row-key" = "pin-binding",
+): ProjectProfile {
   return {
     projectId: "p1",
     conventions: [],
     readApiFamily: [],
-    overrides: [
-      { id: "o1", kind: "pin-binding", target: { csvPath }, value, createdAt: "2026-01-01" },
-    ],
+    overrides: [{ id: "o1", kind, target: { csvPath }, value, createdAt: "2026-01-01" }],
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -239,7 +241,7 @@ describe("STRUCT-02 row keys", () => {
       checks(
         [{ path: TABLE_PATH, source: TABLE_CLEAN }],
         [{ path: TABLE_PATH, source: TABLE_DUP }],
-        { profile: profileWithPin(TABLE_PATH, "id") },
+        { profile: profileWithPin(TABLE_PATH, "id", "pin-row-key") },
       ),
       "STRUCT-02",
     );
@@ -254,7 +256,7 @@ describe("STRUCT-02 row keys", () => {
       checks(
         [{ path: TABLE_PATH, source: TABLE_CLEAN }],
         [{ path: TABLE_PATH, source: "id,atk\nscout,120\nguard,80\n" }],
-        { profile: profileWithPin(TABLE_PATH, "nope") },
+        { profile: profileWithPin(TABLE_PATH, "nope", "pin-row-key") },
       ),
       "STRUCT-02",
     ).filter((finding) => finding.id.startsWith("STRUCT-02|B|"));

@@ -7,5 +7,6 @@ export * from "./passes";
 export * from "./profile";
 export * from "./project";
 export * from "./review";
+export * from "./surface";
 export * from "./version";
 export * from "./whatif";

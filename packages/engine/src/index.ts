@@ -24,3 +24,4 @@ export * from "./journey/index.js";
 export * from "./plan/index.js";
 export * from "./profile/index.js";
 export * from "./relations/index.js";
+export * from "./surfaces/index.js";

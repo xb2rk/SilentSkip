@@ -17,7 +17,7 @@ const FCG_BEFORE = `static graph Config {
 `;
 const FCG_AFTER = FCG_BEFORE.replace("104729", "999983");
 const CSV_BEFORE = "id,atk\nscout,100\n";
-const CSV_AFTER = "id,atk\nscout,100,999\n";
+const CSV_AFTER = "id,atk\nscout,100\nscout,120,999\n";
 
 let workspace: string;
 let gameDir: string;
@@ -112,5 +112,39 @@ describe("GET /api/projects/:id/digest", () => {
     );
     expect(response.status).toBe(422);
     expect(ErrorEnvelopeSchema.parse(await response.json()).error.code).toBe("NOT_A_GIT_REPO");
+  });
+
+  it("applies a saved row-key pin to the digest surface", async () => {
+    const save = await app.request(`/api/projects/${gameId}/profile`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conventions: [],
+        readApiFamily: [],
+        overrides: [
+          {
+            id: "pin-unit-key",
+            kind: "pin-row-key",
+            target: { csvPath: "Assets/CSV/UnitData.csv" },
+            value: "id",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        coverage: null,
+        editorGenIndex: false,
+      }),
+    });
+    expect(save.status).toBe(200);
+
+    const response = await app.request(
+      `/api/projects/${gameId}/digest?base=HEAD&current=${WORKTREE_REF}`,
+    );
+    expect(response.status).toBe(200);
+    const digest = DigestBundleSchema.parse(await response.json());
+    const duplicate = digest.surfaces.current.entries.find(
+      (entry) => entry.table === "Assets/CSV/UnitData.csv" && entry.mechanism === "duplicate_key",
+    );
+    expect(duplicate?.confidence).toBe("exact");
+    expect(duplicate?.rowKey).toBe("scout");
   });
 });

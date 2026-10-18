@@ -4,6 +4,7 @@ import { NotFoundPage } from "@/components/not-found";
 import { ComparePage } from "@/pages/compare-page";
 import { HistoryPage } from "@/pages/history-page";
 import { OverviewPage } from "@/pages/overview-page";
+import { ProjectProfilePage } from "@/pages/project-profile-page";
 import { RunPage } from "@/pages/run-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { StatusPage } from "@/pages/status-page";
@@ -70,6 +71,11 @@ const toolsRoute = createRoute({
   path: "/tools",
   component: ToolsPage,
 });
+const projectProfileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/project",
+  component: ProjectProfilePage,
+});
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
@@ -88,6 +94,7 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   runRoute,
   toolsRoute,
+  projectProfileRoute,
   settingsRoute,
   statusRoute,
 ]);

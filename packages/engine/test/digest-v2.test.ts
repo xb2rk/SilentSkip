@@ -39,7 +39,7 @@ describe("digest v2", () => {
   it("parses through the contracts schema and carries engine findings with resolvable anchors", () => {
     const digest = DigestBundleSchema.parse(buildDigest(INPUT));
 
-    expect(digest.schemaVersion).toBe(3);
+    expect(digest.schemaVersion).toBe(4);
     const struct01 = digest.findings.filter((finding) => finding.ruleId === "STRUCT-01");
     expect(struct01).toHaveLength(1);
     const finding = struct01[0];

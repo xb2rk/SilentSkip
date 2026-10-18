@@ -2,6 +2,7 @@ import { PRODUCT_VERSION } from "@craftland-qa/contracts";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
+  BookOpen,
   FolderGit2,
   GitCompareArrows,
   History,
@@ -47,6 +48,7 @@ const NAV_GROUPS = [
   {
     labelKey: "nav.group.system",
     items: [
+      { to: "/project", labelKey: "nav.projectProfile", icon: BookOpen },
       { to: "/status", labelKey: "nav.status", icon: Activity },
       { to: "/settings", labelKey: "nav.settings", icon: SettingsIcon },
     ],

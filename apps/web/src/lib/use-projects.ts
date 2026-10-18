@@ -4,6 +4,8 @@ import {
   DigestBundleSchema,
   FsListResponseSchema,
   ProjectListResponseSchema,
+  ProjectProfileSchema,
+  type ProjectProfileUpdate,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
 } from "@craftland-qa/contracts";
@@ -78,6 +80,38 @@ export function useDigest(
           `/api/projects/${projectId}/digest?base=${encodeURIComponent(baseRef ?? "")}&current=${encodeURIComponent(currentRef ?? "")}`,
         ),
       ),
+  });
+}
+
+/** Saved profile for one project — conventions, pins, notes, editorGen flag (E8). */
+export function useProjectProfile(projectId: string | null) {
+  return useQuery({
+    queryKey: ["projects", projectId, "profile"],
+    enabled: projectId !== null,
+    staleTime: PROJECTS_STALE_MS,
+    queryFn: async () =>
+      ProjectProfileSchema.parse(await fetchJson<unknown>(`/api/projects/${projectId}/profile`)),
+  });
+}
+
+/** Replace the profile (server owns projectId/updatedAt); digest queries are invalidated. */
+export function useSaveProjectProfile(projectId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ProjectProfileUpdate) =>
+      ProjectProfileSchema.parse(
+        await fetchJson<unknown>(`/api/projects/${projectId}/profile`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
+        }),
+      ),
+    onSuccess: async (profile) => {
+      queryClient.setQueryData(["projects", projectId, "profile"], profile);
+      await queryClient.invalidateQueries({
+        queryKey: ["projects", projectId, "digest"],
+      });
+    },
   });
 }
 

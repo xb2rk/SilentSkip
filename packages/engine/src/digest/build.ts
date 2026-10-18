@@ -45,6 +45,7 @@ import {
   type PlanTableInput,
 } from "../plan/index.js";
 import { buildRelations, type RelationSet } from "../relations/index.js";
+import { runSurfaces } from "../surfaces/index.js";
 import {
   DEFAULT_BODY_BUDGET_BYTES,
   DEFAULT_BODY_BYTES_PER_FUNCTION,
@@ -940,6 +941,21 @@ export function buildDigest(input: DigestInput): DigestBundle {
       return registry.add(ref, file, source, span, kind);
     },
   });
+  const surfaces = runSurfaces({
+    base: checkSideOf(base, "A"),
+    current: checkSideOf(current, "B"),
+    delta,
+    ...(input.profile === undefined ? {} : { profile: input.profile }),
+    relations,
+    registerAnchor: (ref, file, span, kind) => {
+      const side = ref === "A" ? base : current;
+      const source = side.sources.get(file);
+      if (source === undefined) {
+        throw new Error(`Surface anchor source missing: ${ref}:${file}`);
+      }
+      return registry.add(ref, file, source, span, kind);
+    },
+  });
   const bodyBudget = input.budgets?.bodyBudgetBytes ?? DEFAULT_BODY_BUDGET_BYTES;
   const bodyMaterial = collectBodies(delta, current, bodyBudget);
   const quantities = collectQuantities(changeFacts, base, current, registry);
@@ -986,6 +1002,7 @@ export function buildDigest(input: DigestInput): DigestBundle {
     context,
     quantities,
     findings,
+    surfaces,
     bodies: bodyMaterial.bodies,
     plan,
     anchors,

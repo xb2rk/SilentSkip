@@ -25,7 +25,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTheme } from "@/contexts/theme-context";
 import { applyDensity, type Density, persistDensity, readStoredDensity } from "@/lib/density";
@@ -184,19 +183,16 @@ export function SettingsPage() {
       content = (
         <Card>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between gap-2">
+            <div className="space-y-1">
               <Label className="text-body font-semibold">{t("settings.editorGenTitle")}</Label>
-              <Badge variant="secondary" className="font-normal text-muted-foreground">
-                {t("common.comingSoon")}
-              </Badge>
+              <p className="text-meta text-muted-foreground">
+                {t("settings.editorGenDescription")}
+              </p>
             </div>
-            <p className="text-meta text-muted-foreground">{t("settings.editorGenDescription")}</p>
-            <div className="flex items-center gap-3">
-              <Switch id="editor-gen" disabled />
-              <Label htmlFor="editor-gen" className="text-body text-muted-foreground">
-                {t("settings.editorGenToggle")}
-              </Label>
-            </div>
+            <p className="text-meta text-muted-foreground">{t("settings.editorGenMovedHint")}</p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/project">{t("nav.projectProfile")}</Link>
+            </Button>
           </CardContent>
         </Card>
       );

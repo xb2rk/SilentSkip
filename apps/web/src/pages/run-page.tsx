@@ -25,6 +25,7 @@ import { ChangeFacts } from "@/components/report/change-facts";
 import { EngineFindingCard } from "@/components/report/engine-finding-card";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
 import { FindingCard } from "@/components/report/finding-card";
+import { SurfacesBoard } from "@/components/report/surfaces-board";
 import { ThemeMap } from "@/components/report/theme-map";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -424,6 +425,10 @@ export function RunPage() {
   };
   const visibleAi = aiFindings.filter((finding) => inTheme(finding.anchors));
   const visibleEngine = engineFindings.filter((finding) => inTheme(finding.anchors));
+  const surfaceChanges =
+    result?.surfaces === null || result?.surfaces === undefined
+      ? 0
+      : result.surfaces.delta.newSilent.length + result.surfaces.delta.fixed.length;
 
   const runRefs = {
     projectId: run.projectId,
@@ -654,6 +659,9 @@ export function RunPage() {
               <TabsTrigger value="engine">
                 {t("run.tabEngine")} ({engineFindings.length})
               </TabsTrigger>
+              <TabsTrigger value="surfaces">
+                {t("run.tabSurfaces")} ({surfaceChanges})
+              </TabsTrigger>
               <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>
               <TabsTrigger value="notes">{t("run.tabNotes")}</TabsTrigger>
             </TabsList>
@@ -771,6 +779,18 @@ export function RunPage() {
                     onAsk={handleAskAbout}
                   />
                 ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="surfaces" className="pt-2">
+              {result.surfaces === null ? (
+                <p className="text-body text-muted-foreground">{t("run.surfacesLegacy")}</p>
+              ) : (
+                <SurfacesBoard
+                  surface={result.surfaces}
+                  anchorsById={anchorsById}
+                  onAnchorClick={setAnchor}
+                />
               )}
             </TabsContent>
 

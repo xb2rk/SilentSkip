@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ReviewLensSchema, SynthesizeOutputSchema, VerdictSchema } from "./passes";
+import { SilentSkipSurfaceSchema } from "./surface";
 
 /**
  * Review-run contracts (E4.4) — the wire shape of an A/B review execution over HTTP.
@@ -136,6 +137,8 @@ export const ReviewRunResultSchema = z.object({
     issues: z.array(VerifyIssueSchema),
   }),
   contextManifest: ReviewContextManifestSchema,
+  /** Silent-skip surface of the same comparison (E8); null for legacy results. */
+  surfaces: SilentSkipSurfaceSchema.nullable().default(null),
   /** Non-null when the AI was unavailable and the deterministic fallback report was served. */
   fallbackReason: z.string().nullable(),
 });

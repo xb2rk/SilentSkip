@@ -6,7 +6,7 @@
  *   guard is a comparison against a column-count constant; this check reports the raw structure
  *   the guard would skip rows on. Nothing is inferred about what the "right" width is.
  * - `STRUCT-02` — row keys (PK) duplicated or empty, per table per side. The key column comes
- *   from a profile pin (`pin-binding` override → exact) or falls back to the first column
+ *   from a profile pin (`pin-row-key` override → exact) or falls back to the first column
  *   (documented inferred convention — the message suggests pinning). Last-wins loaders silently
  *   overwrite earlier rows, hence severity `major`.
  * - `STRUCT-03` — header hygiene: empty/whitespace/duplicate/unicode header names. Information
@@ -34,15 +34,17 @@
  * what to pin to make them exact).
  */
 
-import type { ProjectProfile } from "@craftland-qa/contracts";
-import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
 import {
-  type CallFact,
-  type FactSpan,
-  type FileFacts,
-  resolveName,
-  type SymbolFact,
-} from "../facts/index.js";
+  cellSpan,
+  columnLabel,
+  detectTypeRow,
+  failsDeclaredType,
+  isBlankRow,
+  resolveRowKey,
+  rowSpan,
+} from "../csv/analysis.js";
+import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
+import { type CallFact, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
 import type { CheckFinding, CheckInput, CheckSide, RegisterAnchor } from "./types.js";
 
 /** Maximum mismatching-row witnesses attached to one STRUCT-01 finding. */
@@ -57,9 +59,7 @@ const MAX_KEY_WITNESSES = 8;
 /** Maximum cell witnesses attached to one STRUCT-03 / TYPE-01 finding. */
 const MAX_CELL_WITNESSES = 8;
 
-/** The FC type vocabulary that may appear in a CSV type row — the format axiom. */
-const TYPE_NAMES = new Set(["int", "int64", "float", "string", "bool"]);
-
+/** The FC type vocabulary that may appear in a CSV type row - the format axiom. */
 /** Non-ASCII range check for header hygiene. */
 const NON_ASCII_PATTERN = /[^\x20-\x7E]/u;
 
@@ -302,60 +302,6 @@ function checkOrphanAdditions(input: CheckInput): CheckFinding[] {
   return findings;
 }
 
-function rowSpan(row: CsvRow): FactSpan {
-  return { offset: row.offset, length: row.length, line: row.line, endLine: row.endLine };
-}
-
-function cellSpan(cell: CsvCell): FactSpan {
-  return {
-    offset: cell.offset,
-    length: cell.length,
-    line: cell.line,
-    endLine: cell.line + countLineBreaks(cell.raw),
-  };
-}
-
-/** Counts line breaks the way a reader sees lines: \r\n counts once. */
-function countLineBreaks(raw: string): number {
-  let count = 0;
-  for (let index = 0; index < raw.length; index++) {
-    const char = raw[index];
-    if (char === "\r") {
-      count += 1;
-      if (raw[index + 1] === "\n") index += 1;
-    } else if (char === "\n") {
-      count += 1;
-    }
-  }
-  return count;
-}
-
-/** A row with no content at all (blank line) — structure, not data. */
-function isBlankRow(row: CsvRow): boolean {
-  return row.cells.every((cell) => cell.text.trim() === "");
-}
-
-/** The type row is row index 1 when every non-empty cell is an FC type name. */
-function detectTypeRow(table: CsvTable): CsvRow | undefined {
-  const row = table.rows[1];
-  if (row === undefined) return undefined;
-  let nonEmpty = 0;
-  for (const cell of row.cells) {
-    const text = cell.text.trim().toLowerCase();
-    if (text === "") continue;
-    if (!TYPE_NAMES.has(text)) return undefined;
-    nonEmpty += 1;
-  }
-  return nonEmpty > 0 ? row : undefined;
-}
-
-/** Header label of a column, or `#index` when the header is missing/empty. */
-function columnLabel(table: CsvTable, index: number): string {
-  const header = table.rows[0];
-  const text = header?.cells[index]?.text.trim() ?? "";
-  return text === "" ? `#${index}` : text;
-}
-
 // ---------------------------------------------------------------------------------------------
 // STRUCT-01 — row width differs from the header
 // ---------------------------------------------------------------------------------------------
@@ -434,53 +380,6 @@ function checkTableWidths(input: CheckInput): CheckFinding[] {
 // STRUCT-02 — row keys duplicated or empty
 // ---------------------------------------------------------------------------------------------
 
-type RowKeyResolution =
-  | {
-      readonly kind: "resolved";
-      readonly column: number;
-      readonly exact: boolean;
-      readonly note: string;
-    }
-  | { readonly kind: "pin-missing"; readonly column: string };
-
-function resolveRowKey(
-  table: CsvTable,
-  path: string,
-  profile: ProjectProfile | undefined,
-): RowKeyResolution | undefined {
-  const pin = profile?.overrides.find(
-    (override) =>
-      override.kind === "pin-binding" &&
-      override.target.csvPath === path &&
-      override.value !== undefined &&
-      override.value.trim() !== "",
-  );
-  if (pin !== undefined) {
-    const wanted = (pin.value ?? "").trim();
-    const header = table.rows[0];
-    if (header !== undefined) {
-      const column = header.cells.findIndex((cell) => cell.text.trim() === wanted);
-      if (column >= 0) {
-        return {
-          kind: "resolved",
-          column,
-          exact: true,
-          note: `Row key pinned to column "${wanted}" via a project profile override (pin-binding).`,
-        };
-      }
-    }
-    return { kind: "pin-missing", column: wanted };
-  }
-  const header = table.rows[0];
-  if (header === undefined || header.cells.length === 0) return undefined;
-  return {
-    kind: "resolved",
-    column: 0,
-    exact: false,
-    note: `No row key pinned — the first column ("${columnLabel(table, 0)}") is used as the key (documented inferred convention).`,
-  };
-}
-
 function rowKeyFindingForSide(
   input: CheckInput,
   path: string,
@@ -510,7 +409,7 @@ function rowKeyFindingForSide(
           `but the header on side ${ref} has no such column. The pinned convention cannot apply.`,
         anchors,
         derivation: [
-          `Profile override (pin-binding) for ${path}: key column "${resolution.column}".`,
+          `Profile override (pin-row-key) for ${path}: key column "${resolution.column}".`,
           `Header cells on side ${ref}: ${(header?.cells ?? []).map((cell) => cell.text.trim()).join(", ")}.`,
           "Exact text comparison — the pinned column was not found.",
         ],
@@ -673,9 +572,7 @@ function checkHeaderHygiene(input: CheckInput): CheckFinding[] {
 // TYPE-01 — declared type row vs real values
 // ---------------------------------------------------------------------------------------------
 
-const INT_PATTERN = /^-?\d+$/u;
 const LEADING_ZERO_PATTERN = /^-?0\d+/u;
-const BOOLEAN_VALUES = new Set(["0", "1", "true", "false"]);
 
 interface TypeWitness {
   readonly row: CsvRow;
@@ -708,20 +605,10 @@ function typeFindingForSide(
       if (cell === undefined || type === undefined) continue;
       const value = cell.text.trim();
       if (value === "") continue;
-      if (type === "int" || type === "int64") {
-        if (INT_PATTERN.test(value)) {
-          if (LEADING_ZERO_PATTERN.test(value)) {
-            leadingZeros.push({ row, cell, declared: type, value });
-          }
-        } else {
-          mismatches.push({ row, cell, declared: type, value });
-        }
-      } else if (type === "float") {
-        if (!Number.isFinite(Number(value))) mismatches.push({ row, cell, declared: type, value });
-      } else if (type === "bool") {
-        if (!BOOLEAN_VALUES.has(value.toLowerCase())) {
-          mismatches.push({ row, cell, declared: type, value });
-        }
+      if (failsDeclaredType(type, value)) {
+        mismatches.push({ row, cell, declared: type, value });
+      } else if ((type === "int" || type === "int64") && LEADING_ZERO_PATTERN.test(value)) {
+        leadingZeros.push({ row, cell, declared: type, value });
       }
     }
   }

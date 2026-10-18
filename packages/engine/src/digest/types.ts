@@ -2,7 +2,7 @@ import type { ProjectProfile } from "@craftland-qa/contracts";
 import type { SourceInput } from "../facts/index.js";
 
 /** Digest schema version — bump when the shape of `DigestBundle` changes. */
-export const DIGEST_SCHEMA_VERSION = 3;
+export const DIGEST_SCHEMA_VERSION = 4;
 
 /** Default cap of total function-body material shipped in the digest (E7.5 reading depth). */
 export const DEFAULT_BODY_BUDGET_BYTES = 400_000;

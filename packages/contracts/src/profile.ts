@@ -33,8 +33,13 @@ export const ConventionEntrySchema = z.object({
   createdAt: z.string().min(1),
 });
 
-/** What an override does. */
-export const OverrideKindSchema = z.enum(["pin-binding", "suppress-finding", "entity-note"]);
+/** What an override does. `pin-row-key` names the CSV key column; `pin-binding` names an index enum. */
+export const OverrideKindSchema = z.enum([
+  "pin-binding",
+  "pin-row-key",
+  "suppress-finding",
+  "entity-note",
+]);
 
 /** Target selector of an override; callers use whichever fields identify the target. */
 export const OverrideTargetSchema = z.object({
@@ -76,6 +81,18 @@ export const ProjectProfileSchema = z.object({
 });
 
 /**
+ * Writable profile fields (E8.2). `projectId` and `updatedAt` are owned by the server so a
+ * client can never point the profile at another project.
+ */
+export const ProjectProfileUpdateSchema = ProjectProfileSchema.pick({
+  conventions: true,
+  readApiFamily: true,
+  overrides: true,
+  coverage: true,
+  editorGenIndex: true,
+});
+
+/**
  * Builds the empty profile for a project that has never been configured.
  *
  * @param projectId - Project row id.
@@ -102,3 +119,4 @@ export type OverrideTarget = z.infer<typeof OverrideTargetSchema>;
 export type OverrideEntry = z.infer<typeof OverrideEntrySchema>;
 export type Coverage = z.infer<typeof CoverageSchema>;
 export type ProjectProfile = z.infer<typeof ProjectProfileSchema>;
+export type ProjectProfileUpdate = z.infer<typeof ProjectProfileUpdateSchema>;

@@ -206,6 +206,8 @@ export interface ReviewPipelineResult {
   readonly passes: readonly PassMeta[];
   readonly contextManifest: ReviewContextManifest;
   readonly verification: PipelineVerification;
+  /** Silent-skip surface computed by the digest (E8). */
+  readonly surfaces: DigestBundle["surfaces"];
 }
 
 /** Dependencies of the review pipeline. */
@@ -576,6 +578,7 @@ export async function runReviewPipeline(
       synthesize: synthesizeStats,
       issues,
     },
+    surfaces: digest.surfaces,
   };
 }
 

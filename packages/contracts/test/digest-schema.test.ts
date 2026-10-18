@@ -16,7 +16,7 @@ const ANCHOR = {
 };
 
 const EMPTY_DIGEST = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   refs: {
     base: { ref: "HEAD~1", commitHash: "a".repeat(40) },
     current: { ref: "WORKTREE", commitHash: null },
@@ -37,6 +37,13 @@ const EMPTY_DIGEST = {
   context: [],
   quantities: [],
   findings: [],
+  surfaces: {
+    base: { ref: "A", entries: [], truncated: 0 },
+    current: { ref: "B", entries: [], truncated: 0 },
+    delta: { newSilent: [], fixed: [], unchanged: [] },
+    detectedMechanisms: [],
+    note: "No silent-skip effects.",
+  },
   bodies: [],
   plan: {
     units: [],

@@ -5,6 +5,8 @@ import {
   DigestBundleSchema,
   ErrorCodes,
   ProjectListResponseSchema,
+  ProjectProfileSchema,
+  ProjectProfileUpdateSchema,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
 } from "@craftland-qa/contracts";
@@ -12,6 +14,7 @@ import type { AppDatabase } from "@craftland-qa/db";
 import { Hono } from "hono";
 import { loadDigest } from "../digest-input";
 import { diffSummary, projectRefs } from "../git";
+import { loadProjectProfile, saveProjectProfile } from "../profiles";
 import { addProject, getProject, listProjects, removeProject } from "../projects";
 import { readJsonBody } from "./utils";
 
@@ -49,6 +52,18 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
     return c.json(ProjectRefsResponseSchema.parse(refs));
   });
 
+  /** Project profile (E8.2): per-project conventions, pins and entity notes. */
+  app.get("/:id/profile", (c) => {
+    const profile = loadProjectProfile(deps.db, c.req.param("id"));
+    return c.json(ProjectProfileSchema.parse(profile));
+  });
+
+  app.put("/:id/profile", async (c) => {
+    const input = await readJsonBody(c.req.raw, ProjectProfileUpdateSchema);
+    const profile = saveProjectProfile(deps.db, c.req.param("id"), input);
+    return c.json(ProjectProfileSchema.parse(profile));
+  });
+
   app.get("/:id/diff-summary", async (c) => {
     const project = getProject(deps.db, c.req.param("id"));
     const base = c.req.query("base");
@@ -68,7 +83,12 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
     if (base === undefined || base === "" || current === undefined || current === "") {
       throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `base` hoặc `current`");
     }
-    const digest = await loadDigest(project.rootPath, base, current);
+    const digest = await loadDigest(
+      project.rootPath,
+      base,
+      current,
+      loadProjectProfile(deps.db, project.id),
+    );
     return c.json(DigestBundleSchema.parse(digest));
   });
 

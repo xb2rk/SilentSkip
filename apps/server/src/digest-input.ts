@@ -7,12 +7,14 @@ import { readFilesAtRef, readProjectFilesFromDisk, resolveCommit } from "./git";
  * manager so both paths resolve refs and read sources identically.
  *
  * `base` must be a real ref (WORKTREE is only meaningful as the current side); the worktree
- * side is read from disk, everything else via one `cat-file --batch` pass.
+ * side is read from disk, everything else via one `cat-file --batch` pass. The project profile
+ * (pins, conventions, entity notes) is passed through as data — the digest stays deterministic.
  */
 export async function loadDigest(
   rootPath: string,
   base: string,
   current: string,
+  profile?: Parameters<typeof buildDigest>[0]["profile"],
 ): Promise<DigestBundle> {
   if (base === WORKTREE_REF) {
     throw new AppError(
@@ -32,5 +34,6 @@ export async function loadDigest(
   return buildDigest({
     base: { ref: base, commitHash: baseCommit, sources: baseSources },
     current: { ref: current, commitHash: currentCommit, sources: currentSources },
+    ...(profile === undefined ? {} : { profile }),
   });
 }
