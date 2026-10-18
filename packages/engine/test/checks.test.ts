@@ -73,7 +73,13 @@ function profileWithPin(
     conventions: [],
     readApiFamily: [],
     overrides: [{ id: "o1", kind, target: { csvPath }, value, createdAt: "2026-01-01" }],
-    readerProfile: { bindings: [], guards: [], structuredCells: [] },
+    readerProfile: {
+      bindings: [],
+      guards: [],
+      structuredCells: [],
+      nilReads: [],
+      enumFallbacks: [],
+    },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -103,7 +109,13 @@ function profileWithOverrides(
       value: override.value,
       createdAt: "2026-01-01",
     })),
-    readerProfile: { bindings: [], guards: [], structuredCells: [] },
+    readerProfile: {
+      bindings: [],
+      guards: [],
+      structuredCells: [],
+      nilReads: [],
+      enumFallbacks: [],
+    },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -118,7 +130,7 @@ function firstFinding(findings: CheckFinding[]): CheckFinding {
 
 /** Minimal profile carrying a reader profile (and optional overrides). */
 function profileWithReader(
-  readerProfile: ProjectProfile["readerProfile"],
+  readerProfile: Partial<ProjectProfile["readerProfile"]>,
   overrides: ProjectProfile["overrides"] = [],
 ): ProjectProfile {
   return {
@@ -126,7 +138,14 @@ function profileWithReader(
     conventions: [],
     readApiFamily: [],
     overrides,
-    readerProfile,
+    readerProfile: {
+      bindings: [],
+      guards: [],
+      structuredCells: [],
+      nilReads: [],
+      enumFallbacks: [],
+      ...readerProfile,
+    },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -416,6 +435,8 @@ describe("DRIFT-01 header drift", () => {
           bindings: [{ csvPath: TABLE_PATH, columns: ["id", "atk", "hp"] }],
           guards: [],
           structuredCells: [],
+          nilReads: [],
+          enumFallbacks: [],
         }),
       }),
       "DRIFT-01",
@@ -438,6 +459,8 @@ describe("DRIFT-01 header drift", () => {
           bindings: [{ csvPath: TABLE_PATH, columns: ["id", "hp"] }],
           guards: [],
           structuredCells: [],
+          nilReads: [],
+          enumFallbacks: [],
         }),
       }),
       "DRIFT-01",
@@ -459,6 +482,8 @@ describe("DRIFT-01 header drift", () => {
           bindings: [{ csvPath: TABLE_PATH, columns: ["id", "ghost"] }],
           guards: [],
           structuredCells: [],
+          nilReads: [],
+          enumFallbacks: [],
         }),
       }),
       "DRIFT-01",
@@ -961,6 +986,8 @@ describe("BIND-01 / BIND-02 reader profile", () => {
             bindings: [{ csvPath: TABLE_PATH, columns: ["id", "hp"] }],
             guards: [],
             structuredCells: [],
+            nilReads: [],
+            enumFallbacks: [],
           }),
         },
       ),
@@ -985,6 +1012,8 @@ describe("BIND-01 / BIND-02 reader profile", () => {
             bindings: [{ csvPath: TABLE_PATH, columns: ["id", "atk"] }],
             guards: [],
             structuredCells: [],
+            nilReads: [],
+            enumFallbacks: [],
           }),
         },
       ),
@@ -1003,6 +1032,8 @@ describe("BIND-01 / BIND-02 reader profile", () => {
             bindings: [],
             guards: [{ csvPath: TABLE_PATH, constant: 3 }],
             structuredCells: [],
+            nilReads: [],
+            enumFallbacks: [],
           }),
         },
       ),
@@ -1025,6 +1056,8 @@ describe("BIND-01 / BIND-02 reader profile", () => {
             bindings: [],
             guards: [{ csvPath: TABLE_PATH, constant: 1 }],
             structuredCells: [],
+            nilReads: [],
+            enumFallbacks: [],
           }),
         },
       ),
@@ -1046,6 +1079,8 @@ describe("BIND-01 / BIND-02 reader profile", () => {
             bindings: [],
             guards: [{ csvPath: TABLE_PATH, constant: 2 }],
             structuredCells: [],
+            nilReads: [],
+            enumFallbacks: [],
           }),
         },
       ),
@@ -1132,5 +1167,54 @@ describe("REF-02 structured cells", () => {
       "REF-02",
     );
     expect(findings).toHaveLength(0);
+  });
+
+  it("checks every entry of a pair list and reports the broken one", () => {
+    const profile = profileWithReader(
+      {
+        bindings: [],
+        guards: [],
+        structuredCells: [
+          {
+            csvPath: SOURCE,
+            column: "rewards",
+            targetPath: TARGET,
+            split: "colon",
+            cast: "int",
+            part: 0,
+            entrySeparator: "semicolon",
+          },
+        ],
+      },
+      [
+        {
+          id: "o1",
+          kind: "pin-row-key",
+          target: { csvPath: TARGET },
+          value: "id",
+          createdAt: "2026-01-01",
+        },
+      ],
+    );
+    const findings = byRule(
+      checks(
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: SOURCE_BEFORE },
+        ],
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: "id,rewards\nL1,100:2;999:1\nL2,200:1;100:4\n" },
+        ],
+        { profile },
+      ),
+      "REF-02",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.message).toContain("1 cell(s)");
+    expect(finding.message).toContain('"999:1"');
+    expect(finding.message).toContain('entry (split ";")');
+    expect(finding.derivation.some((step) => step.includes("every entry"))).toBe(true);
   });
 });

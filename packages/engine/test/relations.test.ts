@@ -221,7 +221,31 @@ describe("buildRelations — names_csv", () => {
   });
 });
 
-describe("buildRelations — determinism", () => {
+describe("buildRelations - resource enum", () => {
+  const LOADER = `static graph Loader {
+  func Load() int {
+    return CSVData.ReadCSV(EResCSV.UnitData)
+  }
+}
+`;
+  const bundle = buildFactBundle([{ path: "Data/Loader.fcg", source: LOADER }]);
+  const csvPaths = ["Assets/CSV/UnitData.csv"];
+
+  it("stays silent while editorGen indexing is disabled", () => {
+    const relations = buildRelations(bundle, { csvPaths }).relations;
+    expect(relations.some((r) => r.ruleId === "resource-enum-names-csv")).toBe(false);
+  });
+
+  it("links EResCSV.<Name> to exactly one CSV when enabled", () => {
+    const relations = buildRelations(bundle, { csvPaths, editorGenIndex: true }).relations;
+    const linked = relations.find((r) => r.ruleId === "resource-enum-names-csv");
+    expect(linked?.to.file).toBe("Assets/CSV/UnitData.csv");
+    expect(linked?.confidence).toBe("exact");
+    expect(linked?.derivation.some((step) => step.includes("EResCSV.UnitData"))).toBe(true);
+  });
+});
+
+describe("buildRelations - determinism", () => {
   it("is deterministic and sorted by id", () => {
     const bundle = buildFixtureBundle();
     const first = buildRelations(bundle, { csvPaths: CSV_PATHS });

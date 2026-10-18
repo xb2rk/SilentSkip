@@ -910,7 +910,10 @@ export function buildDigest(input: DigestInput): DigestBundle {
   const registry = new AnchorRegistry();
 
   const delta = buildDeltaBundle({ before: input.base.sources, after: input.current.sources });
-  const relations = buildRelations(current.bundle, { csvPaths: [...current.tables.keys()] });
+  const relations = buildRelations(current.bundle, {
+    csvPaths: [...current.tables.keys()],
+    editorGenIndex: input.profile?.editorGenIndex === true,
+  });
 
   const scriptFacts = delta.scripts.map((script) =>
     buildScriptChange(script, base, current, registry),

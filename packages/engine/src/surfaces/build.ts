@@ -13,9 +13,10 @@
  * Row identity is the table plus PK value (profile pin or first-column fallback), never the row
  * number. A row with no key uses `#line:<n>` as a witness-only identity.
  *
- * Not guessed here: `nil_read`, `missing_binding`, `enum_fallback`, `ref_broken` need pinned
- * loader/foreign-key intent and land in E8.2. `fixed_skip` is expected (the type row) and is not a
- * surface entry per spec §4.8.
+ * Not guessed: every surface below needs pinned intent. `nil_read`, `missing_binding`,
+ * `enum_fallback` and `ref_broken` only appear when the project profile pins the reader
+ * expectation (`readerProfile`) or a foreign-key override. `fixed_skip` is expected (the type
+ * row) and is not a surface entry per spec §4.8.
  */
 
 import type {
@@ -24,6 +25,7 @@ import type {
   SilentSkipSide,
   SilentSkipSurface,
 } from "@craftland-qa/contracts";
+import { dataRows, fkPins, normalize } from "../checks/references.js";
 import type { CheckInput, CheckSide } from "../checks/types.js";
 import type { CsvRow } from "../csv/index.js";
 import {
@@ -45,11 +47,15 @@ export const MAX_SURFACE_ENTRIES_PER_SIDE = 500;
 /** Maximum duplicate-row witnesses attached to one duplicate-key entry. */
 const MAX_DUPLICATE_WITNESSES = 5;
 
-/** Mechanisms this wave can prove; the rest need E8.2 intent. */
+/** Mechanisms this wave can prove; the rest stay unknown until pinned intent exists. */
 const PROVEN_MECHANISMS: readonly SilentSkipMechanism[] = [
   "length_guard",
   "parse_fail",
   "duplicate_key",
+  "nil_read",
+  "missing_binding",
+  "enum_fallback",
+  "ref_broken",
 ];
 
 /** Runs the surface collector over both sides and computes the A/B delta. */
@@ -90,6 +96,30 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
   const side: CheckSide = ref === "A" ? input.base : input.current;
   const entries: SilentSkipEntry[] = [];
   let truncated = 0;
+  const reader = input.profile?.readerProfile;
+  const push = (entry: SilentSkipEntry): void => {
+    if (entries.length >= MAX_SURFACE_ENTRIES_PER_SIDE) {
+      truncated += 1;
+      return;
+    }
+    entries.push(entry);
+  };
+  const enumMemberCache = new Map<string, ReadonlySet<string>>();
+  const enumMembersOf = (name: string): ReadonlySet<string> | undefined => {
+    const cached = enumMemberCache.get(name);
+    if (cached !== undefined) return cached;
+    const members = new Set<string>();
+    let found = false;
+    for (const facts of side.factsByPath.values()) {
+      for (const symbol of facts.symbols) {
+        if (symbol.kind === "enum" && symbol.name === name) found = true;
+        if (symbol.kind === "enum-member" && symbol.container === name) members.add(symbol.name);
+      }
+    }
+    if (!found) return undefined;
+    enumMemberCache.set(name, members);
+    return members;
+  };
 
   for (const path of [...side.tables.keys()].sort()) {
     const table = side.tables.get(path);
@@ -110,13 +140,89 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
     };
     const headerAnchor = input.registerAnchor(ref, path, rowSpan(header), "csv");
 
-    const push = (entry: SilentSkipEntry): void => {
-      if (entries.length >= MAX_SURFACE_ENTRIES_PER_SIDE) {
-        truncated += 1;
-        return;
+    // missing_binding — a pinned name binding expects a column the header does not have.
+    const headerNames = new Set(header.cells.map((cell) => cell.text.trim()));
+    const seenMissing = new Set<string>();
+    for (const binding of reader?.bindings ?? []) {
+      if (binding.csvPath !== path) continue;
+      for (const pinned of binding.columns) {
+        const column = pinned.trim();
+        if (column === "" || headerNames.has(column) || seenMissing.has(column)) continue;
+        seenMissing.add(column);
+        push({
+          id: entryId(path, "", "missing_binding", column),
+          ref,
+          table: path,
+          rowKey: "",
+          column,
+          mechanism: "missing_binding",
+          effect: "disabled",
+          confidence: "exact",
+          detail: `The pinned name binding expects column "${column}" but the header has no such column; a name lookup may disable the whole table before reading rows (runtime convention, inferred effect).`,
+          anchors: [headerAnchor],
+        });
       }
-      entries.push(entry);
-    };
+    }
+
+    // nil_read — a pinned column whose empty cell makes the loader disable the row.
+    const nilColumns = new Set<number>();
+    for (const nilRead of reader?.nilReads ?? []) {
+      if (nilRead.csvPath !== path) continue;
+      const index = header.cells.findIndex((cell) => cell.text.trim() === nilRead.column);
+      if (index < 0 || nilColumns.has(index)) continue;
+      nilColumns.add(index);
+      for (const row of dataRows) {
+        const value = row.cells[index]?.text.trim() ?? "";
+        if (value !== "") continue;
+        const rowKey = keyOf(row);
+        push({
+          id: entryId(path, rowKey, "nil_read", nilRead.column),
+          ref,
+          table: path,
+          rowKey,
+          column: nilRead.column,
+          mechanism: "nil_read",
+          effect: "disabled",
+          confidence: "exact",
+          detail: `Column "${nilRead.column}" is empty on row ${row.line}; the loader may treat the row as disabled or skip it (runtime convention, inferred effect).`,
+          anchors: [headerAnchor, input.registerAnchor(ref, path, rowSpan(row), "csv")],
+        });
+      }
+    }
+
+    // enum_fallback — a pinned enum-name column whose value is not a member.
+    const enumColumns = new Set<string>();
+    for (const fallback of reader?.enumFallbacks ?? []) {
+      if (fallback.csvPath !== path) continue;
+      const index = header.cells.findIndex((cell) => cell.text.trim() === fallback.column);
+      if (index < 0) continue;
+      const cacheKey = `${fallback.column}|${fallback.enumName}`;
+      if (enumColumns.has(cacheKey)) continue;
+      const members = enumMembersOf(fallback.enumName);
+      if (members === undefined) continue;
+      enumColumns.add(cacheKey);
+      for (const row of dataRows) {
+        const value = row.cells[index]?.text.trim() ?? "";
+        if (value === "" || members.has(value)) continue;
+        const rowKey = keyOf(row);
+        const cell = row.cells[index];
+        push({
+          id: entryId(path, rowKey, "enum_fallback", fallback.column),
+          ref,
+          table: path,
+          rowKey,
+          column: fallback.column,
+          mechanism: "enum_fallback",
+          effect: "fallback",
+          confidence: "exact",
+          detail: `"${value}" in column "${fallback.column}" is not a member of enum ${fallback.enumName}; the loader may fall back to a default (runtime convention, inferred effect).`,
+          anchors: [
+            headerAnchor,
+            ...(cell === undefined ? [] : [input.registerAnchor(ref, path, cellSpan(cell), "csv")]),
+          ],
+        });
+      }
+    }
 
     // length_guard — raw row width vs header width.
     for (const row of dataRows) {
@@ -207,6 +313,62 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
     }
   }
 
+  // ref_broken — pinned FK values with no target row under the runtime cast.
+  for (const pin of fkPins(input.profile)) {
+    if (pin.cast === "unknown") continue;
+    const sourceTable = side.tables.get(pin.sourcePath);
+    const targetTable = side.tables.get(pin.targetPath);
+    if (sourceTable === undefined || targetTable === undefined) continue;
+    const sourceHeader = sourceTable.rows[0];
+    const targetHeader = targetTable.rows[0];
+    if (sourceHeader === undefined || targetHeader === undefined) continue;
+    const sourceColumn = sourceHeader.cells.findIndex(
+      (cell) => cell.text.trim() === pin.sourceColumn,
+    );
+    if (sourceColumn < 0) continue;
+    const targetKey = resolveRowKey(targetTable, pin.targetPath, input.profile);
+    if (targetKey === undefined || targetKey.kind !== "resolved" || !targetKey.exact) continue;
+    if (targetKey.columns.length !== 1) continue;
+
+    const targetKeys = new Set<string>();
+    for (const row of dataRows(targetTable)) {
+      const raw = rowKeyValue(row, targetKey.columns);
+      if (rowKeyIsEmpty(raw)) continue;
+      const normalized = normalize(raw, pin.cast);
+      if (normalized !== undefined) targetKeys.add(normalized);
+    }
+    const sourceResolution = resolveRowKey(sourceTable, pin.sourcePath, input.profile);
+    const headerAnchor = input.registerAnchor(ref, pin.sourcePath, rowSpan(sourceHeader), "csv");
+    for (const row of dataRows(sourceTable)) {
+      const raw = row.cells[sourceColumn]?.text.trim() ?? "";
+      if (raw === "") continue;
+      const normalized = normalize(raw, pin.cast);
+      if (normalized !== undefined && targetKeys.has(normalized)) continue;
+      const rowKey =
+        sourceResolution?.kind === "resolved"
+          ? rowKeyValue(row, sourceResolution.columns) || `#line:${row.line}`
+          : `#line:${row.line}`;
+      const cell = row.cells[sourceColumn];
+      push({
+        id: entryId(pin.sourcePath, rowKey, "ref_broken", pin.sourceColumn),
+        ref,
+        table: pin.sourcePath,
+        rowKey,
+        column: pin.sourceColumn,
+        mechanism: "ref_broken",
+        effect: "fallback",
+        confidence: "exact",
+        detail: `"${raw}" in ${pin.sourcePath}."${pin.sourceColumn}" has no row in ${pin.targetPath} under cast ${pin.cast}; the loader may fall back or ignore it (runtime convention, inferred effect).`,
+        anchors: [
+          headerAnchor,
+          ...(cell === undefined
+            ? []
+            : [input.registerAnchor(ref, pin.sourcePath, cellSpan(cell), "csv")]),
+        ],
+      });
+    }
+  }
+
   return { ref, entries: sortEntries(entries), truncated };
 }
 
@@ -226,9 +388,9 @@ function sortEntries(entries: SilentSkipEntry[]): SilentSkipEntry[] {
 function surfaceNote(detected: ReadonlySet<SilentSkipMechanism>, truncated: number): string {
   const parts = [
     detected.size === 0
-      ? "Observed mechanisms: none. The engine can prove length_guard, parse_fail and duplicate_key when the facts occur; fixed_skip is expected (type row) and is not counted."
-      : `Observed mechanisms: ${[...detected].sort().join(", ")}. The engine can also prove ${PROVEN_MECHANISMS.filter((mechanism) => !detected.has(mechanism)).join(", ") || "no other mechanisms"} when the facts occur; fixed_skip is expected (type row) and is not counted.`,
-    "nil_read, missing_binding, enum_fallback and ref_broken need pinned loader/FK intent (E8.2) and are not guessed.",
+      ? "Observed mechanisms: none. The engine can prove length_guard, parse_fail and duplicate_key from CSV shape, and nil_read, missing_binding, enum_fallback and ref_broken when pinned reader intent exists; fixed_skip is expected (type row) and is not counted."
+      : `Observed mechanisms: ${[...detected].sort().join(", ")}. The engine can also prove ${PROVEN_MECHANISMS.filter((mechanism) => !detected.has(mechanism)).join(", ") || "no other mechanisms"} when the facts and pinned intent exist; fixed_skip is expected (type row) and is not counted.`,
+    "Runtime effects of inferred surfaces stay conventions, not facts; nil_read, missing_binding, enum_fallback and ref_broken are emitted only from readerProfile pins or pin-fk overrides.",
   ];
   if (truncated > 0) {
     parts.push(

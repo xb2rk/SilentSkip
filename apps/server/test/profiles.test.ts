@@ -98,8 +98,12 @@ describe("E8.2 project profile routes", () => {
             split: "colon",
             cast: "int",
             part: 0,
+            entrySeparator: "semicolon",
+            entryIndex: 1,
           },
         ],
+        nilReads: [{ csvPath: "Assets/CSV/Item.csv", column: "title" }],
+        enumFallbacks: [{ csvPath: "Assets/CSV/Item.csv", column: "title", enumName: "EItem" }],
       },
     };
     const saved = await app.request(`/api/projects/${projectId}/profile`, {
@@ -117,6 +121,12 @@ describe("E8.2 project profile routes", () => {
       { csvPath: "Assets/CSV/Item.csv", columns: ["id", "title"] },
     ]);
     expect(profile.readerProfile.structuredCells[0]?.part).toBe(0);
+    expect(profile.readerProfile.structuredCells[0]?.entrySeparator).toBe("semicolon");
+    expect(profile.readerProfile.structuredCells[0]?.entryIndex).toBe(1);
+    expect(profile.readerProfile.nilReads).toEqual([
+      { csvPath: "Assets/CSV/Item.csv", column: "title" },
+    ]);
+    expect(profile.readerProfile.enumFallbacks[0]?.enumName).toBe("EItem");
 
     const reloaded = await app.request(`/api/projects/${projectId}/profile`);
     const again = ProjectProfileSchema.parse(await reloaded.json());

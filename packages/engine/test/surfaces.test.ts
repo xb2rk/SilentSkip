@@ -64,7 +64,36 @@ function profileWithPin(csvPath: string, value: string): ProjectProfile {
     overrides: [
       { id: "o1", kind: "pin-row-key", target: { csvPath }, value, createdAt: "2026-01-01" },
     ],
-    readerProfile: { bindings: [], guards: [], structuredCells: [] },
+    readerProfile: {
+      bindings: [],
+      guards: [],
+      structuredCells: [],
+      nilReads: [],
+      enumFallbacks: [],
+    },
+    coverage: null,
+    editorGenIndex: false,
+    updatedAt: "2026-01-01",
+  };
+}
+
+function profileWithReader(
+  reader: Partial<ProjectProfile["readerProfile"]>,
+  overrides: ProjectProfile["overrides"] = [],
+): ProjectProfile {
+  return {
+    projectId: "p1",
+    conventions: [],
+    readApiFamily: [],
+    overrides,
+    readerProfile: {
+      bindings: [],
+      guards: [],
+      structuredCells: [],
+      nilReads: [],
+      enumFallbacks: [],
+      ...reader,
+    },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -187,5 +216,92 @@ describe("silent-skip surfaces", () => {
     expect(result.delta.fixed).toHaveLength(1);
     expect(result.delta.fixed[0]?.ref).toBe("A");
     expect(result.delta.fixed[0]?.mechanism).toBe("parse_fail");
+  });
+
+  it("records nil_read only when the reader profile pins the column", () => {
+    const unpinned = surfaces(table("id,atk\nPea,100\n"), table("id,atk\nPea,\nguard,80\n"));
+    expect(unpinned.current.entries.some((entry) => entry.mechanism === "nil_read")).toBe(false);
+
+    const pinned = surfaces(
+      table("id,atk\nPea,100\n"),
+      table("id,atk\nPea,\nguard,80\n"),
+      profileWithReader({ nilReads: [{ csvPath: TABLE_PATH, column: "atk" }] }),
+    );
+    const entry = pinned.current.entries.find((item) => item.mechanism === "nil_read");
+    expect(entry?.rowKey).toBe("Pea");
+    expect(entry?.effect).toBe("disabled");
+    expect(entry?.confidence).toBe("exact");
+    expect(entry?.anchors).toEqual(["B:Assets/CSV/T.csv:1:1:csv", "B:Assets/CSV/T.csv:2:2:csv"]);
+  });
+
+  it("records missing_binding for a pinned column the header lacks", () => {
+    const result = surfaces(
+      table("id,atk\nPea,100\n"),
+      table("id,atk\nPea,100\n"),
+      profileWithReader({ bindings: [{ csvPath: TABLE_PATH, columns: ["id", "hp"] }] }),
+    );
+    const entry = result.current.entries.find((item) => item.mechanism === "missing_binding");
+    expect(entry?.column).toBe("hp");
+    expect(entry?.effect).toBe("disabled");
+    expect(result.delta.unchanged.some((item) => item.mechanism === "missing_binding")).toBe(true);
+  });
+
+  it("records enum_fallback for a value outside the pinned enum", () => {
+    const script = {
+      path: "Assets/Scripts/Kinds.fcc",
+      source: "enum EKind {\n  Unit = 0\n  enemy = 1\n}\n",
+    };
+    const before = [script, ...table("id,kind\nPea,Unit\n")];
+    const after = [script, ...table("id,kind\nPea,Boss\n")];
+    const result = surfaces(
+      before,
+      after,
+      profileWithReader({
+        enumFallbacks: [{ csvPath: TABLE_PATH, column: "kind", enumName: "EKind" }],
+      }),
+    );
+    const entry = result.current.entries.find((item) => item.mechanism === "enum_fallback");
+    expect(entry?.rowKey).toBe("Pea");
+    expect(entry?.effect).toBe("fallback");
+    expect(entry?.detail).toContain('"Boss"');
+    expect(entry?.detail).toContain("EKind");
+  });
+
+  it("records ref_broken only for pinned FK values with no target row", () => {
+    const item = "Assets/CSV/Item.csv";
+    const loot = "Assets/CSV/Loot.csv";
+    const profile = profileWithReader({}, [
+      {
+        id: "pin-key",
+        kind: "pin-row-key",
+        target: { csvPath: item },
+        value: "id",
+        createdAt: "2026-01-01",
+      },
+      {
+        id: "pin-fk",
+        kind: "pin-fk",
+        target: { csvPath: loot, rowKey: "item" },
+        value: `${item}#int`,
+        createdAt: "2026-01-01",
+      },
+    ]);
+    const result = surfaces(
+      [
+        { path: item, source: "id,title\n100,Sword\n" },
+        { path: loot, source: "id,item\nL1,100\n" },
+      ],
+      [
+        { path: item, source: "id,title\n100,Sword\n" },
+        { path: loot, source: "id,item\nL1,100\nL2,999\n" },
+      ],
+      profile,
+    );
+    const entry = result.current.entries.find((item) => item.mechanism === "ref_broken");
+    expect(entry?.table).toBe(loot);
+    expect(entry?.rowKey).toBe("L2");
+    expect(entry?.column).toBe("item");
+    expect(entry?.effect).toBe("fallback");
+    expect(entry?.detail).toContain('"999"');
   });
 });

@@ -85,6 +85,19 @@ export const ReaderGuardSchema = z.object({
   constant: z.number().int().nonnegative(),
 });
 
+/** One pinned column whose empty cell makes the loader disable the row (silent-skip nil_read). */
+export const ReaderNilReadSchema = z.object({
+  csvPath: z.string().min(1),
+  column: z.string().min(1),
+});
+
+/** One pinned enum-name column; an unknown member makes the loader fall back (silent-skip enum_fallback). */
+export const ReaderEnumFallbackSchema = z.object({
+  csvPath: z.string().min(1),
+  column: z.string().min(1),
+  enumName: z.string().min(1),
+});
+
 /** One pinned structured cell whose part references another table (REF-02). */
 export const ReaderStructuredCellSchema = z.object({
   csvPath: z.string().min(1),
@@ -94,6 +107,13 @@ export const ReaderStructuredCellSchema = z.object({
   cast: z.enum(["int", "string"]),
   /** Zero-based part that holds the target row key. */
   part: z.number().int().nonnegative().default(0),
+  /**
+   * Optional first split into list entries (pair lists). `semicolon` covers `id:qty;id:qty`;
+   * `pipe` covers `id|id`. Each selected entry is then split by `split`.
+   */
+  entrySeparator: z.enum(["semicolon", "pipe"]).optional(),
+  /** Optional zero-based entry to check; absent checks every entry. */
+  entryIndex: z.number().int().nonnegative().optional(),
 });
 
 /** Declarative reader expectations pinned by the user; never inferred by the engine. */
@@ -101,6 +121,8 @@ export const ReaderProfileSchema = z.object({
   bindings: z.array(ReaderBindingSchema),
   guards: z.array(ReaderGuardSchema),
   structuredCells: z.array(ReaderStructuredCellSchema),
+  nilReads: z.array(ReaderNilReadSchema).default([]),
+  enumFallbacks: z.array(ReaderEnumFallbackSchema).default([]),
 });
 
 export type ReaderProfile = z.infer<typeof ReaderProfileSchema>;
@@ -112,7 +134,13 @@ export const ProjectProfileSchema = z.object({
   /** Read API families observed or pinned, e.g. `["Strings", "ConfigManager"]`. */
   readApiFamily: z.array(z.string().min(1)),
   overrides: z.array(OverrideEntrySchema),
-  readerProfile: ReaderProfileSchema.default({ bindings: [], guards: [], structuredCells: [] }),
+  readerProfile: ReaderProfileSchema.default({
+    bindings: [],
+    guards: [],
+    structuredCells: [],
+    nilReads: [],
+    enumFallbacks: [],
+  }),
   coverage: CoverageSchema.nullable(),
   editorGenIndex: z.boolean(),
   updatedAt: z.string().min(1),
@@ -136,6 +164,8 @@ export const EMPTY_READER_PROFILE: ReaderProfile = {
   bindings: [],
   guards: [],
   structuredCells: [],
+  nilReads: [],
+  enumFallbacks: [],
 };
 
 /**

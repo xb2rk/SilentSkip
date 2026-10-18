@@ -27,6 +27,9 @@ export function buildRelations(bundle: FactBundle, context: RelationContext = {}
     collectCallRelations(file, relations);
     collectImportRelations(file, relations, bundlePaths);
     collectCsvRelations(file, relations, csvEntries);
+    if (context.editorGenIndex === true) {
+      collectResourceEnumRelations(file, relations, csvEntries);
+    }
   }
   relations.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { schemaVersion: RELATIONS_SCHEMA_VERSION, relations };
@@ -197,6 +200,33 @@ function collectCsvRelations(
       derivation: [
         `string literal "${inner}" at line ${str.span.line}`,
         `matches exactly one CSV table: ${match.raw}`,
+      ],
+    });
+  }
+}
+
+/** `resource-enum-names-csv`: channel ② of §4.5, gated by the profile editorGen flag. */
+function collectResourceEnumRelations(
+  file: FileFacts,
+  out: Relation[],
+  csvEntries: readonly { raw: string; norm: string }[],
+): void {
+  for (const ref of file.refs) {
+    if (ref.role !== "member" || ref.receiver !== "EResCSV") continue;
+    const needle = `${ref.name.toLowerCase()}.csv`;
+    const matches = csvEntries.filter((entry) => (entry.norm.split("/").pop() ?? "") === needle);
+    const match = singleCandidate(matches);
+    if (!match) continue;
+    out.push({
+      id: relationId("resource-enum-names-csv", file.path, ref.span.offset, match.raw),
+      ruleId: "resource-enum-names-csv",
+      from: { file: file.path, span: ref.span },
+      to: { file: match.raw },
+      confidence: "exact",
+      derivation: [
+        `member reference 'EResCSV.${ref.name}' at line ${ref.span.line}`,
+        `editorGen indexing is enabled in the project profile`,
+        `matches exactly one CSV table by name: ${match.raw}`,
       ],
     });
   }

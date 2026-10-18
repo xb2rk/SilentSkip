@@ -49,6 +49,7 @@ interface RawRef {
   role: RefRole;
   span: FactSpan;
   container: string | undefined;
+  receiver?: string;
 }
 
 function buildFileFacts(input: SourceInput): FileFacts {
@@ -306,6 +307,7 @@ function buildFileFacts(input: SourceInput): FileFacts {
             role: "member",
             span: spanOf(node.member.range),
             container: container(),
+            receiver: sliceRange(source, node.object.range),
           });
         }
         break;
@@ -399,6 +401,7 @@ function buildFileFacts(input: SourceInput): FileFacts {
     role: raw.role,
     span: raw.span,
     ...(raw.container !== undefined ? { container: raw.container } : {}),
+    ...(raw.receiver !== undefined ? { receiver: raw.receiver } : {}),
     resolution: resolveRef(raw, symbols, imports),
   }));
 

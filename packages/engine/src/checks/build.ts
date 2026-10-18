@@ -869,7 +869,9 @@ function bindingFinding(input: CheckInput, path: string): CheckFinding[] {
 
   const boundByLiteral = new Set<string>();
   for (const relation of input.relations?.relations ?? []) {
-    if (relation.ruleId === "string-names-csv") boundByLiteral.add(relation.to.file);
+    if (relation.ruleId === "string-names-csv" || relation.ruleId === "resource-enum-names-csv") {
+      boundByLiteral.add(relation.to.file);
+    }
   }
   const pinnedTarget = input.profile?.overrides
     .find(
@@ -942,11 +944,11 @@ function bindingFinding(input: CheckInput, path: string): CheckFinding[] {
       confidence: "exact",
       title: "No code reference found for this changed table",
       message:
-        `Checked every current file: no string literal names ${path} and no enum matches its header columns. ` +
+        `Checked every current file: no string literal or EResCSV member names ${path} and no enum matches its header columns. ` +
         `Its runtime use is unknown — if the table is loaded dynamically, pin a binding to make the link exact.`,
       anchors: [headerAnchor],
       derivation: [
-        `Searched ${input.current.factsByPath.size} current script file(s) for string literals naming the table and for enums covering every header column.`,
+        `Searched ${input.current.factsByPath.size} current script file(s) for string literals naming the table, EResCSV member names (when editorGen indexing is enabled), and enums covering every header column.`,
         "No reference found — the absence is exact; the runtime use stays unknown (channel ③).",
       ],
     },

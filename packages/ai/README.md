@@ -101,8 +101,8 @@ linker that gates every citation.
 
 ## Planned scope
 
-- **Engine checks E8** (silent-skip surface, BIND-01/02, DRIFT-01, REF-01/02) and **LOC-01 (E9)**
-  build on the same fact store and linker; the eval corpus lands at E11.
+- **LOC-01 (E9)** builds on the same fact store and linker; the eval corpus lands at E11. The E8
+  semantic checks and silent-skip surface are shipped, and surfaces stay outside the prompts.
 
 ## Hard rules
 

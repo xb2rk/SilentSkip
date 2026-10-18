@@ -31,6 +31,8 @@ export type RelationConfidence = "exact" | "inferred" | "unknown";
  * - `import-statement` — a file imports a path (literal statement fact).
  * - `import-path-matches-file` — an import path suffix-matches exactly one bundle file.
  * - `string-names-csv` — a string literal names exactly one CSV table (channel ① of §4.5).
+ * - `resource-enum-names-csv` — `EResCSV.<Name>` names exactly one CSV table (channel ②,
+ *   only when the project profile enables editorGen indexing).
  */
 export type RelationRuleId =
   | "name-refers-to-symbol"
@@ -39,7 +41,8 @@ export type RelationRuleId =
   | "call-receiver-import"
   | "import-statement"
   | "import-path-matches-file"
-  | "string-names-csv";
+  | "string-names-csv"
+  | "resource-enum-names-csv";
 
 /** One side of a relation. */
 export interface RelationEndpoint {
@@ -84,4 +87,6 @@ export interface RelationSet {
 export interface RelationContext {
   /** Bundle-relative paths of the CSV tables known to the caller (may be empty). */
   csvPaths?: readonly string[];
+  /** Treat `EResCSV.<Name>` member references as an exact CSV link (profile editorGenIndex). */
+  editorGenIndex?: boolean;
 }

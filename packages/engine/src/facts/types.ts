@@ -10,7 +10,7 @@
  */
 
 /** Bump on any shape change; persisted snapshots are keyed by this value. */
-export const FACT_SCHEMA_VERSION = 3;
+export const FACT_SCHEMA_VERSION = 4;
 
 /** A source span with 1-based lines and 0-based UTF-16 offsets. */
 export interface FactSpan {
@@ -97,6 +97,8 @@ export interface RefFact {
   span: FactSpan;
   /** Enclosing named scope (nearest function/graph/member), when there is one. */
   container?: string;
+  /** Exact source slice of the receiver for member accesses (e.g. `EResCSV` in `EResCSV.Item`). */
+  receiver?: string;
   /** Name-level resolution result — foundation for relations, not itself a hard fact. */
   resolution: RefResolution;
 }

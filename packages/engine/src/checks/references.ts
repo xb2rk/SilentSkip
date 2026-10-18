@@ -28,9 +28,9 @@ import type { CheckFinding, CheckInput } from "./types.js";
 /** Maximum broken-value witnesses attached to one REF-01 finding. */
 const MAX_REF_WITNESSES = 8;
 
-type Cast = "int" | "string" | "unknown";
+export type Cast = "int" | "string" | "unknown";
 
-interface FkPin {
+export interface FkPin {
   readonly sourcePath: string;
   readonly sourceColumn: string;
   readonly targetPath: string;
@@ -53,7 +53,7 @@ function parseFkValue(value: string | undefined): { targetPath: string; cast: Ca
   };
 }
 
-function fkPins(profile: ProjectProfile | undefined): FkPin[] {
+export function fkPins(profile: ProjectProfile | undefined): FkPin[] {
   const pins: FkPin[] = [];
   for (const override of profile?.overrides ?? []) {
     if (override.kind !== "pin-fk") continue;
@@ -66,13 +66,13 @@ function fkPins(profile: ProjectProfile | undefined): FkPin[] {
   return pins;
 }
 
-function dataRows(table: CsvTable): CsvRow[] {
+export function dataRows(table: CsvTable): CsvRow[] {
   const typeRow = detectTypeRow(table);
   return table.rows.filter((row) => row.index !== 0 && row !== typeRow && !isBlankRow(row));
 }
 
 /** Normalizes one value under the declared cast; `undefined` means it cannot match. */
-function normalize(value: string, cast: Cast): string | undefined {
+export function normalize(value: string, cast: Cast): string | undefined {
   if (cast === "string") return value;
   if (cast !== "int") return undefined;
   const trimmed = value.trim();
@@ -385,6 +385,9 @@ export function checkStructuredReferences(input: CheckInput): CheckFinding[] {
     }
 
     const separator = entry.split === "colon" ? ":" : "|";
+    const entrySeparator =
+      entry.entrySeparator === "semicolon" ? ";" : entry.entrySeparator === "pipe" ? "|" : null;
+    const entryIndex = entrySeparator === null ? undefined : entry.entryIndex;
     const targetKeys = new Set<string>();
     for (const row of dataRows(targetTable)) {
       const raw = rowKeyValue(row, targetKey.columns);
@@ -400,17 +403,39 @@ export function checkStructuredReferences(input: CheckInput): CheckFinding[] {
       const raw = row.cells[column]?.text.trim() ?? "";
       if (raw === "") continue;
       scanned += 1;
-      const parts = raw.split(separator).map((part) => part.trim());
-      const partValue = parts[entry.part];
-      if (partValue === undefined || partValue === "") {
+      const entries =
+        entrySeparator === null
+          ? [raw]
+          : raw
+              .split(entrySeparator)
+              .map((part) => part.trim())
+              .filter((part) => part !== "");
+      const selected =
+        entryIndex === undefined ? entries : entries.slice(entryIndex, entryIndex + 1);
+      if (selected.length === 0) {
         malformed += 1;
         broken.push({ row, value: raw });
         continue;
       }
-      const normalized = normalize(partValue, entry.cast);
-      if (normalized === undefined || !targetKeys.has(normalized)) {
-        broken.push({ row, value: raw });
+      let rowMalformed = false;
+      let rowBroken = false;
+      let brokenValue: string | null = null;
+      for (const segment of selected) {
+        const parts = segment.split(separator).map((part) => part.trim());
+        const partValue = parts[entry.part];
+        if (partValue === undefined || partValue === "") {
+          rowMalformed = true;
+          brokenValue ??= raw;
+          continue;
+        }
+        const normalized = normalize(partValue, entry.cast);
+        if (normalized === undefined || !targetKeys.has(normalized)) {
+          rowBroken = true;
+          brokenValue ??= segment;
+        }
       }
+      if (rowMalformed) malformed += 1;
+      if (rowMalformed || rowBroken) broken.push({ row, value: brokenValue ?? raw });
     }
     if (broken.length === 0) continue;
 
@@ -427,6 +452,12 @@ export function checkStructuredReferences(input: CheckInput): CheckFinding[] {
       .map((witness) => `"${witness.value}" (line ${witness.row.line})`)
       .join(", ");
     const unmatched = broken.length - malformed;
+    const entryLabel =
+      entrySeparator === null
+        ? "cell"
+        : entryIndex === undefined
+          ? `entry (split "${entrySeparator}")`
+          : `entry ${String(entryIndex)} (split "${entrySeparator}")`;
 
     findings.push({
       id: idBase,
@@ -437,18 +468,22 @@ export function checkStructuredReferences(input: CheckInput): CheckFinding[] {
       title: "Structured cell part has no target row",
       message:
         `${String(broken.length)} cell(s) in ${entry.csvPath} column "${entry.column}" have a ` +
-        `part ${String(entry.part)} that does not resolve against ${entry.targetPath} ` +
-        `(split "${separator}", cast ${entry.cast}); ${String(malformed)} malformed, ` +
+        `${entryLabel} whose part ${String(entry.part)} does not resolve against ${entry.targetPath} ` +
+        `(part split "${separator}", cast ${entry.cast}); ${String(malformed)} malformed, ` +
         `${String(unmatched)} missing target: ${shown}` +
         `${broken.length > witnesses.length ? `, +${String(broken.length - witnesses.length)} more` : ""}. ` +
         "A load-time lookup falls back or ignores that part; the rest of the cell is not interpreted.",
       anchors,
       derivation: [
         `The structured cell is pinned (readerProfile.structuredCells): ${entry.csvPath}."${entry.column}" → ${entry.targetPath}.`,
-        `Part ${String(entry.part)} selected after splitting on "${separator}" (zero-based).`,
+        entrySeparator === null
+          ? `Part ${String(entry.part)} selected after splitting on "${separator}" (zero-based).`
+          : entryIndex === undefined
+            ? `The cell is split into entries on "${entrySeparator}"; every entry is split on "${separator}" and part ${String(entry.part)} is checked.`
+            : `The cell is split into entries on "${entrySeparator}"; entry ${String(entryIndex)} is split on "${separator}" and part ${String(entry.part)} is checked.`,
         `The target row key is pinned (pin-row-key): ${targetKey.columns.map((index) => `"${columnLabelOf(targetTable, index)}"`).join(", ")} (exact).`,
         `Matching uses cast ${entry.cast}: ${entry.cast === "int" ? "numeric, so leading zeros compare equal" : "exact string equality"}.`,
-        `Compared ${String(scanned)} non-empty cell(s) with ${String(targetKeys.size)} target key(s); ${String(malformed)} part(s) were absent or empty.`,
+        `Compared ${String(scanned)} non-empty cell(s) with ${String(targetKeys.size)} target key(s); ${String(malformed)} cell(s) had a missing part.`,
       ],
     });
   }

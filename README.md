@@ -20,7 +20,9 @@ technical docs are English.
 > (function bodies + chunked reads, CALL-ARITY/ORPHAN-ADD checks, structured theme narratives)
 > are in.** E6 is in — the What-If chat: sessions + pins scoped to one A/B comparison, Vietnamese
 > answers with verified evidence vs labelled speculation, ledger-based memory on the stateless
-> Insea pipeline. E8 (semantic checks + silent-skip surface) is next.
+> Insea pipeline. E8 is in — semantic checks (BIND-01/02, DRIFT-01, REF-01/02), pinned reader
+> expectations, editorGen indexing, the silent-skip surface board, and an E8 hardening gate
+> (20 injected defects, clean corpus). E9 localization is next.
 > The locked master plan lives outside the repo; in-repo product docs are [`ARCHITECTURE.md`](./ARCHITECTURE.md),
 > [`docs/INSEA.md`](./docs/INSEA.md), [`docs/PROMPTS.md`](./docs/PROMPTS.md) and the per-package READMEs.
 

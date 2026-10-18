@@ -120,6 +120,16 @@ export function ProjectProfilePage() {
   const [structuredSplit, setStructuredSplit] = useState<"colon" | "pipe">("colon");
   const [structuredCast, setStructuredCast] = useState<"int" | "string">("int");
   const [structuredPart, setStructuredPart] = useState("0");
+  const [structuredEntrySeparator, setStructuredEntrySeparator] = useState<
+    "none" | "semicolon" | "pipe"
+  >("none");
+  const [structuredEntryIndex, setStructuredEntryIndex] = useState("");
+
+  const [nilPath, setNilPath] = useState("");
+  const [nilColumn, setNilColumn] = useState("");
+  const [enumPath, setEnumPath] = useState("");
+  const [enumColumn, setEnumColumn] = useState("");
+  const [enumName, setEnumName] = useState("");
 
   const profile = profileQuery.data;
 
@@ -252,18 +262,72 @@ export function ProjectProfilePage() {
     setGuardConstant("");
   }
 
+  function addNilRead(): void {
+    const csvPath = nilPath.trim();
+    const column = nilColumn.trim();
+    if (profile === undefined || csvPath === "" || column === "") return;
+    if (
+      profile.readerProfile.nilReads.some(
+        (entry) => entry.csvPath === csvPath && entry.column === column,
+      )
+    ) {
+      return;
+    }
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        nilReads: [...profile.readerProfile.nilReads, { csvPath, column }],
+      },
+    });
+    setNilPath("");
+    setNilColumn("");
+  }
+
+  function addEnumFallback(): void {
+    const csvPath = enumPath.trim();
+    const column = enumColumn.trim();
+    const name = enumName.trim();
+    if (profile === undefined || csvPath === "" || column === "" || name === "") return;
+    if (
+      profile.readerProfile.enumFallbacks.some(
+        (entry) => entry.csvPath === csvPath && entry.column === column && entry.enumName === name,
+      )
+    ) {
+      return;
+    }
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        enumFallbacks: [
+          ...profile.readerProfile.enumFallbacks,
+          { csvPath, column, enumName: name },
+        ],
+      },
+    });
+    setEnumPath("");
+    setEnumColumn("");
+    setEnumName("");
+  }
+
   function addStructured(): void {
     const part = Number.parseInt(structuredPart, 10);
+    const entryIndexText = structuredEntryIndex.trim();
+    const entryIndex = entryIndexText === "" ? undefined : Number.parseInt(entryIndexText, 10);
     if (
       profile === undefined ||
       structuredPath.trim() === "" ||
       structuredColumn.trim() === "" ||
       structuredTarget.trim() === "" ||
       Number.isNaN(part) ||
-      part < 0
+      part < 0 ||
+      (entryIndex !== undefined && (Number.isNaN(entryIndex) || entryIndex < 0))
     ) {
       return;
     }
+    const entrySeparator =
+      structuredEntrySeparator === "none" ? undefined : structuredEntrySeparator;
     persist({
       ...updateOf(profile),
       readerProfile: {
@@ -277,6 +341,8 @@ export function ProjectProfilePage() {
             split: structuredSplit,
             cast: structuredCast,
             part,
+            ...(entrySeparator === undefined ? {} : { entrySeparator }),
+            ...(entrySeparator === undefined || entryIndex === undefined ? {} : { entryIndex }),
           },
         ],
       },
@@ -284,9 +350,13 @@ export function ProjectProfilePage() {
     setStructuredPath("");
     setStructuredColumn("");
     setStructuredTarget("");
+    setStructuredEntryIndex("");
   }
 
-  function removeReaderEntry(key: "bindings" | "guards" | "structuredCells", index: number): void {
+  function removeReaderEntry(
+    key: "bindings" | "guards" | "structuredCells" | "nilReads" | "enumFallbacks",
+    index: number,
+  ): void {
     if (profile === undefined) return;
     persist({
       ...updateOf(profile),
@@ -939,6 +1009,36 @@ export function ProjectProfilePage() {
                     />
                   </div>
                 </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Select
+                    value={structuredEntrySeparator}
+                    onValueChange={(value) =>
+                      setStructuredEntrySeparator(value as "none" | "semicolon" | "pipe")
+                    }
+                  >
+                    <SelectTrigger
+                      className="h-9"
+                      aria-label={t("projectProfile.structuredEntrySeparator")}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("projectProfile.entrySeparatorNone")}</SelectItem>
+                      <SelectItem value="semicolon">
+                        {t("projectProfile.entrySeparatorSemicolon")}
+                      </SelectItem>
+                      <SelectItem value="pipe">{t("projectProfile.entrySeparatorPipe")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={structuredEntryIndex}
+                    onChange={(event) => setStructuredEntryIndex(event.target.value)}
+                    placeholder={t("projectProfile.structuredEntryIndex")}
+                    inputMode="numeric"
+                    disabled={structuredEntrySeparator === "none"}
+                    aria-label={t("projectProfile.structuredEntryIndex")}
+                  />
+                </div>
                 <Button
                   size="sm"
                   onClick={addStructured}
@@ -966,7 +1066,11 @@ export function ProjectProfilePage() {
                         <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
                           {entry.csvPath}.{entry.column} → {entry.targetPath} (
                           {entry.split === "colon" ? ":" : "|"}, {entry.cast}, part{" "}
-                          {String(entry.part)})
+                          {String(entry.part)}
+                          {entry.entrySeparator === undefined
+                            ? ""
+                            : `, entries ${entry.entrySeparator === "semicolon" ? ";" : "|"}`}
+                          {entry.entryIndex === undefined ? "" : ` #${String(entry.entryIndex)}`})
                         </code>
                         <Button
                           variant="ghost"
@@ -991,6 +1095,140 @@ export function ProjectProfilePage() {
                   <Info className="mt-0.5 size-3.5 shrink-0" />
                   {t("projectProfile.readerHint")}
                 </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <p className="text-meta font-semibold">{t("projectProfile.nilSection")}</p>
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <Input
+                    value={nilPath}
+                    onChange={(event) => setNilPath(event.target.value)}
+                    placeholder="Assets/CSV/UnitData.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.csvPath")}
+                  />
+                  <Input
+                    value={nilColumn}
+                    onChange={(event) => setNilColumn(event.target.value)}
+                    placeholder="Atk"
+                    className="font-mono"
+                    aria-label={t("projectProfile.nilColumn")}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={addNilRead}
+                    disabled={save.isPending || nilPath.trim() === "" || nilColumn.trim() === ""}
+                  >
+                    <Plus className="size-3.5" />
+                    {t("projectProfile.add")}
+                  </Button>
+                </div>
+                {profile.readerProfile.nilReads.length === 0 ? (
+                  <p className="text-meta text-muted-foreground">{t("projectProfile.nilEmpty")}</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {profile.readerProfile.nilReads.map((entry) => (
+                      <li
+                        key={JSON.stringify(entry)}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+                      >
+                        <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
+                          {entry.csvPath}.{entry.column}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0"
+                          aria-label={t("projectProfile.remove")}
+                          disabled={save.isPending}
+                          onClick={() =>
+                            removeReaderEntry(
+                              "nilReads",
+                              profile.readerProfile.nilReads.indexOf(entry),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <p className="text-meta font-semibold">{t("projectProfile.enumSection")}</p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+                  <Input
+                    value={enumPath}
+                    onChange={(event) => setEnumPath(event.target.value)}
+                    placeholder="Assets/CSV/UnitData.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.csvPath")}
+                  />
+                  <Input
+                    value={enumColumn}
+                    onChange={(event) => setEnumColumn(event.target.value)}
+                    placeholder="Element"
+                    className="font-mono"
+                    aria-label={t("projectProfile.enumColumn")}
+                  />
+                  <Input
+                    value={enumName}
+                    onChange={(event) => setEnumName(event.target.value)}
+                    placeholder="EElement"
+                    className="font-mono"
+                    aria-label={t("projectProfile.enumName")}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={addEnumFallback}
+                    disabled={
+                      save.isPending ||
+                      enumPath.trim() === "" ||
+                      enumColumn.trim() === "" ||
+                      enumName.trim() === ""
+                    }
+                  >
+                    <Plus className="size-3.5" />
+                    {t("projectProfile.add")}
+                  </Button>
+                </div>
+                {profile.readerProfile.enumFallbacks.length === 0 ? (
+                  <p className="text-meta text-muted-foreground">{t("projectProfile.enumEmpty")}</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {profile.readerProfile.enumFallbacks.map((entry) => (
+                      <li
+                        key={JSON.stringify(entry)}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+                      >
+                        <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
+                          {entry.csvPath}.{entry.column} → {entry.enumName}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0"
+                          aria-label={t("projectProfile.remove")}
+                          disabled={save.isPending}
+                          onClick={() =>
+                            removeReaderEntry(
+                              "enumFallbacks",
+                              profile.readerProfile.enumFallbacks.indexOf(entry),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -11,9 +11,9 @@ finding carries `severity`, `confidence` and anchor ids back to both sides of th
 
 `confidence` describes the **observation** (were the facts measured?). A separate optional
 `effectConfidence` describes the **runtime impact** (was the consequence proven?). DRIFT-01,
-ORPHAN-ADD-01, BIND-01/02 and REF-01/02 mark the effect `inferred` unless a pinned reader profile
-removes the ambiguity; a finding can therefore be `exact` about the facts and `inferred` about
-what the game does with them.
+ORPHAN-ADD-01, BIND-01/02, REF-01/02 and every silent-skip entry mark the effect `inferred` unless a
+pinned reader profile removes the ambiguity; a finding can therefore be `exact` about the facts and
+`inferred` about what the game does with them.
 
 ## Shipped rules
 
@@ -25,14 +25,14 @@ what the game does with them.
 | `TYPE-01` | A data cell that fails the declared type row (`int`, `float`, `bool`, …). | `major` | `exact` |
 | `DRIFT-01` | A/B header change at stable column count (rename or reorder). Positional readers may then read the wrong field without throwing. | `critical`; `info` for a reorder covered by a pinned name binding, `major` for a rename outside the pin | `exact` observation |
 | `BIND-03` | A changed table whose header cells exactly name the members of one current enum (candidate index binding). | `info` | `inferred`; `exact` with a matching `pin-binding` |
-| `BIND-04` | A changed table that no current string literal names and no enum covers. | `info` | `exact` (absence) |
+| `BIND-04` | A changed table that no current string literal or `EResCSV` member names and no enum covers. | `info` | `exact` (absence) |
 | `BIND-01` | A reader binding pinned by name names a column missing from the current header (the lookup disables the consumer). | `critical` | `exact` |
 | `BIND-02` | A pinned guard constant differs from the header width: larger is an out-of-bounds risk, smaller leaves trailing columns never read. | `critical` (OOB) / `major` | `exact` |
 | `DANGLING-REF` | A symbol removed on side B still has unresolved same-name references. | `major` | `exact` |
 | `CALL-ARITY-01` | A call whose argument count differs from the resolved declaration's parameter count. Receiver-aware; unresolvable or ambiguous targets stay silent. | `major` | `exact` |
 | `ORPHAN-ADD-01` | A function added on side B whose name appears in no reference, call or import in any scanned source file. Dynamic asset binding (`.ui`/`.prefab` `funcKey`) is outside the scan. | `info` | `exact` (absence within source) |
 | `REF-01` | A pinned single-value foreign key with values that match no row key of the pinned target table. | `major` | `exact` |
-| `REF-02` | A pinned structured cell (`colon`/`pipe`, part N) whose values are malformed or match no row key of the pinned target table. Only the pinned part is interpreted; the rest of the cell is not. | `major` | `exact` |
+| `REF-02` | A pinned structured cell (`:`/`\|` parts, optional `;`/`\|` entry list, optional entry index) whose values are malformed or match no row key of the pinned target table. Only the pinned part of each selected entry is interpreted; the rest of the cell is not. | `major` | `exact` |
 
 `REF-01` honors the runtime cast (spec §4.10): `int` compares numerically (`00100` ≡ `100`),
 `string` compares exactly. An unknown cast, an unpinned target key or a composite target key is
@@ -57,8 +57,8 @@ A pin that points at a missing header/table is reported (`pin`, `pin-missing`, `
 
 ## Reader profile
 
-BIND-01/02 and REF-02 only run when the project profile declares the reader expectation. The
-engine never infers these from naming style or call shape.
+BIND-01/02, REF-02 and the pinned surface mechanisms only run when the project profile declares
+the reader expectation. The engine never infers these from naming style or call shape.
 
 ```jsonc
 "readerProfile": {
@@ -73,18 +73,36 @@ engine never infers these from naming style or call shape.
       "targetPath": "Assets/CSV/Item.csv",
       "split": "colon",
       "cast": "int",
-      "part": 0
+      "part": 1,
+      "entrySeparator": "semicolon",
+      "entryIndex": 0
     }
+  ],
+  "nilReads": [{ "csvPath": "Assets/CSV/ShopData.csv", "column": "ShopId" }],
+  "enumFallbacks": [
+    { "csvPath": "Assets/CSV/ShopData.csv", "column": "OfferKind", "enumName": "EOfferKind" }
   ]
 }
 ```
 
 - A `binding` means the reader resolves these columns by name; a missing name is `BIND-01`.
 - A `guard` means the reader stops at a fixed index; a mismatch is `BIND-02`.
-- A `structuredCell` means part `part` (zero-based after splitting on `:` or `|`) is a row key of
-  `targetPath`. REF-02 reports malformed cells and unmatched parts; it does not interpret other
+- A `structuredCell` means entry `entryIndex` (all entries when absent) is split on `split`, and
+  part `part` (zero-based) is a row key of `targetPath`. `entrySeparator` covers pair lists such as
+  `100:2;999:1`. REF-02 reports malformed entries and unmatched parts; it does not interpret other
   parts, and the target key must be pinned with `pin-row-key`. Composite target keys stay out of
   scope (reported as `info`).
+- A `nilRead` means an empty cell in `column` makes the loader disable the row (`nil_read` surface).
+- An `enumFallback` means a value in `column` outside enum `enumName` makes the loader fall back
+  (`enum_fallback` surface). The enum is matched by name in the current facts.
+
+## EditorGen indexing
+
+Channel ② of §4.5 is optional and off by default. When `editorGenIndex` is enabled in the project
+profile, `EResCSV.<Name>` member references are linked to the unique CSV table with the same base
+name (`EResCSV.UnitData` → `UnitData.csv`) as an exact relation. With the flag off the channel is
+ignored, because generated-enum naming is a project convention rather than a universal rule.
+Linked tables no longer produce `BIND-04`.
 
 ## Silent-skip surface (E8.1)
 
@@ -98,26 +116,35 @@ engine never infers these from naming style or call shape.
   collision is exact, the overwrite convention is inferred). First-column fallback is a candidate
   convention, not an identity, so it is not surfaced; composite rows would otherwise look like
   collisions.
+- `missing_binding` — a pinned name binding targets a column the header lacks (effect `disabled`;
+  the missing column is exact, the disable behavior is inferred).
+- `nil_read` — a pinned required column has an empty cell (effect `disabled`; the empty cell is
+  exact, the row-disable convention is inferred).
+- `enum_fallback` — a pinned enum column holds a value outside the pinned enum (effect `fallback`;
+  the unknown member is exact, the fallback convention is inferred).
+- `ref_broken` — a pinned `pin-fk` source cell matches no target row key under the declared cast
+  (effect `fallback`; the missing target is exact, the fallback convention is inferred).
 
 Surfaces are a deterministic panel for humans; they are not sent to the AI prompts. Reader-profile
 findings do reach the AI as engine findings, with `effectConfidence` attached.
 
 `fixed_skip` (type row) is expected and never counted. `nil_read`, `missing_binding`,
-`enum_fallback` and `ref_broken` need loader/FK intent pins and are not guessed.
+`enum_fallback` and `ref_broken` are emitted only after the profile pins the loader/FK intent.
 
 ## Not shipped yet
 
-- `REF-02` for partial fallback semantics beyond one pinned part (pipe/pair/enum cells with mixed
-  casts) — the pinned single-part form above is shipped.
-- Silent-skip mechanisms that require pinned loader intent.
+- `REF-02` for partial fallback semantics beyond one pinned part per entry (mixed casts and
+  multi-part references) — the pinned entry/part form above is shipped.
+- Silent-skip mechanisms beyond the seven listed above; anything else stays unguessed.
 
 ## Hardening gate (E8)
 
 `packages/engine/test/eval.test.ts` runs the real `buildDigest` pipeline over 20 injected defects
 (each must surface as its owning rule: STRUCT-01/02/03, TYPE-01, BIND-01/02/03, DRIFT-01, REF-01/02,
-DANGLING-REF, CALL-ARITY-01, ORPHAN-ADD-01) plus 3 clean cases that must yield zero findings: a
-value-only CSV change behind a named loader, a rename with both call and definition updated, and
-the checked-in 31-file Sample CSV corpus unchanged.
+DANGLING-REF, CALL-ARITY-01, ORPHAN-ADD-01) plus 4 clean cases that must yield zero findings: a
+value-only CSV change behind a named loader, a rename with both call and definition updated, the
+checked-in 31-file Sample CSV corpus unchanged, and an `EResCSV` link that only activates with
+editorGen indexing enabled.
 
 ```bash
 pnpm --filter @craftland-qa/engine exec vitest run test/eval.test.ts

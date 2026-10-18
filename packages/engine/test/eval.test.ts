@@ -33,20 +33,27 @@ function digest(before: Files, after: Files, profile?: ProjectProfile) {
   });
 }
 
-const EMPTY_READER: ReaderProfile = { bindings: [], guards: [], structuredCells: [] };
+const EMPTY_READER: ReaderProfile = {
+  bindings: [],
+  guards: [],
+  structuredCells: [],
+  nilReads: [],
+  enumFallbacks: [],
+};
 
 function evalProfile(options: {
   overrides?: readonly OverrideEntry[];
-  reader?: ReaderProfile;
+  reader?: Partial<ReaderProfile>;
+  editorGenIndex?: boolean;
 }): ProjectProfile {
   return {
     projectId: "eval",
     conventions: [],
     readApiFamily: [],
     overrides: [...(options.overrides ?? [])],
-    readerProfile: options.reader ?? EMPTY_READER,
+    readerProfile: { ...EMPTY_READER, ...options.reader },
     coverage: null,
-    editorGenIndex: false,
+    editorGenIndex: options.editorGenIndex ?? false,
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }
@@ -212,6 +219,8 @@ const CASES: readonly EvalCase[] = [
         bindings: [{ csvPath: T, columns: ["id", "hp"] }],
         guards: [],
         structuredCells: [],
+        nilReads: [],
+        enumFallbacks: [],
       },
     }),
     verify: (finding) => expect(finding.severity).toBe("critical"),
@@ -222,7 +231,13 @@ const CASES: readonly EvalCase[] = [
     before: { [T]: T_CLEAN },
     after: { [T]: "id,atk\nscout,120\nguard,80\n" },
     profile: evalProfile({
-      reader: { bindings: [], guards: [{ csvPath: T, constant: 3 }], structuredCells: [] },
+      reader: {
+        bindings: [],
+        guards: [{ csvPath: T, constant: 3 }],
+        structuredCells: [],
+        nilReads: [],
+        enumFallbacks: [],
+      },
     }),
     verify: (finding) => expect(finding.severity).toBe("critical"),
   },
@@ -232,7 +247,13 @@ const CASES: readonly EvalCase[] = [
     before: { [T]: T_CLEAN },
     after: { [T]: "id,atk\nscout,120\nguard,80\n" },
     profile: evalProfile({
-      reader: { bindings: [], guards: [{ csvPath: T, constant: 1 }], structuredCells: [] },
+      reader: {
+        bindings: [],
+        guards: [{ csvPath: T, constant: 1 }],
+        structuredCells: [],
+        nilReads: [],
+        enumFallbacks: [],
+      },
     }),
     verify: (finding) => expect(finding.severity).toBe("major"),
   },
@@ -259,6 +280,8 @@ const CASES: readonly EvalCase[] = [
         bindings: [{ csvPath: T, columns: ["id", "hp"] }],
         guards: [],
         structuredCells: [],
+        nilReads: [],
+        enumFallbacks: [],
       },
     }),
     verify: (finding) => expect(finding.severity).toBe("major"),
@@ -403,5 +426,23 @@ describe("E8 hardening gate - clean corpus (0 false positives)", () => {
     expect(Object.keys(files).length).toBeGreaterThanOrEqual(30);
     const result = digest(files, files);
     expect(result.findings).toEqual([]);
+  });
+
+  it("links EResCSV only when the profile enables editorGen indexing", () => {
+    const loader = {
+      "Assets/Scripts/EResLoader.fcg": [
+        "static graph EResLoader {",
+        "  func Load() int {",
+        "    return CSVData.ReadCSV(EResCSV.T)",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    };
+    const before = { ...loader, [T]: T_CLEAN };
+    const after = { ...loader, [T]: "id,atk\nscout,120\nguard,80\n" };
+    expect(findByRule(digest(before, after).findings, "BIND-04")).toHaveLength(1);
+    const on = digest(before, after, evalProfile({ editorGenIndex: true }));
+    expect(findByRule(on.findings, "BIND-04")).toEqual([]);
   });
 });
