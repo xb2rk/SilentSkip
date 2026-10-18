@@ -64,6 +64,7 @@ function profileWithPin(csvPath: string, value: string): ProjectProfile {
     overrides: [
       { id: "o1", kind: "pin-row-key", target: { csvPath }, value, createdAt: "2026-01-01" },
     ],
+    readerProfile: { bindings: [], guards: [], structuredCells: [] },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",

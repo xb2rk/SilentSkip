@@ -1,0 +1,1 @@
+ALTER TABLE `project_profiles` ADD `reader_profile_json` text;

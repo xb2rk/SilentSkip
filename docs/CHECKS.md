@@ -20,10 +20,13 @@ finding carries `severity`, `confidence` and anchor ids back to both sides of th
 | `DRIFT-01` | A/B header change at stable column count (rename or reorder). Positional readers then read the wrong field without throwing. | `critical` | `exact` |
 | `BIND-03` | A changed table whose header cells exactly name the members of one current enum (candidate index binding). | `info` | `inferred`; `exact` with a matching `pin-binding` |
 | `BIND-04` | A changed table that no current string literal names and no enum covers. | `info` | `exact` (absence) |
+| `BIND-01` | A reader binding pinned by name names a column missing from the current header (the lookup disables the consumer). | `critical` | `exact` |
+| `BIND-02` | A pinned guard constant differs from the header width: larger is an out-of-bounds risk, smaller leaves trailing columns never read. | `critical` (OOB) / `major` | `exact` |
 | `DANGLING-REF` | A symbol removed on side B still has unresolved same-name references. | `major` | `exact` |
 | `CALL-ARITY-01` | A call whose argument count differs from the resolved declaration's parameter count. Receiver-aware; unresolvable or ambiguous targets stay silent. | `major` | `exact` |
 | `ORPHAN-ADD-01` | A function added on side B whose name appears in no reference, call or import in the whole current tree. | `info` | `exact` (absence) |
 | `REF-01` | A pinned single-value foreign key with values that match no row key of the pinned target table. | `major` | `exact` |
+| `REF-02` | A pinned structured cell (`colon`/`pipe`, part N) whose values are malformed or match no row key of the pinned target table. Only the pinned part is interpreted; the rest of the cell is not. | `major` | `exact` |
 
 `REF-01` honors the runtime cast (spec §4.10): `int` compares numerically (`00100` ≡ `100`),
 `string` compares exactly. An unknown cast, an unpinned target key or a composite target key is
@@ -46,6 +49,37 @@ a project convention beyond the documented fallbacks.
 A pin that points at a missing header/table is reported (`pin`, `pin-missing`, `|column-missing`,
 `|target-missing`), never ignored.
 
+## Reader profile
+
+BIND-01/02 and REF-02 only run when the project profile declares the reader expectation. The
+engine never infers these from naming style or call shape.
+
+```jsonc
+"readerProfile": {
+  "bindings": [
+    { "csvPath": "Assets/CSV/ShopData.csv", "columns": ["ShopId", "ItemId"] }
+  ],
+  "guards": [{ "csvPath": "Assets/CSV/ShopData.csv", "constant": 10 }],
+  "structuredCells": [
+    {
+      "csvPath": "Assets/CSV/MissionReward.csv",
+      "column": "RewardPool",
+      "targetPath": "Assets/CSV/Item.csv",
+      "split": "colon",
+      "cast": "int",
+      "part": 0
+    }
+  ]
+}
+```
+
+- A `binding` means the reader resolves these columns by name; a missing name is `BIND-01`.
+- A `guard` means the reader stops at a fixed index; a mismatch is `BIND-02`.
+- A `structuredCell` means part `part` (zero-based after splitting on `:` or `|`) is a row key of
+  `targetPath`. REF-02 reports malformed cells and unmatched parts; it does not interpret other
+  parts, and the target key must be pinned with `pin-row-key`. Composite target keys stay out of
+  scope (reported as `info`).
+
 ## Silent-skip surface (E8.1)
 
 `runSurfaces` scans every CSV table on both refs and records only mechanisms it can prove:
@@ -62,9 +96,8 @@ A pin that points at a missing header/table is reported (`pin`, `pin-missing`, `
 
 ## Not shipped yet
 
-- `BIND-01` (binding names a column that does not exist) and `BIND-02` (index out of bounds /
-  guard count differs from header) — both need a declarative reader profile.
-- `REF-02` — structured cells (`pipe`, `pair`, enum) and partial fallback.
+- `REF-02` for partial fallback semantics beyond one pinned part (pipe/pair/enum cells with mixed
+  casts) — the pinned single-part form above is shipped.
 - Silent-skip mechanisms that require pinned loader intent.
 
 ## Tests

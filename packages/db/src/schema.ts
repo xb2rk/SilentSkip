@@ -74,6 +74,7 @@ export const projectProfiles = sqliteTable("project_profiles", {
   conventionsJson: text("conventions_json"),
   readApiFamilyJson: text("read_api_family_json"),
   overridesJson: text("overrides_json"),
+  readerProfileJson: text("reader_profile_json"),
   coverageJson: text("coverage_json"),
   editorGenIndex: integer("editor_gen_index", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),

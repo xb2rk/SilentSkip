@@ -73,6 +73,38 @@ export const CoverageSchema = z.object({
   note: z.string().min(1).optional(),
 });
 
+/** One pinned "reader binds these CSV columns by name" statement (BIND-01). */
+export const ReaderBindingSchema = z.object({
+  csvPath: z.string().min(1),
+  columns: z.array(z.string().min(1)).min(1),
+});
+
+/** One pinned reader loop/guard size (BIND-02). */
+export const ReaderGuardSchema = z.object({
+  csvPath: z.string().min(1),
+  constant: z.number().int().nonnegative(),
+});
+
+/** One pinned structured cell whose part references another table (REF-02). */
+export const ReaderStructuredCellSchema = z.object({
+  csvPath: z.string().min(1),
+  column: z.string().min(1),
+  targetPath: z.string().min(1),
+  split: z.enum(["colon", "pipe"]),
+  cast: z.enum(["int", "string"]),
+  /** Zero-based part that holds the target row key. */
+  part: z.number().int().nonnegative().default(0),
+});
+
+/** Declarative reader expectations pinned by the user; never inferred by the engine. */
+export const ReaderProfileSchema = z.object({
+  bindings: z.array(ReaderBindingSchema),
+  guards: z.array(ReaderGuardSchema),
+  structuredCells: z.array(ReaderStructuredCellSchema),
+});
+
+export type ReaderProfile = z.infer<typeof ReaderProfileSchema>;
+
 /** The full project profile (the DB JSON columns merged into one shape). */
 export const ProjectProfileSchema = z.object({
   projectId: z.string().min(1),
@@ -80,6 +112,7 @@ export const ProjectProfileSchema = z.object({
   /** Read API families observed or pinned, e.g. `["Strings", "ConfigManager"]`. */
   readApiFamily: z.array(z.string().min(1)),
   overrides: z.array(OverrideEntrySchema),
+  readerProfile: ReaderProfileSchema.default({ bindings: [], guards: [], structuredCells: [] }),
   coverage: CoverageSchema.nullable(),
   editorGenIndex: z.boolean(),
   updatedAt: z.string().min(1),
@@ -93,9 +126,17 @@ export const ProjectProfileUpdateSchema = ProjectProfileSchema.pick({
   conventions: true,
   readApiFamily: true,
   overrides: true,
+  readerProfile: true,
   coverage: true,
   editorGenIndex: true,
 });
+
+/** Empty reader profile reused by the default and the empty-project builder. */
+export const EMPTY_READER_PROFILE: ReaderProfile = {
+  bindings: [],
+  guards: [],
+  structuredCells: [],
+};
 
 /**
  * Builds the empty profile for a project that has never been configured.
@@ -109,6 +150,7 @@ export function emptyProjectProfile(projectId: string, updatedAt: string): Proje
     conventions: [],
     readApiFamily: [],
     overrides: [],
+    readerProfile: EMPTY_READER_PROFILE,
     coverage: null,
     editorGenIndex: false,
     updatedAt,

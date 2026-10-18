@@ -87,6 +87,20 @@ describe("E8.2 project profile routes", () => {
       ],
       coverage: null,
       editorGenIndex: true,
+      readerProfile: {
+        bindings: [{ csvPath: "Assets/CSV/Item.csv", columns: ["id", "title"] }],
+        guards: [{ csvPath: "Assets/CSV/Item.csv", constant: 5 }],
+        structuredCells: [
+          {
+            csvPath: "Assets/CSV/Loot.csv",
+            column: "rewards",
+            targetPath: "Assets/CSV/Item.csv",
+            split: "colon",
+            cast: "int",
+            part: 0,
+          },
+        ],
+      },
     };
     const saved = await app.request(`/api/projects/${projectId}/profile`, {
       method: "PUT",
@@ -99,6 +113,10 @@ describe("E8.2 project profile routes", () => {
     expect(profile.readApiFamily).toEqual(["ConfigManager"]);
     expect(profile.overrides.map((entry) => entry.kind)).toEqual(["pin-binding", "entity-note"]);
     expect(profile.editorGenIndex).toBe(true);
+    expect(profile.readerProfile.bindings).toEqual([
+      { csvPath: "Assets/CSV/Item.csv", columns: ["id", "title"] },
+    ]);
+    expect(profile.readerProfile.structuredCells[0]?.part).toBe(0);
 
     const reloaded = await app.request(`/api/projects/${projectId}/profile`);
     const again = ProjectProfileSchema.parse(await reloaded.json());

@@ -1,4 +1,5 @@
 import {
+  EMPTY_READER_PROFILE,
   emptyProjectProfile,
   type ProjectProfile,
   ProjectProfileSchema,
@@ -32,6 +33,7 @@ export function loadProjectProfile(db: AppDatabase, projectId: string): ProjectP
     conventions: parseJson(row.conventionsJson, []),
     readApiFamily: parseJson(row.readApiFamilyJson, []),
     overrides: parseJson(row.overridesJson, []),
+    readerProfile: parseJson(row.readerProfileJson, EMPTY_READER_PROFILE),
     coverage: parseJson(row.coverageJson, null),
     editorGenIndex: row.editorGenIndex,
     updatedAt: row.updatedAt.toISOString(),
@@ -51,6 +53,7 @@ export function saveProjectProfile(
     conventionsJson: JSON.stringify(input.conventions),
     readApiFamilyJson: JSON.stringify(input.readApiFamily),
     overridesJson: JSON.stringify(input.overrides),
+    readerProfileJson: JSON.stringify(input.readerProfile),
     coverageJson: input.coverage === null ? null : JSON.stringify(input.coverage),
     editorGenIndex: input.editorGenIndex,
     updatedAt,

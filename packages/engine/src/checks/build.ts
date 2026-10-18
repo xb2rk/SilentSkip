@@ -17,6 +17,11 @@
  * - `BIND-03` — candidate binding: an enum whose members cover every header column of a changed
  *   table (exact text match, index-enum shape). A candidate only — confidence `inferred` unless
  *   the profile pins this table to that enum, then `exact`.
+ * - `BIND-01` — a pinned name binding names a column the current header does not have (disabled).
+ * - `BIND-02` — a pinned loop/guard constant differs from the current header width (OOB or
+ *   trailing columns never read). BIND-01/02 only run when the reader profile declares intent.
+ * - `REF-01` — a pinned single-value foreign key has values with no target row (runtime cast).
+ * - `REF-02` — a pinned structured cell (`a:b`) has a part with no target row or no such part.
  * - `BIND-04` — a changed table that no current code references: no `.csv` string literal and no
  *   header-matching enum. The absence is an exact fact; the runtime use stays unknown (info).
  * - `DANGLING-REF` — a symbol removed in B still has same-name references in B that resolve
@@ -49,7 +54,8 @@ import {
 } from "../csv/analysis.js";
 import type { CsvCell, CsvRow, CsvTable } from "../csv/index.js";
 import { type CallFact, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
-import { checkForeignKeys } from "./references.js";
+import { checkReaderProfile } from "./readers.js";
+import { checkForeignKeys, checkStructuredReferences } from "./references.js";
 import type { CheckFinding, CheckInput, CheckSide, RegisterAnchor } from "./types.js";
 
 /** Maximum mismatching-row witnesses attached to one STRUCT-01 finding. */
@@ -80,7 +86,9 @@ export function runChecks(input: CheckInput): CheckFinding[] {
     ...checkHeaderDrift(input),
     ...checkTypeRows(input),
     ...checkBindings(input),
+    ...checkReaderProfile(input),
     ...checkForeignKeys(input),
+    ...checkStructuredReferences(input),
     ...checkDanglingReferences(input),
     ...checkCallArity(input),
     ...checkOrphanAdditions(input),

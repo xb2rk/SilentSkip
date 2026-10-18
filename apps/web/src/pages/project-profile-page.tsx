@@ -65,6 +65,7 @@ function updateOf(profile: ProjectProfile): ProjectProfileUpdate {
     conventions: profile.conventions,
     readApiFamily: profile.readApiFamily,
     overrides: profile.overrides,
+    readerProfile: profile.readerProfile,
     coverage: profile.coverage,
     editorGenIndex: profile.editorGenIndex,
   };
@@ -108,6 +109,17 @@ export function ProjectProfilePage() {
   const [noteFile, setNoteFile] = useState("");
   const [noteSymbol, setNoteSymbol] = useState("");
   const [noteText, setNoteText] = useState("");
+
+  const [bindingPath, setBindingPath] = useState("");
+  const [bindingColumns, setBindingColumns] = useState("");
+  const [guardPath, setGuardPath] = useState("");
+  const [guardConstant, setGuardConstant] = useState("");
+  const [structuredPath, setStructuredPath] = useState("");
+  const [structuredColumn, setStructuredColumn] = useState("");
+  const [structuredTarget, setStructuredTarget] = useState("");
+  const [structuredSplit, setStructuredSplit] = useState<"colon" | "pipe">("colon");
+  const [structuredCast, setStructuredCast] = useState<"int" | "string">("int");
+  const [structuredPart, setStructuredPart] = useState("0");
 
   const profile = profileQuery.data;
 
@@ -198,6 +210,90 @@ export function ProjectProfilePage() {
     persist({
       ...updateOf(profile),
       conventions: profile.conventions.filter((convention) => convention.id !== id),
+    });
+  }
+
+  function addBinding(): void {
+    if (profile === undefined || bindingPath.trim() === "") return;
+    const columns = bindingColumns
+      .split(",")
+      .map((column) => column.trim())
+      .filter((column) => column !== "");
+    if (columns.length === 0) return;
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        bindings: [...profile.readerProfile.bindings, { csvPath: bindingPath.trim(), columns }],
+      },
+    });
+    setBindingPath("");
+    setBindingColumns("");
+  }
+
+  function addGuard(): void {
+    const constant = Number.parseInt(guardConstant, 10);
+    if (
+      profile === undefined ||
+      guardPath.trim() === "" ||
+      Number.isNaN(constant) ||
+      constant < 0
+    ) {
+      return;
+    }
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        guards: [...profile.readerProfile.guards, { csvPath: guardPath.trim(), constant }],
+      },
+    });
+    setGuardPath("");
+    setGuardConstant("");
+  }
+
+  function addStructured(): void {
+    const part = Number.parseInt(structuredPart, 10);
+    if (
+      profile === undefined ||
+      structuredPath.trim() === "" ||
+      structuredColumn.trim() === "" ||
+      structuredTarget.trim() === "" ||
+      Number.isNaN(part) ||
+      part < 0
+    ) {
+      return;
+    }
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        structuredCells: [
+          ...profile.readerProfile.structuredCells,
+          {
+            csvPath: structuredPath.trim(),
+            column: structuredColumn.trim(),
+            targetPath: structuredTarget.trim(),
+            split: structuredSplit,
+            cast: structuredCast,
+            part,
+          },
+        ],
+      },
+    });
+    setStructuredPath("");
+    setStructuredColumn("");
+    setStructuredTarget("");
+  }
+
+  function removeReaderEntry(key: "bindings" | "guards" | "structuredCells", index: number): void {
+    if (profile === undefined) return;
+    persist({
+      ...updateOf(profile),
+      readerProfile: {
+        ...profile.readerProfile,
+        [key]: profile.readerProfile[key].filter((_entry, entryIndex) => entryIndex !== index),
+      },
     });
   }
 
@@ -642,6 +738,260 @@ export function ProjectProfilePage() {
                 <Info className="mt-0.5 size-3.5 shrink-0" />
                 {t("projectProfile.notesHint")}
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-body font-semibold">{t("projectProfile.readerTitle")}</p>
+                <p className="text-meta text-muted-foreground">
+                  {t("projectProfile.readerDescription")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-meta font-semibold">{t("projectProfile.bindingSection")}</p>
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <Input
+                    value={bindingPath}
+                    onChange={(event) => setBindingPath(event.target.value)}
+                    placeholder="Assets/CSV/UnitData.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.csvPath")}
+                  />
+                  <Input
+                    value={bindingColumns}
+                    onChange={(event) => setBindingColumns(event.target.value)}
+                    placeholder="id,atk"
+                    className="font-mono"
+                    aria-label={t("projectProfile.bindingColumns")}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={addBinding}
+                    disabled={save.isPending || bindingPath.trim() === ""}
+                  >
+                    <Plus className="size-3.5" />
+                    {t("projectProfile.add")}
+                  </Button>
+                </div>
+                {profile.readerProfile.bindings.length === 0 ? (
+                  <p className="text-meta text-muted-foreground">
+                    {t("projectProfile.bindingsEmpty")}
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {profile.readerProfile.bindings.map((binding) => (
+                      <li
+                        key={JSON.stringify(binding)}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+                      >
+                        <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
+                          {binding.csvPath} → {binding.columns.join(", ")}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0"
+                          aria-label={t("projectProfile.remove")}
+                          disabled={save.isPending}
+                          onClick={() =>
+                            removeReaderEntry(
+                              "bindings",
+                              profile.readerProfile.bindings.indexOf(binding),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <p className="text-meta font-semibold">{t("projectProfile.guardSection")}</p>
+                <div className="grid gap-2 sm:grid-cols-[1fr_140px_auto] sm:items-end">
+                  <Input
+                    value={guardPath}
+                    onChange={(event) => setGuardPath(event.target.value)}
+                    placeholder="Assets/CSV/UnitData.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.csvPath")}
+                  />
+                  <Input
+                    value={guardConstant}
+                    onChange={(event) => setGuardConstant(event.target.value)}
+                    placeholder="6"
+                    inputMode="numeric"
+                    aria-label={t("projectProfile.guardConstant")}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={addGuard}
+                    disabled={
+                      save.isPending || guardPath.trim() === "" || guardConstant.trim() === ""
+                    }
+                  >
+                    <Plus className="size-3.5" />
+                    {t("projectProfile.add")}
+                  </Button>
+                </div>
+                {profile.readerProfile.guards.length === 0 ? (
+                  <p className="text-meta text-muted-foreground">
+                    {t("projectProfile.guardsEmpty")}
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {profile.readerProfile.guards.map((guard) => (
+                      <li
+                        key={JSON.stringify(guard)}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+                      >
+                        <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
+                          {guard.csvPath} → {String(guard.constant)}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0"
+                          aria-label={t("projectProfile.remove")}
+                          disabled={save.isPending}
+                          onClick={() =>
+                            removeReaderEntry("guards", profile.readerProfile.guards.indexOf(guard))
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <p className="text-meta font-semibold">{t("projectProfile.structuredSection")}</p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <Input
+                    value={structuredPath}
+                    onChange={(event) => setStructuredPath(event.target.value)}
+                    placeholder="Assets/CSV/MissionReward.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.csvPath")}
+                  />
+                  <Input
+                    value={structuredColumn}
+                    onChange={(event) => setStructuredColumn(event.target.value)}
+                    placeholder={t("projectProfile.structuredColumn")}
+                    className="font-mono"
+                    aria-label={t("projectProfile.structuredColumn")}
+                  />
+                  <Input
+                    value={structuredTarget}
+                    onChange={(event) => setStructuredTarget(event.target.value)}
+                    placeholder="Assets/CSV/ItemData.csv"
+                    className="font-mono"
+                    aria-label={t("projectProfile.structuredTarget")}
+                  />
+                  <div className="flex gap-2">
+                    <Select
+                      value={structuredSplit}
+                      onValueChange={(value) => setStructuredSplit(value as "colon" | "pipe")}
+                    >
+                      <SelectTrigger
+                        className="h-9 flex-1"
+                        aria-label={t("projectProfile.structuredSplit")}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="colon">{t("projectProfile.splitColon")}</SelectItem>
+                        <SelectItem value="pipe">{t("projectProfile.splitPipe")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={structuredCast}
+                      onValueChange={(value) => setStructuredCast(value as "int" | "string")}
+                    >
+                      <SelectTrigger
+                        className="h-9 w-24"
+                        aria-label={t("projectProfile.structuredCast")}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="int">int</SelectItem>
+                        <SelectItem value="string">string</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={structuredPart}
+                      onChange={(event) => setStructuredPart(event.target.value)}
+                      className="w-16"
+                      inputMode="numeric"
+                      aria-label={t("projectProfile.structuredPart")}
+                    />
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={addStructured}
+                  disabled={
+                    save.isPending ||
+                    structuredPath.trim() === "" ||
+                    structuredColumn.trim() === "" ||
+                    structuredTarget.trim() === ""
+                  }
+                >
+                  <Plus className="size-3.5" />
+                  {t("projectProfile.add")}
+                </Button>
+                {profile.readerProfile.structuredCells.length === 0 ? (
+                  <p className="text-meta text-muted-foreground">
+                    {t("projectProfile.structuredEmpty")}
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {profile.readerProfile.structuredCells.map((entry) => (
+                      <li
+                        key={JSON.stringify(entry)}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+                      >
+                        <code className="min-w-0 truncate font-mono text-micro text-muted-foreground">
+                          {entry.csvPath}.{entry.column} → {entry.targetPath} (
+                          {entry.split === "colon" ? ":" : "|"}, {entry.cast}, part{" "}
+                          {String(entry.part)})
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0"
+                          aria-label={t("projectProfile.remove")}
+                          disabled={save.isPending}
+                          onClick={() =>
+                            removeReaderEntry(
+                              "structuredCells",
+                              profile.readerProfile.structuredCells.indexOf(entry),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="flex items-start gap-1.5 text-micro text-muted-foreground">
+                  <Info className="mt-0.5 size-3.5 shrink-0" />
+                  {t("projectProfile.readerHint")}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </>

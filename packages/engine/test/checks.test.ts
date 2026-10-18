@@ -73,6 +73,7 @@ function profileWithPin(
     conventions: [],
     readApiFamily: [],
     overrides: [{ id: "o1", kind, target: { csvPath }, value, createdAt: "2026-01-01" }],
+    readerProfile: { bindings: [], guards: [], structuredCells: [] },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -102,6 +103,7 @@ function profileWithOverrides(
       value: override.value,
       createdAt: "2026-01-01",
     })),
+    readerProfile: { bindings: [], guards: [], structuredCells: [] },
     coverage: null,
     editorGenIndex: false,
     updatedAt: "2026-01-01",
@@ -112,6 +114,23 @@ function firstFinding(findings: CheckFinding[]): CheckFinding {
   const finding = findings[0];
   if (finding === undefined) throw new Error("expected at least one finding");
   return finding;
+}
+
+/** Minimal profile carrying a reader profile (and optional overrides). */
+function profileWithReader(
+  readerProfile: ProjectProfile["readerProfile"],
+  overrides: ProjectProfile["overrides"] = [],
+): ProjectProfile {
+  return {
+    projectId: "p1",
+    conventions: [],
+    readApiFamily: [],
+    overrides,
+    readerProfile,
+    coverage: null,
+    editorGenIndex: false,
+    updatedAt: "2026-01-01",
+  };
 }
 
 const TABLE_PATH = "Assets/CSV/T.csv";
@@ -862,5 +881,190 @@ describe("REF-01 foreign keys", () => {
     );
     expect(findings).toHaveLength(1);
     expect(firstFinding(findings).id).toContain("|target-key-composite");
+  });
+});
+
+describe("BIND-01 / BIND-02 reader profile", () => {
+  it("reports a pinned name binding to a missing column", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        {
+          profile: profileWithReader({
+            bindings: [{ csvPath: TABLE_PATH, columns: ["id", "hp"] }],
+            guards: [],
+            structuredCells: [],
+          }),
+        },
+      ),
+      "BIND-01",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.id).toBe(`BIND-01|B|${TABLE_PATH}`);
+    expect(finding.severity).toBe("critical");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain('"hp"');
+    expect(finding.anchors[0]).toBe(`B:${TABLE_PATH}:1:1:csv`);
+  });
+
+  it("accepts a pinned name binding whose columns all exist", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        {
+          profile: profileWithReader({
+            bindings: [{ csvPath: TABLE_PATH, columns: ["id", "atk"] }],
+            guards: [],
+            structuredCells: [],
+          }),
+        },
+      ),
+      "BIND-01",
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  it("flags a guard larger than the header as an out-of-bounds risk", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        {
+          profile: profileWithReader({
+            bindings: [],
+            guards: [{ csvPath: TABLE_PATH, constant: 3 }],
+            structuredCells: [],
+          }),
+        },
+      ),
+      "BIND-02",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.id).toBe(`BIND-02|B|${TABLE_PATH}`);
+    expect(finding.severity).toBe("critical");
+    expect(finding.message).toContain("out of bounds");
+  });
+
+  it("flags a smaller guard as trailing columns never read", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        {
+          profile: profileWithReader({
+            bindings: [],
+            guards: [{ csvPath: TABLE_PATH, constant: 1 }],
+            structuredCells: [],
+          }),
+        },
+      ),
+      "BIND-02",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.severity).toBe("major");
+    expect(finding.message).toContain("never read");
+  });
+
+  it("accepts a guard that equals the header width", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        {
+          profile: profileWithReader({
+            bindings: [],
+            guards: [{ csvPath: TABLE_PATH, constant: 2 }],
+            structuredCells: [],
+          }),
+        },
+      ),
+      "BIND-02",
+    );
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe("REF-02 structured cells", () => {
+  const TARGET = "Assets/CSV/Item.csv";
+  const SOURCE = "Assets/CSV/Loot.csv";
+  const ITEM_TABLE = "id,title\n100,Sword\n200,Shield\n";
+  const SOURCE_BEFORE = "id,rewards\nL1,100:2\n";
+  const SOURCE_AFTER = "id,rewards\nL1,100:2\nL2,999:1\nL3,bad\nL4,100\nL5,:5\n";
+
+  function lootProfile(): ProjectProfile {
+    return profileWithReader(
+      {
+        bindings: [],
+        guards: [],
+        structuredCells: [
+          {
+            csvPath: SOURCE,
+            column: "rewards",
+            targetPath: TARGET,
+            split: "colon",
+            cast: "int",
+            part: 0,
+          },
+        ],
+      },
+      [
+        {
+          id: "o1",
+          kind: "pin-row-key",
+          target: { csvPath: TARGET },
+          value: "id",
+          createdAt: "2026-01-01",
+        },
+      ],
+    );
+  }
+
+  it("reports missing target rows and malformed parts without interpreting the rest", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: SOURCE_BEFORE },
+        ],
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: SOURCE_AFTER },
+        ],
+        { profile: lootProfile() },
+      ),
+      "REF-02",
+    );
+    expect(findings).toHaveLength(1);
+    const finding = firstFinding(findings);
+    expect(finding.id).toBe(`REF-02|B|${SOURCE}|rewards|${TARGET}`);
+    expect(finding.severity).toBe("major");
+    expect(finding.confidence).toBe("exact");
+    expect(finding.message).toContain("3 cell(s)");
+    expect(finding.message).toContain("1 malformed");
+    expect(finding.message).toContain('"999:1" (line 3)');
+    expect(finding.anchors[1]).toBe(`B:${SOURCE}:3:3:csv`);
+  });
+
+  it("stays silent when every structured part resolves", () => {
+    const findings = byRule(
+      checks(
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: SOURCE_BEFORE },
+        ],
+        [
+          { path: TARGET, source: ITEM_TABLE },
+          { path: SOURCE, source: "id,rewards\nL1,100:2\nL2,200:5\n" },
+        ],
+        { profile: lootProfile() },
+      ),
+      "REF-02",
+    );
+    expect(findings).toHaveLength(0);
   });
 });
