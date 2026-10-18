@@ -239,6 +239,7 @@ export class ReviewManager {
           notes: [...result.contextManifest.notes],
         },
         surfaces: result.surfaces,
+        engineFindings: result.engineFindings,
         fallbackReason: null,
       };
       this.persist(runId, {
@@ -306,6 +307,7 @@ export class ReviewManager {
           notes: [],
         },
         surfaces: digest.surfaces,
+        engineFindings: digest.findings,
         fallbackReason: fallback.reason,
       };
       this.persist(runId, {

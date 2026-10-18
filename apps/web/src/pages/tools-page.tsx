@@ -1,4 +1,4 @@
-import { Compass, Download, FileWarning, Languages } from "lucide-react";
+import { Compass, Download, FileWarning } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TOOLS = [
-  {
-    icon: Languages,
-    titleKey: "tools.localizationTitle",
-    descriptionKey: "tools.localizationDescription",
-  },
   {
     icon: FileWarning,
     titleKey: "tools.contractTitle",

@@ -109,6 +109,25 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
    này" button on a run. Answers render evidence chips (click → evidence dialog, 📌 pin) / labelled
    speculation / unknowns with a transparency line ("ngữ cảnh: X dẫn chứng · Y ghim · N lượt").
 
+### Localization, attribution, compare (E9)
+
+1. `GET /api/projects/:id/localization?base&current` builds a deterministic LOC-01 report from the
+   same source readers as the digest. Tables are found by shape (`*key.csv` + `Key` header + ≥2
+   known language columns), the `LanguageKey` metadata row is skipped, and issues are exact
+   observations (duplicate/empty keys, empty source/translations, placeholder multisets, key add/
+   remove). The same analyzer feeds LOC-01 digest findings for changed tables only, so the report
+   page and a review run tell the same story.
+2. `GET /api/reviews/:id/attribution` lists the `base..current` commits per changed file (plus a
+   worktree flag); `GET /api/reviews/:id/blame?file&lineStart&lineEnd` returns line-level blame
+   with uncommitted lines labelled honestly. Both are read-only git projections.
+3. `GET /api/reviews/compare?left&right` diffs two stored runs by engine finding id and silent-skip
+   entry id only; AI prose is counted, never set-compared. New runs persist `engineFindings` in
+   their result, legacy runs report `available=false` instead of an empty diff.
+   `GET /api/projects/:id/surface-history` returns silent-skip counts per recent run for the chart.
+4. Web: `/localization` (scope pickers, coverage, issue list, "hỏi về bảng này"), History selection
+   → `/history/compare` (side metrics, engine/silent-skip diffs, surface chart), and the "Ai đổi?"
+   line inside finding cards driven by the attribution query.
+
 ## 4. Package map and dependency rules
 
 | Package | Responsibility | May import |

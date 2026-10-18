@@ -208,6 +208,8 @@ export interface ReviewPipelineResult {
   readonly verification: PipelineVerification;
   /** Silent-skip surface computed by the digest (E8). */
   readonly surfaces: DigestBundle["surfaces"];
+  /** Deterministic engine findings of the digest (E9) — persisted for history compare. */
+  readonly engineFindings: DigestBundle["findings"];
 }
 
 /** Dependencies of the review pipeline. */
@@ -579,6 +581,7 @@ export async function runReviewPipeline(
       issues,
     },
     surfaces: digest.surfaces,
+    engineFindings: digest.findings,
   };
 }
 

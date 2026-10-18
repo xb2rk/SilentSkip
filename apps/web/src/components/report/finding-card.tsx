@@ -64,12 +64,38 @@ export function AnchorChip({ anchorId, anchorsById, onAnchorClick, compact }: An
   );
 }
 
+/** Who last changed the file behind a finding (E9.3) - git facts, never inferred intent. */
+export interface ChangeAttribution {
+  readonly author: string;
+  readonly short: string;
+  readonly date: string;
+  readonly subject: string;
+  readonly changedInWorktree: boolean;
+}
+
+/** One muted "Ai đổi?" line shown inside an expanded card. */
+export function AttributionLine({ attribution }: { readonly attribution: ChangeAttribution }) {
+  const { t } = useTranslation();
+  return (
+    <p
+      className="mt-1.5 text-meta text-muted-foreground"
+      title={attribution.subject === "" ? undefined : attribution.subject}
+    >
+      <span className="font-medium text-foreground/80">{t("run.attributionLabel")}: </span>
+      {attribution.author}
+      {attribution.short !== "" && <> · {attribution.short}</>}
+      {attribution.changedInWorktree && <> · {t("run.attributionUncommitted")}</>}
+    </p>
+  );
+}
+
 interface FindingCardProps {
   readonly finding: ReportFinding;
   readonly anchorsById: ReadonlyMap<string, Anchor>;
   readonly onAnchorClick: (anchor: Anchor) => void;
   readonly defaultOpen?: boolean;
   readonly onAsk?: (title: string) => void;
+  readonly attribution?: ChangeAttribution | undefined;
 }
 
 /**
@@ -83,6 +109,7 @@ export function FindingCard({
   onAnchorClick,
   defaultOpen = false,
   onAsk,
+  attribution,
 }: FindingCardProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
@@ -121,6 +148,7 @@ export function FindingCard({
       </p>
       {open && (
         <>
+          {attribution !== undefined && <AttributionLine attribution={attribution} />}
           {finding.consequence !== undefined && finding.consequence !== "" && (
             <p className="mt-2 text-meta leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground/80">{t("run.consequenceLabel")}: </span>

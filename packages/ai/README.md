@@ -101,8 +101,10 @@ linker that gates every citation.
 
 ## Planned scope
 
-- **LOC-01 (E9)** builds on the same fact store and linker; the eval corpus lands at E11. The E8
-  semantic checks and silent-skip surface are shipped, and surfaces stay outside the prompts.
+- **LOC-01 (E9)** shipped in the engine (shape-detected localization tables, exact multiset
+  placeholders) together with the localization report page, git attribution, and the two-run
+  history compare; the eval corpus lands at E11. The E8 semantic checks and silent-skip surface
+  are shipped, and surfaces stay outside the prompts.
 
 ## Hard rules
 

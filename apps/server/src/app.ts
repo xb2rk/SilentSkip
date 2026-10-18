@@ -82,7 +82,7 @@ export function createApp(deps: AppDependencies): Hono {
     runner: deps.ai?.runner ?? runInseaWorkflow,
     config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
   });
-  app.route("/api/reviews", createReviewsRoutes({ manager: reviewManager }));
+  app.route("/api/reviews", createReviewsRoutes({ manager: reviewManager, db: deps.db }));
 
   const whatIfManager = new WhatIfManager({
     db: deps.db,

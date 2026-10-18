@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AnchorChip } from "./finding-card";
+import { AnchorChip, AttributionLine, type ChangeAttribution } from "./finding-card";
 
 /**
  * One engine finding (the FACT layer): deterministic, budget-immune, every claim traceable.
@@ -38,6 +38,7 @@ export interface EngineFindingCardProps {
   readonly onAnchorClick: (anchor: Anchor) => void;
   readonly defaultOpen?: boolean;
   readonly onAsk?: (title: string) => void;
+  readonly attribution?: ChangeAttribution | undefined;
 }
 
 /** One engine finding card — rule badge, severity/confidence, message, anchors, derivation. */
@@ -47,6 +48,7 @@ export function EngineFindingCard({
   onAnchorClick,
   defaultOpen = false,
   onAsk,
+  attribution,
 }: EngineFindingCardProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
@@ -110,6 +112,7 @@ export function EngineFindingCard({
       </p>
       {open && (
         <>
+          {attribution !== undefined && <AttributionLine attribution={attribution} />}
           {finding.anchors.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {finding.anchors.map((anchorId) => (

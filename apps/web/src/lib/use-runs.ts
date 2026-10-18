@@ -1,8 +1,11 @@
 import {
+  AttributionResponseSchema,
+  ReviewCompareResponseSchema,
   RunDetailResponseSchema,
   RunListResponseSchema,
   StartReviewRequestSchema,
   StartReviewResponseSchema,
+  SurfaceHistoryResponseSchema,
 } from "@craftland-qa/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api";
@@ -50,6 +53,47 @@ export function useRun(runId: string | null) {
     },
     queryFn: async () =>
       RunDetailResponseSchema.parse(await fetchJson<unknown>(`/api/reviews/${runId}`)),
+  });
+}
+
+/** Who changed each file of a run (E9.3) - commits per file plus a worktree flag. */
+export function useAttribution(runId: string | null) {
+  return useQuery({
+    queryKey: ["reviews", "run", runId, "attribution"],
+    enabled: runId !== null,
+    staleTime: RUNS_STALE_MS,
+    queryFn: async () =>
+      AttributionResponseSchema.parse(
+        await fetchJson<unknown>(`/api/reviews/${runId}/attribution`),
+      ),
+  });
+}
+
+/** Deterministic diff between two stored runs (E9.4). */
+export function useRunCompare(leftId: string | null, rightId: string | null) {
+  return useQuery({
+    queryKey: ["reviews", "compare", leftId, rightId],
+    enabled: leftId !== null && rightId !== null,
+    staleTime: RUNS_STALE_MS,
+    queryFn: async () =>
+      ReviewCompareResponseSchema.parse(
+        await fetchJson<unknown>(
+          `/api/reviews/compare?left=${encodeURIComponent(leftId ?? "")}&right=${encodeURIComponent(rightId ?? "")}`,
+        ),
+      ),
+  });
+}
+
+/** Silent-skip counts per recent completed run of one project (E9.4 History chart). */
+export function useSurfaceHistory(projectId: string | null) {
+  return useQuery({
+    queryKey: ["projects", projectId, "surface-history"],
+    enabled: projectId !== null,
+    staleTime: RUNS_STALE_MS,
+    queryFn: async () =>
+      SurfaceHistoryResponseSchema.parse(
+        await fetchJson<unknown>(`/api/projects/${projectId}/surface-history`),
+      ),
   });
 }
 

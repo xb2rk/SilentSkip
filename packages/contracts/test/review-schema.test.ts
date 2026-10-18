@@ -63,6 +63,7 @@ const RESULT = {
     detectedMechanisms: [],
     note: "No silent-skip effects.",
   },
+  engineFindings: null,
   fallbackReason: null,
 };
 

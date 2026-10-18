@@ -10,9 +10,11 @@ import {
   ProjectProfileUpdateSchema,
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
+  SurfaceHistoryResponseSchema,
 } from "@craftland-qa/contracts";
 import type { AppDatabase } from "@craftland-qa/db";
 import { Hono } from "hono";
+import { surfaceHistory } from "../compare";
 import { loadDigest, loadLocalizationReport } from "../digest-input";
 import { diffSummary, projectRefs } from "../git";
 import { loadProjectProfile, saveProjectProfile } from "../profiles";
@@ -103,6 +105,18 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
     }
     const report = await loadLocalizationReport(project.rootPath, base, current);
     return c.json(LocalizationReportSchema.parse(report));
+  });
+
+  /** Silent-skip counts per recent run - the History surface chart (E9.4). */
+  app.get("/:id/surface-history", (c) => {
+    const project = getProject(deps.db, c.req.param("id"));
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw === undefined || limitRaw === "" ? 20 : Number.parseInt(limitRaw, 10);
+    return c.json(
+      SurfaceHistoryResponseSchema.parse(
+        surfaceHistory(deps.db, project.id, Number.isNaN(limit) ? 20 : limit),
+      ),
+    );
   });
 
   return app;

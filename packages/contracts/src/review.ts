@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DigestFindingSchema } from "./digest";
 import { ReviewLensSchema, SynthesizeOutputSchema, VerdictSchema } from "./passes";
 import { SilentSkipSurfaceSchema } from "./surface";
 
@@ -137,6 +138,8 @@ export const ReviewRunResultSchema = z.object({
     issues: z.array(VerifyIssueSchema),
   }),
   contextManifest: ReviewContextManifestSchema,
+  /** Deterministic engine findings of the same range (E9 history compare); null for legacy. */
+  engineFindings: z.array(DigestFindingSchema).nullable().default(null),
   /** Silent-skip surface of the same comparison (E8); null for legacy results. */
   surfaces: SilentSkipSurfaceSchema.nullable().default(null),
   /** Non-null when the AI was unavailable and the deterministic fallback report was served. */

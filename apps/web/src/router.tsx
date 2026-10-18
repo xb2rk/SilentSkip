@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter } from "@tanstack/react-rout
 import { AppShell } from "@/components/app-shell";
 import { NotFoundPage } from "@/components/not-found";
 import { ComparePage } from "@/pages/compare-page";
+import { HistoryComparePage } from "@/pages/history-compare-page";
 import { HistoryPage } from "@/pages/history-page";
 import { LocalizationPage } from "@/pages/localization-page";
 import { OverviewPage } from "@/pages/overview-page";
@@ -62,6 +63,17 @@ const historyRoute = createRoute({
   path: "/history",
   component: HistoryPage,
 });
+const historyCompareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/history/compare",
+  validateSearch: (search: Record<string, unknown>) => {
+    const parsed: { left?: string; right?: string } = {};
+    if (typeof search.left === "string") parsed.left = search.left;
+    if (typeof search.right === "string") parsed.right = search.right;
+    return parsed;
+  },
+  component: HistoryComparePage,
+});
 const localizationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/localization",
@@ -105,6 +117,7 @@ const routeTree = rootRoute.addChildren([
   compareRoute,
   whatIfRoute,
   historyRoute,
+  historyCompareRoute,
   localizationRoute,
   runRoute,
   toolsRoute,

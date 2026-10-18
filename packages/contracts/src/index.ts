@@ -1,3 +1,5 @@
+export * from "./attribution";
+export * from "./compare";
 export * from "./digest";
 export * from "./error";
 export * from "./fs";

@@ -24,7 +24,7 @@ import { PageHeader } from "@/components/page-header";
 import { ChangeFacts } from "@/components/report/change-facts";
 import { EngineFindingCard } from "@/components/report/engine-finding-card";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
-import { FindingCard } from "@/components/report/finding-card";
+import { type ChangeAttribution, FindingCard } from "@/components/report/finding-card";
 import { SurfacesBoard } from "@/components/report/surfaces-board";
 import { ThemeMap } from "@/components/report/theme-map";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -37,7 +37,7 @@ import { useProject } from "@/contexts/project-context";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { useDigest } from "@/lib/use-projects";
 import { useRunStream } from "@/lib/use-run-stream";
-import { useCancelReview, useRun } from "@/lib/use-runs";
+import { useAttribution, useCancelReview, useRun } from "@/lib/use-runs";
 
 const VERDICT_STYLES: Record<Verdict, string> = {
   pass: "bg-positive/15 text-positive dark:text-positive",
@@ -307,6 +307,7 @@ export function RunPage() {
   const navigate = useNavigate();
   const { projects } = useProject();
   const runQuery = useRun(runId);
+  const attributionQuery = useAttribution(runId);
   const { events, streamError } = useRunStream(runId);
   const cancelRun = useCancelReview();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -378,6 +379,43 @@ export function RunPage() {
     const theme = run?.result?.themes.find((item) => item.id === themeFilter);
     return theme === undefined ? null : new Set(theme.files);
   }, [run, themeFilter]);
+
+  /** File -> newest commit that touched it (E9.3), used for the "Ai đổi?" chip. */
+  const attributionByFile = useMemo(() => {
+    const map = new Map<string, ChangeAttribution>();
+    for (const file of attributionQuery.data?.files ?? []) {
+      const latest = file.commits[0];
+      if (latest === undefined) {
+        if (file.changedInWorktree) {
+          map.set(file.path, {
+            author: t("run.attributionUncommitted"),
+            short: "",
+            date: "",
+            subject: "",
+            changedInWorktree: true,
+          });
+        }
+        continue;
+      }
+      map.set(file.path, {
+        author: latest.author,
+        short: latest.short,
+        date: latest.date,
+        subject: latest.subject,
+        changedInWorktree: file.changedInWorktree,
+      });
+    }
+    return map;
+  }, [attributionQuery.data, t]);
+  const attributionOf = (anchors: readonly string[]): ChangeAttribution | undefined => {
+    for (const anchorId of anchors) {
+      const file = anchorFileById.get(anchorId);
+      if (file === undefined) continue;
+      const found = attributionByFile.get(file);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
 
   if (runQuery.isPending) {
     return (
@@ -757,6 +795,7 @@ export function RunPage() {
                     onAnchorClick={setAnchor}
                     defaultOpen={expandAll}
                     onAsk={handleAskAbout}
+                    attribution={attributionOf(finding.anchors)}
                   />
                 ))
               )}
@@ -777,6 +816,7 @@ export function RunPage() {
                     onAnchorClick={setAnchor}
                     defaultOpen={expandAll}
                     onAsk={handleAskAbout}
+                    attribution={attributionOf(finding.anchors)}
                   />
                 ))
               )}

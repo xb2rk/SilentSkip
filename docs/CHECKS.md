@@ -33,11 +33,30 @@ pinned reader profile removes the ambiguity; a finding can therefore be `exact` 
 | `ORPHAN-ADD-01` | A function added on side B whose name appears in no reference, call or import in any scanned source file. Dynamic asset binding (`.ui`/`.prefab` `funcKey`) is outside the scan. | `info` | `exact` (absence within source) |
 | `REF-01` | A pinned single-value foreign key with values that match no row key of the pinned target table. | `major` | `exact` |
 | `REF-02` | A pinned structured cell (`:`/`\|` parts, optional `;`/`\|` entry list, optional entry index) whose values are malformed or match no row key of the pinned target table. Only the pinned part of each selected entry is interpreted; the rest of the cell is not. | `major` | `exact` |
+| `LOC-01` | A localization table (`*key.csv` with a `Key` header and ≥2 known language columns) with duplicate/empty/whitespace keys, empty source cells, empty translations, placeholder multiset mismatches, or keys added/removed between A and B. Detection is shape-based, never a path list; the optional `LanguageKey` metadata row is skipped. | `major` (duplicate/empty key, empty source, placeholder, key removed) / `minor` (empty translation, whitespace) / `info` (key added) | `exact` |
 
 `REF-01` honors the runtime cast (spec §4.10): `int` compares numerically (`00100` ≡ `100`),
 `string` compares exactly. An unknown cast, an unpinned target key or a composite target key is
 reported as `info` and never concluded — those paths belong to `REF-02`, which is not shipped
 yet.
+
+## Localization (E9)
+
+LOC-01 detects localization tables by shape, not by a configured path: the filename must end in
+`key.csv`/`key.tsv` (start or `_`/`-` before `key`), the first header cell must be `Key`, and at
+least two header cells must be known language names (English, Vietnamese, Thai, Traditional/
+Simplified Chinese, Indonesian, Brazilian Portuguese, Spanish, Russian, French, German, Turkish,
+Hindi, Arabic, Bengali, Malay, Burmese, Urdu, Romanian, Japanese, Korean, Italian, Portuguese).
+The source column is English when present, otherwise the first known language. A row whose trimmed
+key is `LanguageKey` is treated as metadata and skipped; hand-verified on Sample (`LanguageKey` row)
+and harmless on SpeedyRace (no such row).
+
+Observations are exact and multiset-based: placeholder tokens (`{0}`, `%s`, `%1$d`) are compared
+as multisets after ignoring color tags, duplicate keys are counted on the trimmed key, and empty
+translations only count rows whose source cell is non-empty. The dedicated report
+(`GET /api/projects/:id/localization?base&current`) returns per-language coverage plus aggregated
+issues with samples and anchors; the same analyzer feeds the LOC-01 digest findings for changed
+tables only, so unchanged tables stay silent.
 
 ## Pins (project profile)
 

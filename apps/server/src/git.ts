@@ -33,7 +33,7 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 20_000;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
-async function runGit(cwd: string, args: readonly string[]): Promise<string> {
+export async function runGit(cwd: string, args: readonly string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
       cwd,
