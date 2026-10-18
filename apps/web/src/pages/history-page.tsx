@@ -1,7 +1,7 @@
 import type { RunSummary, Verdict } from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { History as HistoryIcon, Info } from "lucide-react";
+import { History as HistoryIcon, Info, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -72,7 +72,22 @@ export function HistoryPage() {
         <AlertDescription>{t("history.banner")}</AlertDescription>
       </Alert>
 
-      {runsQuery.isPending ? (
+      {runsQuery.isError ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              icon={TriangleAlert}
+              title={t("errors.loadTitle")}
+              description={t("errors.loadDescription")}
+              action={
+                <Button variant="outline" onClick={() => void runsQuery.refetch()}>
+                  {t("common.retry")}
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : runsQuery.isPending ? (
         <Card>
           <CardContent className="space-y-2 py-6">
             <Skeleton className="h-8" />

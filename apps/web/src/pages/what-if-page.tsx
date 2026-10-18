@@ -8,6 +8,7 @@ import {
   MessageSquarePlus,
   Pin as PinIcon,
   PinOff,
+  RotateCcw,
   Send,
   Sparkles,
   TriangleAlert,
@@ -15,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
 import { AnchorChip } from "@/components/report/finding-card";
@@ -125,6 +127,16 @@ export function WhatIfPage() {
     if (terminal !== undefined) setPendingTurnId(null);
   }, [stream.events]);
 
+  // Polling is the convergence path: clear the send gate as soon as the pending turn is
+  // resolved server-side, even if the SSE stream died mid-answer.
+  useEffect(() => {
+    if (pendingTurnId === null) return;
+    const turn = sessionQuery.data?.turns.find((item) => item.id === pendingTurnId);
+    if (turn !== undefined && (turn.answer !== null || turn.error !== null)) {
+      setPendingTurnId(null);
+    }
+  }, [pendingTurnId, sessionQuery.data]);
+
   const lastStage = [...stream.events].reverse().find((event) => event.type === "stage");
   const stageLabel =
     lastStage !== undefined && lastStage.type === "stage"
@@ -149,9 +161,14 @@ export function WhatIfPage() {
     );
   }
 
-  function handleAsk(): void {
-    const trimmed = question.trim();
-    if (trimmed === "" || sessionId === null || pendingTurnId !== null) return;
+  function openSession(id: string): void {
+    setSessionId(id);
+    setPendingTurnId(null);
+  }
+
+  function sendQuestion(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed === "" || sessionId === null || pendingTurnId !== null || ask.isPending) return;
     ask.mutate(trimmed, {
       onSuccess: (turnId) => {
         setPendingTurnId(turnId);
@@ -159,6 +176,10 @@ export function WhatIfPage() {
       },
       onError: (error) => toast.error(error.message),
     });
+  }
+
+  function handleAsk(): void {
+    sendQuestion(question);
   }
 
   function handlePinToggle(anchorId: string): void {
@@ -307,6 +328,22 @@ export function WhatIfPage() {
               </Select>
             </div>
           </div>
+          {refsQuery.isError && (
+            <div className="flex items-center gap-2">
+              <p className="text-[11.5px] text-destructive">{t("whatIf.refsError")}</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[11px]"
+                onClick={() => void refsQuery.refetch()}
+              >
+                {t("common.retry")}
+              </Button>
+            </div>
+          )}
+          {refsQuery.data?.head === null && (
+            <p className="text-[11.5px] text-muted-foreground">{t("compare.noCommits")}</p>
+          )}
           <p className="text-[11.5px] text-muted-foreground">{t("whatIf.scopeHint")}</p>
         </CardContent>
       </Card>
@@ -328,6 +365,13 @@ export function WhatIfPage() {
           </div>
           {!scopeReady ? (
             <p className="text-[12px] text-muted-foreground">{t("whatIf.selectSessionFirst")}</p>
+          ) : sessionsQuery.isError ? (
+            <div className="space-y-2">
+              <p className="text-[12px] text-muted-foreground">{t("whatIf.sessionsError")}</p>
+              <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()}>
+                {t("common.retry")}
+              </Button>
+            </div>
           ) : sessionsQuery.isPending ? (
             <div className="space-y-2">
               <Skeleton className="h-12" />
@@ -341,7 +385,7 @@ export function WhatIfPage() {
                 <button
                   key={session.id}
                   type="button"
-                  onClick={() => setSessionId(session.id)}
+                  onClick={() => openSession(session.id)}
                   className={
                     session.id === sessionId
                       ? "w-full rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 text-left"
@@ -364,7 +408,14 @@ export function WhatIfPage() {
               <CardTitle className="text-[12.5px]">{t("whatIf.pinsTitle")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {pins.length === 0 ? (
+              {pinsQuery.isError ? (
+                <div className="space-y-2">
+                  <p className="text-[11.5px] text-muted-foreground">{t("whatIf.pinsError")}</p>
+                  <Button size="sm" variant="outline" onClick={() => void pinsQuery.refetch()}>
+                    {t("common.retry")}
+                  </Button>
+                </div>
+              ) : pins.length === 0 ? (
                 <p className="text-[11.5px] text-muted-foreground">{t("whatIf.noPins")}</p>
               ) : (
                 pins.map((pin) => (
@@ -392,14 +443,14 @@ export function WhatIfPage() {
         </div>
 
         <Card className="flex min-h-[420px] flex-col">
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-[13px]">{t("whatIf.title")}</CardTitle>
             {sessionId !== null && (
               <Button
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs"
-                disabled={sessionQuery.isPending}
+                disabled={sessionQuery.isPending || sessionQuery.data === undefined}
                 onClick={handleExport}
               >
                 <Download className="size-3.5" />
@@ -409,17 +460,27 @@ export function WhatIfPage() {
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-4">
             {sessionId === null ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
-                <div className="flex size-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                  <Sparkles className="size-5" />
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-sm font-semibold">{t("whatIf.emptyTitle")}</h2>
-                  <p className="mx-auto max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
-                    {t("whatIf.emptyDescription")}
-                  </p>
-                </div>
-              </div>
+              <EmptyState
+                icon={Sparkles}
+                title={t("whatIf.emptyTitle")}
+                description={t("whatIf.emptyDescription")}
+                action={
+                  <div className="flex flex-col items-center gap-2">
+                    <Button
+                      onClick={handleNewSession}
+                      disabled={!scopeReady || createSession.isPending}
+                    >
+                      <MessageSquarePlus className="size-4" />
+                      {t("whatIf.newSession")}
+                    </Button>
+                    {!scopeReady && (
+                      <p className="text-[12px] text-muted-foreground">
+                        {t("whatIf.selectSessionFirst")}
+                      </p>
+                    )}
+                  </div>
+                }
+              />
             ) : sessionQuery.isPending ? (
               <div className="space-y-3">
                 <Skeleton className="h-16" />
@@ -443,16 +504,27 @@ export function WhatIfPage() {
                     ))}
                   </div>
                 )}
-                {sessionQuery.data?.turns.map((turn) => (
-                  <TurnView
-                    key={turn.id}
-                    turn={turn}
-                    anchorsById={anchorsById}
-                    onAnchorClick={setAnchor}
-                    pinnedByAnchor={pinnedByAnchor}
-                    onPinToggle={handlePinToggle}
-                  />
-                ))}
+                {sessionQuery.data?.turns.map((turn, index, allTurns) => {
+                  const previous = index > 0 ? allTurns[index - 1] : undefined;
+                  return (
+                    <TurnView
+                      key={turn.id}
+                      turn={turn}
+                      anchorsById={anchorsById}
+                      onAnchorClick={setAnchor}
+                      pinnedByAnchor={pinnedByAnchor}
+                      onPinToggle={handlePinToggle}
+                      retryQuestion={
+                        turn.role === "assistant" &&
+                        turn.error !== null &&
+                        previous?.role === "user"
+                          ? previous.content
+                          : null
+                      }
+                      onRetry={sendQuestion}
+                    />
+                  );
+                })}
                 {pendingTurnId !== null && (
                   <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" />
@@ -478,7 +550,7 @@ export function WhatIfPage() {
               />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[12px] text-muted-foreground">
-                  {t("whatIf.composerHint")}
+                  {sessionId === null ? t("whatIf.selectSessionFirst") : t("whatIf.composerHint")}
                 </span>
                 <Button
                   onClick={handleAsk}
@@ -523,6 +595,8 @@ interface TurnViewProps {
   readonly onAnchorClick: (anchor: Anchor) => void;
   readonly pinnedByAnchor: ReadonlyMap<string, { readonly id: string }>;
   readonly onPinToggle: (anchorId: string) => void;
+  readonly retryQuestion: string | null;
+  readonly onRetry: (question: string) => void;
 }
 
 /** One conversation turn — the user bubble or the structured assistant card. */
@@ -532,6 +606,8 @@ function TurnView({
   onAnchorClick,
   pinnedByAnchor,
   onPinToggle,
+  retryQuestion,
+  onRetry,
 }: TurnViewProps) {
   const { t } = useTranslation();
 
@@ -550,9 +626,17 @@ function TurnView({
       {turn.error !== null ? (
         <div className="flex items-start gap-2 text-[12.5px] text-destructive">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <div>
-            <div className="font-medium">{t("whatIf.aiError")}</div>
-            <div className="text-muted-foreground">{turn.error}</div>
+          <div className="space-y-2">
+            <div>
+              <div className="font-medium">{t("whatIf.aiError")}</div>
+              <div className="text-muted-foreground">{turn.error}</div>
+            </div>
+            {retryQuestion !== null && (
+              <Button size="sm" variant="outline" onClick={() => onRetry(retryQuestion)}>
+                <RotateCcw className="size-3.5" />
+                {t("common.retry")}
+              </Button>
+            )}
           </div>
         </div>
       ) : turn.answer !== null ? (

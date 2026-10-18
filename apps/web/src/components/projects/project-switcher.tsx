@@ -1,5 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { Check, ChevronsUpDown, FolderGit2, LayoutDashboard, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, FolderGit2, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
@@ -20,7 +19,7 @@ import { useProject } from "@/contexts/project-context";
  */
 export function ProjectSwitcher() {
   const { t } = useTranslation();
-  const { projects, activeProject, setActiveProjectId } = useProject();
+  const { projects, isLoading, activeProject, setActiveProjectId } = useProject();
   const [addOpen, setAddOpen] = useState(false);
 
   return (
@@ -35,7 +34,9 @@ export function ProjectSwitcher() {
                 </div>
                 <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate text-[13px] font-medium">
-                    {activeProject?.name ?? t("projects.selectPrompt")}
+                    {isLoading
+                      ? t("projects.loadingSwitcher")
+                      : (activeProject?.name ?? t("projects.selectPrompt"))}
                   </span>
                   <span className="truncate text-[11px] text-muted-foreground">
                     {t("projects.switcherLabel")}
@@ -80,12 +81,6 @@ export function ProjectSwitcher() {
               <DropdownMenuItem onClick={() => setAddOpen(true)}>
                 <Plus className="size-4" />
                 {t("projects.addProject")}
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/" className="gap-2">
-                  <LayoutDashboard className="size-4" />
-                  {t("projects.viewAll")}
-                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

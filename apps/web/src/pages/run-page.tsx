@@ -1,4 +1,10 @@
-import type { Anchor, ReviewRunResult, ReviewStreamEvent, Verdict } from "@craftland-qa/contracts";
+import type {
+  Anchor,
+  ReviewPassMeta,
+  ReviewRunResult,
+  ReviewStreamEvent,
+  Verdict,
+} from "@craftland-qa/contracts";
 import { Link, useParams } from "@tanstack/react-router";
 import { cn } from "cn";
 import {
@@ -10,7 +16,7 @@ import {
   MessageCircleQuestion,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -123,6 +129,16 @@ function summarizeVerification(result: ReviewRunResult): VerificationSummary {
   };
 }
 
+/** Pass metadata has no id, and the same pass runs repeatedly (read chunks) — add an occurrence. */
+function passBadges(passes: readonly ReviewPassMeta[]): { key: string; meta: ReviewPassMeta }[] {
+  const seen = new Map<string, number>();
+  return passes.map((meta) => {
+    const occurrence = (seen.get(meta.pass) ?? 0) + 1;
+    seen.set(meta.pass, occurrence);
+    return { key: `${meta.pass}:${occurrence}`, meta };
+  });
+}
+
 /**
  * Run report (E5, report v2 at E7.4) — live progress while the run executes, then the report:
  * "Bản đồ" (theme map + raw change facts), "Thiếu-đứt" (engine facts + linked AI findings,
@@ -134,10 +150,9 @@ export function RunPage() {
   const { t } = useTranslation();
   const { projects } = useProject();
   const runQuery = useRun(runId);
-  const { events } = useRunStream(runId);
+  const { events, streamError } = useRunStream(runId);
   const cancelRun = useCancelReview();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const [notified, setNotified] = useState(false);
 
   const run = runQuery.data;
   const projectName =
@@ -145,15 +160,22 @@ export function RunPage() {
       ? null
       : (projects.find((project) => project.id === run.projectId)?.name ?? null);
 
+  const lastStatusRef = useRef<string | null>(null);
+  /**
+   * Toast only on a live transition this page witnessed — a run completed in the past replays
+   * its terminal SSE event on mount, and that must not announce "completed" again.
+   */
   useEffect(() => {
-    if (notified) return;
-    const terminal = [...events].reverse().find((event) => event.type !== "stage");
-    if (terminal === undefined) return;
-    setNotified(true);
-    if (terminal.type === "completed") toast.success(t("run.completedToast"));
-    else if (terminal.type === "failed") toast.error(t("run.failedToast"));
-    else toast(t("run.cancelledToast"));
-  }, [events, notified, t]);
+    const status = run?.status ?? null;
+    if (status === null) return;
+    const previous = lastStatusRef.current;
+    lastStatusRef.current = status;
+    if (previous === null) return;
+    if (previous !== "queued" && previous !== "running") return;
+    if (status === "completed") toast.success(t("run.completedToast"));
+    else if (status === "failed") toast.error(t("run.failedToast"));
+    else if (status === "cancelled") toast(t("run.cancelledToast"));
+  }, [run, t]);
 
   const digestQuery = useDigest(
     run !== undefined && run.status === "completed" ? run.projectId : null,
@@ -234,7 +256,16 @@ export function RunPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/compare">
+              <Link
+                to="/compare"
+                search={{
+                  projectId: run.projectId,
+                  base: run.baseRef,
+                  current: run.currentRef,
+                  preset: "custom",
+                  ...(run.goal === null || run.goal === "" ? {} : { goal: run.goal }),
+                }}
+              >
                 <GitCompareArrows className="size-4" />
                 {t("run.backToCompare")}
               </Link>
@@ -265,7 +296,7 @@ export function RunPage() {
 
       {running && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <Loader2 className="size-4 animate-spin text-primary" />
               {run.status === "queued" ? t("run.statusQueued") : t("run.statusRunning")}
@@ -277,7 +308,6 @@ export function RunPage() {
               disabled={cancelRun.isPending}
               onClick={() => {
                 cancelRun.mutate(runId, {
-                  onSuccess: () => toast(t("run.cancelledToast")),
                   onError: () => toast.error(t("run.failedToast")),
                 });
               }}
@@ -286,9 +316,31 @@ export function RunPage() {
               {cancelRun.isPending ? t("run.cancelling") : t("run.cancelRun")}
             </Button>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2" aria-live="polite">
             {STAGE_ORDER.map((stage) => {
               const state = states[stage];
+              const metas: string[] = [];
+              if (stage === "read" && state.unit !== undefined) {
+                metas.push(t("run.stageReadProgress", { unit: state.unit, units: state.units }));
+              }
+              if (
+                stage === "read" &&
+                state.chunk !== undefined &&
+                state.chunks !== undefined &&
+                state.chunks > 1
+              ) {
+                metas.push(t("run.chunkProgress", { chunk: state.chunk, chunks: state.chunks }));
+              }
+              if (
+                (stage === "read" || stage === "synthesize") &&
+                state.round !== undefined &&
+                state.round > 1
+              ) {
+                metas.push(t("run.roundProgress", { round: state.round }));
+              }
+              if (state.latencyMs !== undefined) {
+                metas.push(t("run.passLatency", { ms: state.latencyMs }));
+              }
               return (
                 <div key={stage} className="flex items-center gap-2 text-[12.5px]">
                   {state.state === "done" ? (
@@ -301,35 +353,20 @@ export function RunPage() {
                   <span className={cn(state.state === "pending" && "text-muted-foreground")}>
                     {t(STAGE_LABEL_KEYS[stage])}
                   </span>
-                  {stage === "read" && state.unit !== undefined && (
-                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                      {t("run.stageReadProgress", { unit: state.unit, units: state.units })}
+                  {metas.map((meta) => (
+                    <span key={meta} className="text-[11.5px] text-muted-foreground tabular-nums">
+                      · {meta}
                     </span>
-                  )}
-                  {stage === "read" &&
-                    state.chunk !== undefined &&
-                    state.chunks !== undefined &&
-                    state.chunks > 1 && (
-                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                        {t("run.chunkProgress", { chunk: state.chunk, chunks: state.chunks })}
-                      </span>
-                    )}
-                  {(stage === "read" || stage === "synthesize") &&
-                    state.round !== undefined &&
-                    state.round > 1 && (
-                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                        {t("run.roundProgress", { round: state.round })}
-                      </span>
-                    )}
-                  {state.latencyMs !== undefined && (
-                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                      {t("run.passLatency", { ms: state.latencyMs })}
-                    </span>
-                  )}
+                  ))}
                 </div>
               );
             })}
             <p className="pt-1 text-[11.5px] text-muted-foreground">{t("run.progressNote")}</p>
+            {streamError && (
+              <p className="text-[11.5px] text-amber-600 dark:text-amber-400">
+                {t("run.streamReconnecting")}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -400,8 +437,8 @@ export function RunPage() {
                   <span className="text-[11.5px] text-muted-foreground">
                     {t("run.passesLabel")}:
                   </span>
-                  {result.passes.map((meta) => (
-                    <Badge key={meta.pass} variant="secondary" className="font-normal">
+                  {passBadges(result.passes).map(({ key, meta }) => (
+                    <Badge key={key} variant="secondary" className="font-normal">
                       {meta.pass} · {t("run.passLatency", { ms: meta.latencyMs })} · {meta.salvage}
                     </Badge>
                   ))}

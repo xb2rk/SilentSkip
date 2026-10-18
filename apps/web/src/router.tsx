@@ -23,6 +23,23 @@ const overviewRoute = createRoute({
 const compareRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/compare",
+  validateSearch: (search: Record<string, unknown>) => {
+    const parsed: {
+      projectId?: string;
+      base?: string;
+      current?: string;
+      preset?: "worktree" | "vs-main" | "custom";
+      goal?: string;
+    } = {};
+    if (typeof search.projectId === "string") parsed.projectId = search.projectId;
+    if (typeof search.base === "string") parsed.base = search.base;
+    if (typeof search.current === "string") parsed.current = search.current;
+    if (search.preset === "worktree" || search.preset === "vs-main" || search.preset === "custom") {
+      parsed.preset = search.preset;
+    }
+    if (typeof search.goal === "string") parsed.goal = search.goal;
+    return parsed;
+  },
   component: ComparePage,
 });
 const whatIfRoute = createRoute({

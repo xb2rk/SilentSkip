@@ -26,6 +26,7 @@ const resources = {
       projects: {
         switcherLabel: "Dự án",
         selectPrompt: "Chọn dự án",
+        loadingSwitcher: "Đang tải dự án…",
         addProject: "Thêm dự án",
         dialogTitle: "Thêm dự án game",
         dialogDescription:
@@ -54,7 +55,6 @@ const resources = {
         remove: "Xoá",
         removed: "Đã xoá dự án khỏi danh sách",
         removeFailed: "Không xoá được dự án",
-        viewAll: "Xem tất cả dự án",
       },
       folderBrowser: {
         title: "Chọn thư mục dự án",
@@ -67,6 +67,8 @@ const resources = {
       },
       errors: {
         network: "Không kết nối được server cục bộ — kiểm tra server đang chạy rồi thử lại.",
+        loadTitle: "Không tải được dữ liệu",
+        loadDescription: "Server cục bộ không phản hồi hoặc trả lỗi. Kiểm tra server rồi thử lại.",
       },
       common: {
         comingSoon: "Sắp có",
@@ -75,6 +77,7 @@ const resources = {
         copy: "Sao chép",
         copied: "Đã sao chép",
         copyFailed: "Không sao chép được",
+        retry: "Thử lại",
         add: "Thêm",
         cancel: "Huỷ",
         saved: "Đã lưu",
@@ -91,6 +94,8 @@ const resources = {
         placeholder: "Tìm trang, hành động…",
         empty: "Không có kết quả.",
         groupNavigation: "Điều hướng",
+        groupProjects: "Dự án",
+        groupRuns: "Lượt chạy gần đây",
         groupAppearance: "Giao diện",
         themeLight: "Chuyển sang giao diện sáng",
         themeDark: "Chuyển sang giao diện tối",
@@ -167,6 +172,8 @@ const resources = {
         diffBreakdown: "{{scripts}} script · {{csv}} CSV được phân tích",
         diffMore: "+{{count}} file khác…",
         selectProjectFirst: "Chọn dự án trước để xem thay đổi.",
+        refsError: "Không tải được danh sách phiên bản.",
+        diffError: "Không tải được diff giữa hai phiên bản.",
         ready: "Sẵn sàng — {{count}} file thay đổi",
         statusAdded: "Thêm",
         statusModified: "Sửa",
@@ -191,6 +198,9 @@ const resources = {
         newSession: "Cuộc trò chuyện mới",
         noSessions: "Chưa có cuộc trò chuyện nào cho cặp so sánh này.",
         selectSessionFirst: "Chọn phạm vi và mở một cuộc trò chuyện để bắt đầu.",
+        sessionsError: "Không tải được danh sách cuộc trò chuyện.",
+        pinsError: "Không tải được danh sách ghim.",
+        refsError: "Không tải được danh sách phiên bản.",
         turnCount: "{{count}} lượt",
         emptyTitle: "Hỏi bất cứ điều gì về thay đổi",
         emptyDescription:
@@ -257,6 +267,7 @@ const resources = {
         cancelRun: "Huỷ lượt chạy",
         cancelling: "Đang huỷ…",
         progressNote: "Chạy nền — bạn có thể rời trang rồi quay lại.",
+        streamReconnecting: "Mất kết nối tiến trình — vẫn đang chờ kết quả từ server.",
         stageDigest: "Đọc thay đổi (digest)",
         stageMap: "Phân nhóm thay đổi theo chủ đề",
         stageRead: "AI đọc từng vùng thay đổi",
@@ -419,6 +430,9 @@ const resources = {
         advancedDataDescription: "Toàn bộ dữ liệu phân tích nằm trên máy bạn.",
         advancedDelete: "Xoá dữ liệu phân tích",
         advancedDeleteDescription: "Xoá lịch sử chạy và phiên — không đụng tới dự án game.",
+        advancedToolsTitle: "Công cụ theo lộ trình",
+        advancedToolsDescription:
+          "Bốn công cụ QA chuyên sâu (localization, contract, convention, export) sẽ mở dần ở E8–E10.",
         aboutVersion: "Phiên bản",
         aboutApi: "API",
         aboutStatus: "Mở Trạng thái hệ thống",

@@ -8,7 +8,7 @@ import {
   type GitRefKind,
   WORKTREE_REF,
 } from "@craftland-qa/contracts";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { TFunction } from "i18next";
 import {
@@ -21,7 +21,7 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -289,11 +289,12 @@ export function ComparePage() {
   const { t } = useTranslation();
   const { projects, activeProjectId, setActiveProjectId } = useProject();
   const navigate = useNavigate();
+  const search = useSearch({ from: "/compare" });
   const startReview = useStartReview();
-  const [preset, setPreset] = useState<Preset>("worktree");
-  const [customBase, setCustomBase] = useState<string | null>(null);
-  const [customCurrent, setCustomCurrent] = useState<string | null>(null);
-  const [goal, setGoal] = useState("");
+  const [preset, setPreset] = useState<Preset>(search.preset ?? "worktree");
+  const [customBase, setCustomBase] = useState<string | null>(search.base ?? null);
+  const [customCurrent, setCustomCurrent] = useState<string | null>(search.current ?? null);
+  const [goal, setGoal] = useState(search.goal ?? "");
 
   const refsQuery = useProjectRefs(activeProjectId);
   const refs = refsQuery.data?.refs ?? [];
@@ -324,6 +325,34 @@ export function ComparePage() {
 
   const diffQuery = useDiffSummary(activeProjectId, baseRef, currentRef);
 
+  /** Apply the project carried by the URL once (run → compare round trip). */
+  const appliedInitialProject = useRef(false);
+  useEffect(() => {
+    if (appliedInitialProject.current) return;
+    appliedInitialProject.current = true;
+    if (search.projectId !== undefined && search.projectId !== activeProjectId) {
+      setActiveProjectId(search.projectId);
+    }
+  }, [search.projectId, activeProjectId, setActiveProjectId]);
+
+  /**
+   * Keep the setup in the URL so refresh / back / the run → compare link restore the same
+   * project, refs, preset and goal instead of dropping the user back to defaults.
+   */
+  useEffect(() => {
+    void navigate({
+      to: "/compare",
+      replace: true,
+      search: {
+        ...(activeProjectId === null ? {} : { projectId: activeProjectId }),
+        ...(baseRef === null ? {} : { base: baseRef }),
+        ...(currentRef === null ? {} : { current: currentRef }),
+        preset,
+        ...(goal.trim() === "" ? {} : { goal }),
+      },
+    });
+  }, [activeProjectId, baseRef, currentRef, preset, goal, navigate]);
+
   const refsErrorCode = refsQuery.error instanceof AppError ? refsQuery.error.code : null;
   const notGit = refsErrorCode === ErrorCodes.notAGitRepo;
   const noCommits = refsQuery.data !== undefined && refsQuery.data.head === null;
@@ -348,7 +377,15 @@ export function ComparePage() {
 
   /** Start a real review run and jump to its report page. */
   function handleRun(): void {
-    if (activeProjectId === null || baseRef === null || currentRef === null) return;
+    if (
+      activeProjectId === null ||
+      baseRef === null ||
+      currentRef === null ||
+      diff === undefined ||
+      diff.filesChanged === 0
+    ) {
+      return;
+    }
     startReview.mutate(
       {
         projectId: activeProjectId,
@@ -435,7 +472,7 @@ export function ComparePage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle className="text-base">{t("compare.versionsTitle")}</CardTitle>
             {refsQuery.data?.dirty === true && (
@@ -556,7 +593,7 @@ export function ComparePage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">{t("compare.diffTitle")}</CardTitle>
           {diff !== undefined && (
             <Badge variant="secondary" className="font-normal">
@@ -635,11 +672,17 @@ export function ComparePage() {
           <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-[13px] font-medium">
-                {diff !== undefined
-                  ? t("compare.ready", { count: diff.filesChanged })
-                  : activeProjectId === null
-                    ? t("compare.selectProjectFirst")
-                    : t("compare.runInsufficient")}
+                {activeProjectId === null
+                  ? t("compare.selectProjectFirst")
+                  : refsQuery.isError
+                    ? t("compare.refsError")
+                    : diffQuery.isError
+                      ? t("compare.diffError")
+                      : diff !== undefined && diff.filesChanged === 0
+                        ? t("compare.diffEmpty")
+                        : diff !== undefined
+                          ? t("compare.ready", { count: diff.filesChanged })
+                          : t("compare.runInsufficient")}
               </p>
               <p className="text-[12px] text-muted-foreground">{t("compare.runNote")}</p>
             </div>
@@ -651,6 +694,7 @@ export function ComparePage() {
                   baseRef === null ||
                   currentRef === null ||
                   diff === undefined ||
+                  diff.filesChanged === 0 ||
                   startReview.isPending
                 }
                 onClick={handleRun}

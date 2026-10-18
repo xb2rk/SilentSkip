@@ -12,13 +12,16 @@ import { useEffect, useState } from "react";
 export function useRunStream(runId: string | null): {
   readonly events: readonly ReviewStreamEvent[];
   readonly connected: boolean;
+  readonly streamError: boolean;
 } {
   const [events, setEvents] = useState<readonly ReviewStreamEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [streamError, setStreamError] = useState(false);
 
   useEffect(() => {
     setEvents([]);
     setConnected(false);
+    setStreamError(false);
     if (runId === null) return;
 
     const source = new EventSource(`/api/reviews/${encodeURIComponent(runId)}/stream`);
@@ -43,11 +46,12 @@ export function useRunStream(runId: string | null): {
       source.addEventListener(name, handle as EventListener);
     }
     source.onerror = () => {
+      setStreamError(true);
       setConnected(false);
       source.close();
     };
     return () => source.close();
   }, [runId]);
 
-  return { events, connected };
+  return { events, connected, streamError };
 }

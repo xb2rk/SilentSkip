@@ -21,6 +21,8 @@ const ACTIVE_PROJECT_KEY = "craftland-qa:active-project";
 interface ProjectContextValue {
   readonly projects: readonly ProjectSummary[];
   readonly isLoading: boolean;
+  readonly isError: boolean;
+  readonly retry: () => void;
   readonly activeProject: ProjectSummary | null;
   readonly activeProjectId: string | null;
   readonly setActiveProjectId: (id: string | null) => void;
@@ -30,7 +32,7 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 /** Holds active-project state for the whole app; must wrap the shell and every page. */
 export function ProjectProvider({ children }: { readonly children: ReactNode }) {
-  const { data, isPending } = useProjects();
+  const { data, isPending, isError, refetch } = useProjects();
   const projects = useMemo(() => data?.projects ?? [], [data]);
   const [activeProjectId, setActiveId] = useState<string | null>(() => readStoredActiveId());
 
@@ -58,11 +60,13 @@ export function ProjectProvider({ children }: { readonly children: ReactNode }) 
     () => ({
       projects,
       isLoading: isPending,
+      isError,
+      retry: refetch,
       activeProject: projects.find((project) => project.id === activeProjectId) ?? null,
       activeProjectId,
       setActiveProjectId,
     }),
-    [projects, isPending, activeProjectId, setActiveProjectId],
+    [projects, isPending, isError, refetch, activeProjectId, setActiveProjectId],
   );
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

@@ -9,7 +9,6 @@ import {
   Search,
   Settings as SettingsIcon,
   Sparkles,
-  Wrench,
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -51,7 +50,6 @@ const NAV_GROUPS = [
   {
     labelKey: "nav.group.system",
     items: [
-      { to: "/tools", labelKey: "nav.tools", icon: Wrench },
       { to: "/status", labelKey: "nav.status", icon: Activity },
       { to: "/settings", labelKey: "nav.settings", icon: SettingsIcon },
     ],
@@ -63,14 +61,24 @@ const NAV_GROUPS = [
  * empty sticky header (search + What-If icons, plus a status alert that only appears when
  * something is wrong), and the routed page centered at a 1152px max width.
  */
+function readSidebarOpen(): boolean {
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)sidebar_state=(true|false)/);
+    return match === null ? true : match[1] === "true";
+  } catch {
+    return true;
+  }
+}
+
 export function AppShell() {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { activeProject } = useProject();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarDefaultOpen] = useState(readSidebarOpen);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={sidebarDefaultOpen}>
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>

@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -233,6 +234,21 @@ export function SettingsPage() {
               </p>
               <Button variant="outline" size="sm" className="text-destructive" disabled>
                 {t("settings.advancedDelete")}
+              </Button>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-[13px] font-semibold">
+                {t("settings.advancedToolsTitle")}
+              </Label>
+              <p className="text-[12px] text-muted-foreground">
+                {t("settings.advancedToolsDescription")}
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/tools">
+                  <Wrench className="size-3.5" />
+                  {t("nav.tools")}
+                </Link>
               </Button>
             </div>
           </CardContent>

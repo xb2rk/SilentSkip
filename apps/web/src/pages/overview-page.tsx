@@ -9,12 +9,14 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { AddProjectDialog } from "@/components/projects/add-project-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -165,14 +167,25 @@ function ProjectCard({ project, isActive, onSelect }: ProjectCardProps) {
  */
 export function OverviewPage() {
   const { t } = useTranslation();
-  const { projects, isLoading, activeProject, setActiveProjectId } = useProject();
+  const { projects, isLoading, isError, retry, activeProject, setActiveProjectId } = useProject();
   const [addOpen, setAddOpen] = useState(false);
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("overview.title")} description={t("overview.description")} />
 
-      {isLoading ? (
+      {isError ? (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" />
+          <AlertTitle>{t("errors.loadTitle")}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{t("errors.loadDescription")}</p>
+            <Button variant="outline" size="sm" onClick={retry}>
+              {t("common.retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Skeleton className="h-44 rounded-xl" />
           <Skeleton className="h-44 rounded-xl" />
