@@ -1,7 +1,7 @@
 import { Compass, Download, FileWarning, Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,29 +11,25 @@ const TOOLS = [
     icon: Languages,
     titleKey: "tools.localizationTitle",
     descriptionKey: "tools.localizationDescription",
-    phase: "E9",
   },
   {
     icon: FileWarning,
     titleKey: "tools.contractTitle",
     descriptionKey: "tools.contractDescription",
-    phase: "E8",
   },
   {
     icon: Compass,
     titleKey: "tools.conventionTitle",
     descriptionKey: "tools.conventionDescription",
-    phase: "E8",
   },
   {
     icon: Download,
     titleKey: "tools.exportTitle",
     descriptionKey: "tools.exportDescription",
-    phase: "E10",
   },
 ] as const;
 
-/** Deep-dive QA tools catalog; each card unlocks at its roadmap phase. */
+/** Deep-dive QA tools catalog; each card unlocks in a later release. */
 export function ToolsPage() {
   const { t } = useTranslation();
 
@@ -48,7 +44,9 @@ export function ToolsPage() {
                 <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
                   <tool.icon className="size-5" />
                 </div>
-                <PhaseBadge phase={tool.phase} />
+                <Badge variant="secondary" className="font-normal text-muted-foreground">
+                  {t("common.comingSoon")}
+                </Badge>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold">{t(tool.titleKey)}</p>
@@ -65,9 +63,7 @@ export function ToolsPage() {
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    {t("common.comingSoonPhase", { phase: tool.phase })}
-                  </TooltipContent>
+                  <TooltipContent>{t("tools.comingSoonHint")}</TooltipContent>
                 </Tooltip>
               </div>
             </CardContent>

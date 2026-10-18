@@ -13,6 +13,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const ANCHOR_KIND_LABEL_KEYS: Record<Anchor["kind"], string> = {
+  csv: "run.anchorKindCsv",
+  code: "run.anchorKindCode",
+  contract: "run.anchorKindContract",
+  diff: "run.anchorKindDiff",
+};
+
 interface EvidenceDialogProps {
   /** Anchor to show; `null` keeps the dialog closed. */
   readonly anchor: Anchor | null;
@@ -60,15 +67,15 @@ export function EvidenceDialog({ anchor, onOpenChange }: EvidenceDialogProps) {
                 <span>
                   {t("run.evidenceLines", { start: anchor.lineStart, end: anchor.lineEnd })}
                 </span>
-                <span className="text-muted-foreground/70">·</span>
-                <span className="uppercase">{anchor.kind}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{t(ANCHOR_KIND_LABEL_KEYS[anchor.kind])}</span>
               </DialogDescription>
             </DialogHeader>
             <div className="max-h-80 overflow-auto rounded-lg border border-border/60 bg-muted/30">
               <pre className="p-3 font-mono text-meta leading-relaxed">
                 {lines.map((line) => (
                   <div key={line.lineNumber} className="flex gap-3">
-                    <span className="w-10 shrink-0 select-none text-right text-muted-foreground/60 tabular-nums">
+                    <span className="w-10 shrink-0 select-none text-right text-muted-foreground tabular-nums">
                       {line.lineNumber}
                     </span>
                     <span className="whitespace-pre-wrap break-all">{line.text}</span>

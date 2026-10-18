@@ -408,7 +408,7 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
             changed: digest.stats.rowsChanged,
           })}
         </p>
-        <p className="text-meta text-muted-foreground/80">{t("run.changesScope")}</p>
+        <p className="text-meta text-muted-foreground">{t("run.changesScope")}</p>
       </div>
 
       {scripts.length === 0 && tables.length === 0 ? (

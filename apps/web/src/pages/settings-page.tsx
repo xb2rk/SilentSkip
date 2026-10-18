@@ -19,7 +19,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -152,7 +151,9 @@ export function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-body font-semibold">{t("settings.aiTitle")}</Label>
-              <PhaseBadge phase="E4" />
+              <Badge variant="secondary" className="font-normal text-muted-foreground">
+                {t("common.comingSoon")}
+              </Badge>
             </div>
             <p className="text-meta text-muted-foreground">{t("settings.aiDescription")}</p>
             <div className="space-y-2">
@@ -185,7 +186,9 @@ export function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-body font-semibold">{t("settings.editorGenTitle")}</Label>
-              <PhaseBadge phase="E8" />
+              <Badge variant="secondary" className="font-normal text-muted-foreground">
+                {t("common.comingSoon")}
+              </Badge>
             </div>
             <p className="text-meta text-muted-foreground">{t("settings.editorGenDescription")}</p>
             <div className="flex items-center gap-3">

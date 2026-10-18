@@ -138,12 +138,29 @@ const PASS_LABEL_KEYS: Record<ReviewPassMeta["pass"], string> = {
   whatif: "run.passWhatIf",
 };
 
-const SALVAGE_LABEL_KEYS: Record<ReviewPassMeta["salvage"], string> = {
+export const SALVAGE_LABEL_KEYS: Record<ReviewPassMeta["salvage"], string> = {
   clean: "run.salvageClean",
   stripped: "run.salvageStripped",
   fence: "run.salvageFence",
   braces: "run.salvageBraces",
   "text-fallback": "run.salvageTextFallback",
+};
+
+const ISSUE_KIND_LABEL_KEYS: Record<string, string> = {
+  "unknown-anchor": "run.issueKindUnknownAnchor",
+  "new-anchor": "run.issueKindNewAnchor",
+  "finding-unanchored": "run.issueKindFindingUnanchored",
+  "unknown-fact": "run.issueKindUnknownFact",
+  "free-number": "run.issueKindFreeNumber",
+  "claim-invalid": "run.issueKindClaimInvalid",
+  "claim-false": "run.issueKindClaimFalse",
+  "quote-unverified": "run.issueKindQuoteUnverified",
+  "theme-invalid": "run.issueKindThemeInvalid",
+  "map-invalid": "run.issueKindMapInvalid",
+  "read-invalid": "run.issueKindReadInvalid",
+  "dig-invalid": "run.issueKindDigInvalid",
+  "synthesize-invalid": "run.issueKindSynthesizeInvalid",
+  "verdict-downgraded": "run.issueKindVerdictDowngraded",
 };
 
 interface PassGroup {
@@ -779,7 +796,8 @@ export function RunPage() {
                             className="leading-relaxed"
                           >
                             <span className="font-mono text-micro text-muted-foreground">
-                              {issue.pass} · {issue.kind}
+                              {t(PASS_LABEL_KEYS[issue.pass] ?? issue.pass)} ·{" "}
+                              {t(ISSUE_KIND_LABEL_KEYS[issue.kind] ?? issue.kind)}
                             </span>
                             <span className="text-muted-foreground"> — </span>
                             {issue.detail}

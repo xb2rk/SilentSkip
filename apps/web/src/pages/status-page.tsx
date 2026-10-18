@@ -128,7 +128,12 @@ export function StatusPage() {
             <Separator className="my-3" />
             <div className="flex items-center justify-between gap-3">
               <span className="text-body text-muted-foreground">{t("status.autoRefresh")}</span>
-              <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+              <Switch
+                id="status-auto-refresh"
+                checked={autoRefresh}
+                onCheckedChange={setAutoRefresh}
+                aria-label={t("status.autoRefresh")}
+              />
             </div>
           </CardContent>
         </Card>
