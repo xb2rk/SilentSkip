@@ -9,14 +9,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useProject } from "@/contexts/project-context";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { useRuns } from "@/lib/use-runs";
@@ -55,7 +47,8 @@ const VERDICT_LABEL_KEYS: Record<Verdict, string> = {
 
 /**
  * History (E5.3) — every review run, newest first, straight from the local database.
- * Rows are self-contained summaries; opening one lands on the run report page.
+ * One wide card per run: project, range, time, status, verdict and duration at a glance,
+ * opening the run report from the card.
  */
 export function HistoryPage() {
   const { t } = useTranslation();
@@ -88,13 +81,11 @@ export function HistoryPage() {
           </CardContent>
         </Card>
       ) : runsQuery.isPending ? (
-        <Card>
-          <CardContent className="space-y-2 py-6">
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+        </div>
       ) : runs.length === 0 ? (
         <Card>
           <CardContent>
@@ -111,83 +102,68 @@ export function HistoryPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("history.colStarted")}</TableHead>
-                  <TableHead>{t("history.colProject")}</TableHead>
-                  <TableHead>{t("history.colRefs")}</TableHead>
-                  <TableHead>{t("history.colStatus")}</TableHead>
-                  <TableHead>{t("history.colVerdict")}</TableHead>
-                  <TableHead>{t("history.colDuration")}</TableHead>
-                  <TableHead className="text-right">{t("history.open")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {runs.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell className="whitespace-nowrap text-[12px] tabular-nums">
-                      {formatDateTime(run.createdAt)}
-                    </TableCell>
-                    <TableCell className="max-w-44 truncate text-[12.5px]" title={run.projectId}>
+        <div className="space-y-3">
+          {runs.map((run) => (
+            <Card key={run.id}>
+              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium",
+                        STATUS_STYLES[run.status],
+                      )}
+                    >
+                      {t(STATUS_LABEL_KEYS[run.status])}
+                    </span>
+                    <span className="truncate text-[13px] font-medium">
                       {projects.find((project) => project.id === run.projectId)?.name ??
                         run.projectId}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-56 truncate font-mono text-[11.5px]"
-                      title={`${run.baseRef} → ${run.currentRef}`}
-                    >
-                      {run.baseRef} → {run.currentRef}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex h-5 items-center rounded-md px-1.5 text-[10.5px] font-medium",
-                          STATUS_STYLES[run.status],
-                        )}
-                      >
-                        {t(STATUS_LABEL_KEYS[run.status])}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {run.verdict === null ? (
-                        <span className="text-[12px] text-muted-foreground">—</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "inline-flex h-5 items-center rounded-md px-1.5 text-[10.5px] font-medium",
-                              VERDICT_STYLES[run.verdict],
-                            )}
-                          >
-                            {t(VERDICT_LABEL_KEYS[run.verdict])}
-                          </span>
-                          {run.qualityScore !== null && (
-                            <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                              {run.qualityScore}/100
-                            </span>
+                    </span>
+                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                      {formatDateTime(run.createdAt)}
+                    </span>
+                  </div>
+                  <div
+                    className="truncate font-mono text-[12px]"
+                    title={`${run.baseRef} → ${run.currentRef}`}
+                  >
+                    {run.baseRef} → {run.currentRef}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {run.verdict !== null && (
+                      <>
+                        <span
+                          className={cn(
+                            "inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium",
+                            VERDICT_STYLES[run.verdict],
                           )}
+                        >
+                          {t(VERDICT_LABEL_KEYS[run.verdict])}
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-[12px] text-muted-foreground tabular-nums">
-                      {run.durationMs === null ? "—" : formatDuration(run.durationMs)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="outline" size="sm">
-                        <Link to="/runs/$runId" params={{ runId: run.id }}>
-                          {t("history.open")}
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                        {run.qualityScore !== null && (
+                          <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                            {run.qualityScore}/100
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {run.durationMs !== null && (
+                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                        {formatDuration(run.durationMs)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm" className="self-start sm:self-center">
+                  <Link to="/runs/$runId" params={{ runId: run.id }}>
+                    {t("history.open")}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import type {
   SynthesizeOutput,
 } from "@craftland-qa/contracts";
 import { cn } from "cn";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { AnchorChip } from "./finding-card";
@@ -32,6 +33,8 @@ interface ThemeMapProps {
   readonly aiFindings: SynthesizeOutput["findings"];
   readonly anchorsById: ReadonlyMap<string, Anchor>;
   readonly onAnchorClick: (anchor: Anchor) => void;
+  /** Jump to the findings tabs filtered by this theme. */
+  readonly onShowFindings: (themeId: string) => void;
 }
 
 /**
@@ -48,8 +51,20 @@ export function ThemeMap({
   aiFindings,
   anchorsById,
   onAnchorClick,
+  onShowFindings,
 }: ThemeMapProps) {
   const { t } = useTranslation();
+  const [expandedThemes, setExpandedThemes] = useState<ReadonlySet<string>>(new Set());
+
+  function toggleThemeFiles(themeId: string): void {
+    setExpandedThemes((previous) => {
+      const next = new Set(previous);
+      if (next.has(themeId)) next.delete(themeId);
+      else next.add(themeId);
+      return next;
+    });
+  }
+
   if (themes.length === 0) {
     return <p className="text-[12.5px] text-muted-foreground">{t("run.themeMapEmpty")}</p>;
   }
@@ -88,21 +103,30 @@ export function ThemeMap({
       </div>
       {themes.map((theme) => {
         const narrative = narrativeOf.get(theme.id);
-        const shown = theme.files.slice(0, MAX_VISIBLE_FILES);
-        const extra = theme.files.length - shown.length;
+        const isExpanded = expandedThemes.has(theme.id);
+        const shown = isExpanded ? theme.files : theme.files.slice(0, MAX_VISIBLE_FILES);
+        const extra = theme.files.length - MAX_VISIBLE_FILES;
         const themeEngine = engineCount.get(theme.id) ?? 0;
         const themeAi = aiCount.get(theme.id) ?? 0;
         return (
-          <div key={theme.id} className="space-y-2.5 rounded-xl border border-border/60 p-4">
+          <div
+            key={theme.id}
+            className="space-y-2.5 rounded-xl border border-border/60 bg-card p-4"
+          >
             <div className="flex flex-wrap items-center gap-2">
               <h4 className="text-[13px] font-semibold">{theme.name}</h4>
               <Badge variant="secondary" className="font-normal">
                 {t("run.themeFiles", { count: theme.files.length })}
               </Badge>
               {themeEngine + themeAi > 0 && (
-                <span className="text-[11.5px] text-muted-foreground">
-                  {t("run.themeCounts", { engine: themeEngine, ai: themeAi })}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => onShowFindings(theme.id)}
+                  className="text-[11.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {t("run.themeCounts", { engine: themeEngine, ai: themeAi })} ·{" "}
+                  {t("run.themeViewFindings")}
+                </button>
               )}
             </div>
             <div className="flex flex-wrap items-start gap-2">
@@ -137,7 +161,6 @@ export function ThemeMap({
                           anchorId={anchorId}
                           anchorsById={anchorsById}
                           onAnchorClick={onAnchorClick}
-                          compact
                         />
                       ))}
                     </div>
@@ -161,9 +184,15 @@ export function ThemeMap({
                 );
               })}
               {extra > 0 && (
-                <span className="inline-flex items-center rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[10.5px] text-muted-foreground">
-                  +{extra}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleThemeFiles(theme.id)}
+                  className="inline-flex min-h-6 items-center rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                >
+                  {isExpanded
+                    ? t("run.themeHideFiles")
+                    : `+${extra} · ${t("run.themeShowAllFiles")}`}
+                </button>
               )}
             </div>
           </div>

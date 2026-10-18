@@ -73,7 +73,7 @@ export function WhatIfPage() {
   const [baseRef, setBaseRef] = useState<string | null>(search.base ?? null);
   const [currentRef, setCurrentRef] = useState<string | null>(search.current ?? null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState(search.q ?? "");
   const [pendingTurnId, setPendingTurnId] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
 
@@ -103,6 +103,11 @@ export function WhatIfPage() {
     if (baseRef === null && refs.head !== null) setBaseRef("HEAD");
     if (currentRef === null) setCurrentRef(WORKTREE_REF);
   }, [refsQuery.data, baseRef, currentRef]);
+
+  // Deep link from "Hỏi về phần này" prefills the composer; a later link overrides it.
+  useEffect(() => {
+    if (search.q !== undefined) setQuestion(search.q);
+  }, [search.q]);
 
   const sessionsQuery = useWhatIfSessions(projectId, baseRef, currentRef);
   const createSession = useCreateWhatIfSession();

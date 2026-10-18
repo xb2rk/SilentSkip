@@ -5,11 +5,12 @@ import type {
   ReviewStreamEvent,
   Verdict,
 } from "@craftland-qa/contracts";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { cn } from "cn";
 import {
   Ban,
   CheckCircle2,
+  ChevronDown,
   GitCompareArrows,
   Info,
   Loader2,
@@ -129,30 +130,172 @@ function summarizeVerification(result: ReviewRunResult): VerificationSummary {
   };
 }
 
-/** Pass metadata has no id, and the same pass runs repeatedly (read chunks) — add an occurrence. */
-function passBadges(passes: readonly ReviewPassMeta[]): { key: string; meta: ReviewPassMeta }[] {
-  const seen = new Map<string, number>();
-  return passes.map((meta) => {
-    const occurrence = (seen.get(meta.pass) ?? 0) + 1;
-    seen.set(meta.pass, occurrence);
-    return { key: `${meta.pass}:${occurrence}`, meta };
-  });
+const PASS_LABEL_KEYS: Record<ReviewPassMeta["pass"], string> = {
+  map: "run.passMap",
+  read: "run.passRead",
+  dig: "run.passDig",
+  synthesize: "run.passSynthesize",
+  whatif: "run.passWhatIf",
+};
+
+const SALVAGE_LABEL_KEYS: Record<ReviewPassMeta["salvage"], string> = {
+  clean: "run.salvageClean",
+  stripped: "run.salvageStripped",
+  fence: "run.salvageFence",
+  braces: "run.salvageBraces",
+  "text-fallback": "run.salvageTextFallback",
+};
+
+interface PassGroup {
+  readonly pass: ReviewPassMeta["pass"];
+  readonly salvage: ReviewPassMeta["salvage"];
+  readonly calls: number;
+  readonly ms: number;
+}
+
+/** Group the per-call pass log by pass + salvage rung so the summary shows one row per kind. */
+function groupPasses(passes: readonly ReviewPassMeta[]): PassGroup[] {
+  const groups = new Map<string, PassGroup>();
+  for (const meta of passes) {
+    const key = `${meta.pass}|${meta.salvage}`;
+    const current = groups.get(key);
+    if (current === undefined) {
+      groups.set(key, { pass: meta.pass, salvage: meta.salvage, calls: 1, ms: meta.latencyMs });
+    } else {
+      groups.set(key, { ...current, calls: current.calls + 1, ms: current.ms + meta.latencyMs });
+    }
+  }
+  return [...groups.values()];
 }
 
 /**
- * Run report (E5, report v2 at E7.4) — live progress while the run executes, then the report:
- * "Bản đồ" (theme map + raw change facts), "Thiếu-đứt" (engine facts + linked AI findings,
- * unverified ones labelled "Cần xác minh" and sorted last), "Ghi chú" (AI prose, clearly
- * labelled interpretation). Every citation opens the exact anchored span in the evidence dialog.
+ * "Tổng quan lượt chạy" — the run's own account of what happened, directly under the verdict.
+ * The executive summary is visible with zero clicks; concerns/tests/unknowns/process open on demand.
+ * Verification numbers live in the verdict band, so they are not repeated here.
+ */
+function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const groups = groupPasses(result.passes);
+  const totalMs = result.passes.reduce((sum, meta) => sum + meta.latencyMs, 0);
+  const dropped = result.contextManifest.counts.evidenceDropped;
+  return (
+    <Card>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">{t("run.summaryTitle")}</h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? t("run.summaryCollapse") : t("run.summaryExpand")}
+            <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+          </Button>
+        </div>
+        <p className={cn("text-[12.5px] leading-relaxed", !open && "line-clamp-3")}>
+          {result.report.executiveSummary}
+        </p>
+        {!open && result.report.topConcerns.length > 0 && (
+          <p className="text-[11.5px] text-muted-foreground">
+            {t("run.summaryMoreConcerns", { count: result.report.topConcerns.length })}
+          </p>
+        )}
+        {open && (
+          <div className="space-y-4">
+            {result.report.topConcerns.length > 0 && (
+              <section className="space-y-1.5">
+                <h3 className="text-[13px] font-semibold">{t("run.notesConcernsTitle")}</h3>
+                <ol className="list-decimal space-y-1 pl-5 text-[12.5px] leading-relaxed">
+                  {result.report.topConcerns.map((concern) => (
+                    <li key={concern}>{concern}</li>
+                  ))}
+                </ol>
+              </section>
+            )}
+            {result.report.recommendedTests.length > 0 && (
+              <section className="space-y-1.5">
+                <h3 className="text-[13px] font-semibold">{t("run.notesTestsTitle")}</h3>
+                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed">
+                  {result.report.recommendedTests.map((test) => (
+                    <li key={test}>{test}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {result.report.unknowns.length > 0 && (
+              <section className="space-y-1.5">
+                <h3 className="text-[13px] font-semibold">{t("run.notesUnknownsTitle")}</h3>
+                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  {result.report.unknowns.map((unknown) => (
+                    <li key={unknown}>{unknown}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <div className="space-y-1.5 border-t border-border/60 pt-3">
+              <h3 className="text-[13px] font-semibold">{t("run.summaryProcessTitle")}</h3>
+              <p className="text-[11.5px] text-muted-foreground">
+                {t("run.summaryProcess", {
+                  calls: result.passes.length,
+                  duration: formatDuration(totalMs),
+                })}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {groups.map((group) => (
+                  <Badge
+                    key={`${group.pass}:${group.salvage}`}
+                    variant="secondary"
+                    className="font-normal"
+                  >
+                    {t(PASS_LABEL_KEYS[group.pass])}
+                    {group.calls > 1 ? ` ×${group.calls}` : ""} · {group.ms} ms ·{" "}
+                    {t(SALVAGE_LABEL_KEYS[group.salvage])}
+                  </Badge>
+                ))}
+              </div>
+              {dropped > 0 && (
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  {t("run.coverageNote", {
+                    evidence: result.contextManifest.counts.evidence,
+                    total: result.contextManifest.counts.evidence + dropped,
+                    percent: Math.round(
+                      (result.contextManifest.counts.evidence /
+                        (result.contextManifest.counts.evidence + dropped)) *
+                        100,
+                    ),
+                  })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Run report (E5, report v2 at E7.4, reading flow rebuilt in the UI epic) — live progress while
+ * the run executes, then: verdict band → collapsible "Tổng quan lượt chạy" → tabs with AI findings
+ * first, engine findings (the FACT layer) separately, the change map, and technical notes.
+ * Every citation opens the exact anchored span in the evidence dialog.
  */
 export function RunPage() {
   const { runId } = useParams({ from: "/runs/$runId" });
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { projects } = useProject();
   const runQuery = useRun(runId);
   const { events, streamError } = useRunStream(runId);
   const cancelRun = useCancelReview();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [tab, setTab] = useState("findings");
+  const [expandAll, setExpandAll] = useState(false);
+  const [themeFilter, setThemeFilter] = useState<string | null>(null);
+  const [showRawChanges, setShowRawChanges] = useState(false);
 
   const run = runQuery.data;
   const projectName =
@@ -192,13 +335,31 @@ export function RunPage() {
       (a, b) => rank[a.severity] - rank[b.severity] || (a.id < b.id ? -1 : 1),
     );
   }, [digestQuery.data]);
-  /** AI findings with verified ones first — "Cần xác minh" (unknown) sinks to the bottom. */
+  /** AI findings: severity first, then verified before "Cần xác minh" (unknown), then title. */
   const aiFindings = useMemo(() => {
-    const rank = (confidence: string) => (confidence === "unknown" ? 1 : 0);
+    const severityRank = { critical: 0, major: 1, minor: 2, info: 3 } as const;
+    const confidenceRank = (confidence: string) =>
+      confidence === "unknown" ? 2 : confidence === "inferred" ? 1 : 0;
     return [...(run?.result?.report.findings ?? [])].sort(
-      (a, b) => rank(a.confidence) - rank(b.confidence) || (a.title < b.title ? -1 : 1),
+      (a, b) =>
+        severityRank[a.severity] - severityRank[b.severity] ||
+        confidenceRank(a.confidence) - confidenceRank(b.confidence) ||
+        (a.title < b.title ? -1 : 1),
     );
   }, [run]);
+  const anchorFileById = useMemo(
+    () =>
+      new Map(
+        (digestQuery.data?.anchors ?? []).map(
+          (anchorItem) => [anchorItem.id, anchorItem.file] as const,
+        ),
+      ),
+    [digestQuery.data],
+  );
+  const themeFileSet = useMemo(() => {
+    const theme = run?.result?.themes.find((item) => item.id === themeFilter);
+    return theme === undefined ? null : new Set(theme.files);
+  }, [run, themeFilter]);
 
   if (runQuery.isPending) {
     return (
@@ -234,6 +395,31 @@ export function RunPage() {
   const running = run.status === "queued" || run.status === "running";
   const states = stageStates(events);
   const verification = result === null ? null : summarizeVerification(result);
+
+  const themeFilterName =
+    themeFilter === null
+      ? null
+      : (result?.themes.find((theme) => theme.id === themeFilter)?.name ?? themeFilter);
+  const inTheme = (anchors: readonly string[]): boolean => {
+    if (themeFileSet === null) return true;
+    const first = anchors[0];
+    return first !== undefined && themeFileSet.has(anchorFileById.get(first) ?? "");
+  };
+  const visibleAi = aiFindings.filter((finding) => inTheme(finding.anchors));
+  const visibleEngine = engineFindings.filter((finding) => inTheme(finding.anchors));
+
+  const runRefs = {
+    projectId: run.projectId,
+    base: run.baseRef,
+    current: run.currentRef,
+  };
+
+  function handleAskAbout(title: string): void {
+    void navigate({
+      to: "/what-if",
+      search: { ...runRefs, q: title },
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -432,47 +618,26 @@ export function RunPage() {
                   </span>
                 )}
               </div>
-              {result.passes.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11.5px] text-muted-foreground">
-                    {t("run.passesLabel")}:
-                  </span>
-                  {passBadges(result.passes).map(({ key, meta }) => (
-                    <Badge key={key} variant="secondary" className="font-normal">
-                      {meta.pass} · {t("run.passLatency", { ms: meta.latencyMs })} · {meta.salvage}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          {result.contextManifest.counts.evidenceDropped > 0 && (
-            <Alert>
-              <Info className="size-4" />
-              <AlertDescription>
-                {t("run.coverageNote", {
-                  evidence: result.contextManifest.counts.evidence,
-                  total:
-                    result.contextManifest.counts.evidence +
-                    result.contextManifest.counts.evidenceDropped,
-                  percent: Math.round(
-                    (result.contextManifest.counts.evidence /
-                      (result.contextManifest.counts.evidence +
-                        result.contextManifest.counts.evidenceDropped)) *
-                      100,
-                  ),
-                })}
-              </AlertDescription>
-            </Alert>
-          )}
+          <RunSummaryCard result={result} />
 
-          <Tabs defaultValue="changes">
+          <Tabs
+            value={tab}
+            onValueChange={(value) => {
+              setTab(value);
+              if (value !== "changes") setShowRawChanges(false);
+            }}
+          >
             <TabsList>
-              <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>
               <TabsTrigger value="findings">
-                {t("run.tabFindings")} ({engineFindings.length + aiFindings.length})
+                {t("run.tabFindings")} ({aiFindings.length})
               </TabsTrigger>
+              <TabsTrigger value="engine">
+                {t("run.tabEngine")} ({engineFindings.length})
+              </TabsTrigger>
+              <TabsTrigger value="changes">{t("run.tabChanges")}</TabsTrigger>
               <TabsTrigger value="notes">{t("run.tabNotes")}</TabsTrigger>
             </TabsList>
 
@@ -506,66 +671,87 @@ export function RunPage() {
                     aiFindings={aiFindings}
                     anchorsById={anchorsById}
                     onAnchorClick={setAnchor}
+                    onShowFindings={(themeId) => {
+                      setThemeFilter(themeId);
+                      setTab("findings");
+                    }}
                   />
-                  <details className="rounded-lg border border-border/60 p-3">
+                  <details
+                    className="rounded-lg border border-border/60 p-3"
+                    onToggle={(event) => setShowRawChanges(event.currentTarget.open)}
+                  >
                     <summary className="cursor-pointer text-[12px] font-medium">
                       {t("run.rawDetailsTitle")}
                     </summary>
-                    <div className="pt-3">
-                      <ChangeFacts
-                        digest={digestQuery.data}
-                        anchorsById={anchorsById}
-                        onAnchorClick={setAnchor}
-                      />
-                    </div>
+                    {showRawChanges && (
+                      <div className="pt-3">
+                        <ChangeFacts
+                          digest={digestQuery.data}
+                          anchorsById={anchorsById}
+                          onAnchorClick={setAnchor}
+                        />
+                      </div>
+                    )}
                   </details>
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value="findings" className="space-y-3 pt-2">
-              {engineFindings.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12.5px] font-semibold">
-                      {t("run.engineFindingsTitle")}
-                    </span>
-                    <Badge variant="secondary" className="font-normal">
-                      {engineFindings.length}
-                    </Badge>
-                  </div>
-                  <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-                    {t("run.engineFindingsHint")}
-                  </p>
-                  {engineFindings.map((finding) => (
-                    <EngineFindingCard
-                      key={finding.id}
-                      finding={finding}
-                      anchorsById={anchorsById}
-                      onAnchorClick={setAnchor}
-                    />
-                  ))}
-                </div>
-              )}
-              {aiFindings.length > 0 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[12.5px] font-semibold">
-                    {t("run.processFindingsTitle")}
-                  </span>
+              {themeFilter !== null && (
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary" className="font-normal">
-                    {aiFindings.length}
+                    {t("run.themeFilterLabel")}: {themeFilterName ?? themeFilter}
                   </Badge>
+                  <Button variant="ghost" size="sm" onClick={() => setThemeFilter(null)}>
+                    {t("run.themeFilterClear")}
+                  </Button>
                 </div>
               )}
-              {engineFindings.length === 0 && aiFindings.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  {t("run.aiFindingsHint")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpandAll((value) => !value)}
+                >
+                  {expandAll ? t("run.collapseAll") : t("run.expandAll")}
+                </Button>
+              </div>
+              {visibleAi.length === 0 ? (
                 <p className="text-[12.5px] text-muted-foreground">{t("run.findingsEmpty")}</p>
               ) : (
-                aiFindings.map((finding) => (
+                visibleAi.map((finding) => (
                   <FindingCard
-                    key={`${finding.title}:${finding.statement}`}
+                    key={`${expandAll ? "open" : "closed"}:${finding.title}:${finding.statement}`}
                     finding={finding}
                     anchorsById={anchorsById}
                     onAnchorClick={setAnchor}
+                    defaultOpen={expandAll}
+                    onAsk={handleAskAbout}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="engine" className="space-y-3 pt-2">
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                {t("run.engineFindingsHint")}
+              </p>
+              {visibleEngine.length === 0 ? (
+                <p className="text-[12.5px] text-muted-foreground">{t("run.engineEmpty")}</p>
+              ) : (
+                visibleEngine.map((finding) => (
+                  <EngineFindingCard
+                    key={`${expandAll ? "open" : "closed"}:${finding.id}`}
+                    finding={finding}
+                    anchorsById={anchorsById}
+                    onAnchorClick={setAnchor}
+                    defaultOpen={expandAll}
+                    onAsk={handleAskAbout}
                   />
                 ))
               )}
@@ -573,53 +759,6 @@ export function RunPage() {
 
             <TabsContent value="notes" className="pt-2">
               <div className="space-y-5">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="font-normal">
-                    {t("run.aiWritten")}
-                  </Badge>
-                  <span className="text-[11.5px] text-muted-foreground">
-                    {t("run.notesAiHint")}
-                  </span>
-                </div>
-
-                <section className="space-y-1.5">
-                  <h3 className="text-[13px] font-semibold">{t("run.notesSummaryTitle")}</h3>
-                  <p className="text-[12.5px] leading-relaxed">{result.report.executiveSummary}</p>
-                </section>
-
-                {result.report.topConcerns.length > 0 && (
-                  <section className="space-y-1.5">
-                    <h3 className="text-[13px] font-semibold">{t("run.notesConcernsTitle")}</h3>
-                    <ol className="list-decimal space-y-1 pl-5 text-[12.5px] leading-relaxed">
-                      {result.report.topConcerns.map((concern) => (
-                        <li key={concern}>{concern}</li>
-                      ))}
-                    </ol>
-                  </section>
-                )}
-
-                {result.report.recommendedTests.length > 0 && (
-                  <section className="space-y-1.5">
-                    <h3 className="text-[13px] font-semibold">{t("run.notesTestsTitle")}</h3>
-                    <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed">
-                      {result.report.recommendedTests.map((test) => (
-                        <li key={test}>{test}</li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {result.report.unknowns.length > 0 && (
-                  <section className="space-y-1.5">
-                    <h3 className="text-[13px] font-semibold">{t("run.notesUnknownsTitle")}</h3>
-                    <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
-                      {result.report.unknowns.map((unknown) => (
-                        <li key={unknown}>{unknown}</li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
                 <section className="space-y-2">
                   <h3 className="text-[13px] font-semibold">{t("run.verificationTitle")}</h3>
                   {result.verification.issues.length === 0 ? (
@@ -639,7 +778,7 @@ export function RunPage() {
                             key={`${issue.pass}|${issue.kind}|${issue.target}|${issue.detail.slice(0, 80)}`}
                             className="leading-relaxed"
                           >
-                            <span className="font-mono text-[10.5px] text-muted-foreground">
+                            <span className="font-mono text-[11px] text-muted-foreground">
                               {issue.pass} · {issue.kind}
                             </span>
                             <span className="text-muted-foreground"> — </span>
@@ -649,6 +788,10 @@ export function RunPage() {
                       </ul>
                     </details>
                   )}
+                </section>
+
+                <section className="space-y-1.5">
+                  <h3 className="text-[13px] font-semibold">{t("run.notesContextTitle")}</h3>
                   <p className="text-[11.5px] text-muted-foreground">
                     {t("run.contextCounts", {
                       changeFacts: result.contextManifest.counts.changeFacts,
