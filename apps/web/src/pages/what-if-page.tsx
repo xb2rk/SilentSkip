@@ -1,9 +1,8 @@
 import type { Anchor, WhatIfTurn } from "@craftland-qa/contracts";
 import { WORKTREE_REF } from "@craftland-qa/contracts";
-import { useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Download,
-  Info,
   Loader2,
   MessageSquarePlus,
   Pin as PinIcon,
@@ -13,14 +12,13 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { EvidenceDialog } from "@/components/report/evidence-dialog";
 import { AnchorChip } from "@/components/report/finding-card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,8 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Toggle } from "@/components/ui/toggle";
 import { useProject } from "@/contexts/project-context";
 import { formatDateTime } from "@/lib/format";
 import { useDigest, useProjectRefs } from "@/lib/use-projects";
@@ -65,6 +65,7 @@ const STAGE_LABEL_KEYS = {
 export function WhatIfPage() {
   const { t } = useTranslation();
   const search = useSearch({ from: "/what-if" });
+  const navigate = useNavigate();
   const { projects, activeProjectId } = useProject();
 
   const [projectId, setProjectId] = useState<string | null>(
@@ -76,6 +77,7 @@ export function WhatIfPage() {
   const [question, setQuestion] = useState(search.q ?? "");
   const [pendingTurnId, setPendingTurnId] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const refsQuery = useProjectRefs(projectId);
   const scopeReady = projectId !== null && baseRef !== null && currentRef !== null;
@@ -141,6 +143,28 @@ export function WhatIfPage() {
       setPendingTurnId(null);
     }
   }, [pendingTurnId, sessionQuery.data]);
+
+  // Keep the comparison scope in the URL so refresh (and shared links) reopen the same pair.
+  useEffect(() => {
+    if (projectId === null || baseRef === null || currentRef === null) return;
+    void navigate({
+      to: "/what-if",
+      replace: true,
+      search: {
+        projectId,
+        base: baseRef,
+        current: currentRef,
+        ...(search.q !== undefined ? { q: search.q } : {}),
+      },
+    });
+  }, [projectId, baseRef, currentRef, search.q, navigate]);
+
+  // Follow the newest turn; the transcript itself scrolls, the composer stays in place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these signals mean the transcript grew
+  useEffect(() => {
+    const element = transcriptRef.current;
+    if (element !== null) element.scrollTop = element.scrollHeight;
+  }, [sessionId, sessionQuery.data?.turns.length, pendingTurnId]);
 
   const lastStage = [...stream.events].reverse().find((event) => event.type === "stage");
   const stageLabel =
@@ -355,58 +379,63 @@ export function WhatIfPage() {
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[13px] font-semibold">{t("whatIf.sessionsTitle")}</h2>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              disabled={!scopeReady || createSession.isPending}
-              onClick={handleNewSession}
-            >
-              <MessageSquarePlus className="size-3.5" />
-              {t("whatIf.newSession")}
-            </Button>
-          </div>
-          {!scopeReady ? (
-            <p className="text-[12px] text-muted-foreground">{t("whatIf.selectSessionFirst")}</p>
-          ) : sessionsQuery.isError ? (
-            <div className="space-y-2">
-              <p className="text-[12px] text-muted-foreground">{t("whatIf.sessionsError")}</p>
-              <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()}>
-                {t("common.retry")}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[12.5px]">{t("whatIf.sessionsTitle")}</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!scopeReady || createSession.isPending}
+                onClick={handleNewSession}
+                aria-label={t("whatIf.newSession")}
+              >
+                <MessageSquarePlus className="size-3.5" />
+                {t("whatIf.newSessionShort")}
               </Button>
-            </div>
-          ) : sessionsQuery.isPending ? (
-            <div className="space-y-2">
-              <Skeleton className="h-12" />
-              <Skeleton className="h-12" />
-            </div>
-          ) : (sessionsQuery.data?.sessions.length ?? 0) === 0 ? (
-            <p className="text-[12px] text-muted-foreground">{t("whatIf.noSessions")}</p>
-          ) : (
-            <div className="space-y-1.5">
-              {sessionsQuery.data?.sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => openSession(session.id)}
-                  className={
-                    session.id === sessionId
-                      ? "w-full rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 text-left"
-                      : "w-full rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:bg-accent/40"
-                  }
-                >
-                  <div className="truncate font-mono text-[11.5px]">{session.title}</div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-muted-foreground">
-                    <span>{t("whatIf.turnCount", { count: session.turnCount })}</span>
-                    <span>·</span>
-                    <span>{formatDateTime(session.updatedAt)}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {!scopeReady ? (
+                <p className="text-[12px] text-muted-foreground">
+                  {t("whatIf.selectSessionFirst")}
+                </p>
+              ) : sessionsQuery.isError ? (
+                <div className="space-y-2">
+                  <p className="text-[12px] text-muted-foreground">{t("whatIf.sessionsError")}</p>
+                  <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()}>
+                    {t("common.retry")}
+                  </Button>
+                </div>
+              ) : sessionsQuery.isPending ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12" />
+                  <Skeleton className="h-12" />
+                </div>
+              ) : (sessionsQuery.data?.sessions.length ?? 0) === 0 ? (
+                <p className="text-[12px] text-muted-foreground">{t("whatIf.noSessions")}</p>
+              ) : (
+                sessionsQuery.data?.sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => openSession(session.id)}
+                    aria-current={session.id === sessionId ? "true" : undefined}
+                    className={
+                      session.id === sessionId
+                        ? "w-full rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 text-left"
+                        : "w-full rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:bg-accent/40"
+                    }
+                  >
+                    <div className="truncate font-mono text-[12px]">{session.title}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span>{t("whatIf.turnCount", { count: session.turnCount })}</span>
+                      <span>·</span>
+                      <span>{formatDateTime(session.updatedAt)}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="pb-2">
@@ -434,7 +463,7 @@ export function WhatIfPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-1.5 text-[11px]"
+                      className="px-1.5"
                       onClick={() => removePin.mutate(pin.id)}
                     >
                       <PinOff className="size-3.5" />
@@ -447,14 +476,13 @@ export function WhatIfPage() {
           </Card>
         </div>
 
-        <Card className="flex min-h-[420px] flex-col">
+        <Card className="flex h-[70vh] max-h-[820px] min-h-[520px] flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-[13px]">{t("whatIf.title")}</CardTitle>
+            <CardTitle className="text-[13px]">{t("whatIf.chatTitle")}</CardTitle>
             {sessionId !== null && (
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs"
                 disabled={sessionQuery.isPending || sessionQuery.data === undefined}
                 onClick={handleExport}
               >
@@ -463,7 +491,7 @@ export function WhatIfPage() {
               </Button>
             )}
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-4">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
             {sessionId === null ? (
               <EmptyState
                 icon={Sparkles}
@@ -492,7 +520,7 @@ export function WhatIfPage() {
                 <Skeleton className="h-24" />
               </div>
             ) : (
-              <div className="flex-1 space-y-4">
+              <div ref={transcriptRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
                 {(sessionQuery.data?.turns.length ?? 0) === 0 && (
                   <div className="flex flex-wrap justify-center gap-2 py-6">
                     {SAMPLES.map((key) => (
@@ -501,7 +529,7 @@ export function WhatIfPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-7 rounded-full px-3 text-xs font-normal text-muted-foreground"
+                        className="font-normal text-muted-foreground"
                         onClick={() => setQuestion(t(key))}
                       >
                         {t(key)}
@@ -539,7 +567,8 @@ export function WhatIfPage() {
               </div>
             )}
 
-            <div className="space-y-3 border-t border-border/60 pt-4">
+            <Separator />
+            <div className="space-y-3">
               <Textarea
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
@@ -550,7 +579,7 @@ export function WhatIfPage() {
                   }
                 }}
                 placeholder={t("whatIf.composerPlaceholder")}
-                className="min-h-20"
+                className="min-h-16"
                 disabled={sessionId === null}
               />
               <div className="flex items-center justify-between gap-2">
@@ -578,11 +607,6 @@ export function WhatIfPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Alert>
-        <Info className="size-4" />
-        <AlertDescription>{t("whatIf.description")}</AlertDescription>
-      </Alert>
 
       <EvidenceDialog
         anchor={anchor}
@@ -616,9 +640,31 @@ function TurnView({
 }: TurnViewProps) {
   const { t } = useTranslation();
 
+  function friendlyError(message: string): string {
+    const lower = message.toLowerCase();
+    if (lower.includes("timeout") || lower.includes("quá thời gian") || lower.includes("aborted")) {
+      return t("whatIf.errorTimeout");
+    }
+    if (lower.includes("schema") || lower.includes("invalid") || lower.includes("parse")) {
+      return t("whatIf.errorInvalid");
+    }
+    if (
+      lower.includes("workflow") ||
+      lower.includes("fetch") ||
+      lower.includes("http") ||
+      lower.includes("network")
+    ) {
+      return t("whatIf.errorUpstream");
+    }
+    return message;
+  }
+
+  const errorMessage = turn.error === null ? null : friendlyError(turn.error);
+
   if (turn.role === "user") {
     return (
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground">{t("whatIf.you")}</span>
         <div className="max-w-[85%] rounded-xl border border-border/60 bg-muted/40 px-3.5 py-2.5 text-[13px] leading-relaxed">
           {turn.content}
         </div>
@@ -627,113 +673,125 @@ function TurnView({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 p-3.5">
-      {turn.error !== null ? (
-        <div className="flex items-start gap-2 text-[12.5px] text-destructive">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <div className="space-y-2">
-            <div>
-              <div className="font-medium">{t("whatIf.aiError")}</div>
-              <div className="text-muted-foreground">{turn.error}</div>
+    <div className="space-y-1.5">
+      <span className="text-[11px] font-medium text-muted-foreground">{t("whatIf.assistant")}</span>
+      <div className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5">
+        {turn.error !== null ? (
+          <div className="flex items-start gap-2 text-[12.5px] text-destructive">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <div className="font-medium">{t("whatIf.aiError")}</div>
+                <div className="text-muted-foreground">{errorMessage}</div>
+                {errorMessage !== turn.error && (
+                  <details className="text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer">{t("whatIf.errorDetail")}</summary>
+                    <code className="mt-1 block whitespace-pre-wrap break-words">{turn.error}</code>
+                  </details>
+                )}
+              </div>
+              {retryQuestion !== null && (
+                <Button size="sm" variant="outline" onClick={() => onRetry(retryQuestion)}>
+                  <RotateCcw className="size-3.5" />
+                  {t("common.retry")}
+                </Button>
+              )}
             </div>
-            {retryQuestion !== null && (
-              <Button size="sm" variant="outline" onClick={() => onRetry(retryQuestion)}>
-                <RotateCcw className="size-3.5" />
-                {t("common.retry")}
-              </Button>
-            )}
           </div>
-        </div>
-      ) : turn.answer !== null ? (
-        <>
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{turn.answer.answer}</p>
+        ) : turn.answer !== null ? (
+          <>
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{turn.answer.answer}</p>
 
-          {turn.answer.evidence.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("whatIf.evidenceTitle")}
-              </div>
-              {turn.answer.evidence.map((item) => (
-                <div key={item.statement} className="space-y-1">
-                  <div className="text-[12.5px] leading-relaxed">{item.statement}</div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {item.anchors.map((anchorId) => (
-                      <span key={anchorId} className="inline-flex items-center gap-0.5">
-                        <AnchorChip
-                          anchorId={anchorId}
-                          anchorsById={anchorsById}
-                          onAnchorClick={onAnchorClick}
-                          compact
-                        />
-                        <button
-                          type="button"
-                          title={
-                            pinnedByAnchor.has(anchorId) ? t("whatIf.pinned") : t("whatIf.pin")
-                          }
-                          onClick={() => onPinToggle(anchorId)}
-                          className={
-                            pinnedByAnchor.has(anchorId)
-                              ? "text-primary"
-                              : "text-muted-foreground/60 transition-colors hover:text-foreground"
-                          }
-                        >
-                          <PinIcon className="size-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
+            {turn.answer.evidence.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-border/70 bg-muted/25 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-semibold">{t("whatIf.evidenceTitle")}</span>
+                  <Badge variant="secondary" className="h-5 text-[10px]">
+                    {t("whatIf.verifiedBadge")}
+                  </Badge>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {turn.answer.speculation.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[11.5px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                  {t("whatIf.speculationTitle")}
-                </span>
-                <Badge variant="outline" className="h-5 text-[10px]">
-                  {t("run.interpretationBadge")}
-                </Badge>
-              </div>
-              <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
-                {turn.answer.speculation.map((item) => (
-                  <li key={item}>{item}</li>
+                {turn.answer.evidence.map((item) => (
+                  <div key={item.statement} className="space-y-1">
+                    <div className="text-[13px] leading-relaxed">{item.statement}</div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {item.anchors.map((anchorId) => (
+                        <span key={anchorId} className="inline-flex items-center gap-0.5">
+                          <AnchorChip
+                            anchorId={anchorId}
+                            anchorsById={anchorsById}
+                            onAnchorClick={onAnchorClick}
+                          />
+                          <Toggle
+                            size="sm"
+                            variant="outline"
+                            pressed={pinnedByAnchor.has(anchorId)}
+                            onPressedChange={() => onPinToggle(anchorId)}
+                            aria-label={
+                              pinnedByAnchor.has(anchorId) ? t("whatIf.pinned") : t("whatIf.pin")
+                            }
+                            title={
+                              pinnedByAnchor.has(anchorId) ? t("whatIf.pinned") : t("whatIf.pin")
+                            }
+                            className="h-6 min-w-6 rounded-md px-1 data-[state=on]:text-primary"
+                          >
+                            <PinIcon className="size-3.5" />
+                          </Toggle>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          )}
-
-          {turn.answer.unknowns.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("whatIf.unknownsTitle")}
               </div>
-              <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
-                {turn.answer.unknowns.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            )}
 
-          {turn.contextCounts !== null && (
-            <p className="text-[11px] text-muted-foreground/80">
-              {t("whatIf.transparency", {
-                evidence: turn.contextCounts.evidence,
-                pins: turn.contextCounts.pins,
-                turns: turn.contextCounts.turns,
-              })}
-            </p>
-          )}
-        </>
-      ) : (
-        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          {t("whatIf.stageContext")}
-        </div>
-      )}
+            {turn.answer.speculation.length > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11.5px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                    {t("whatIf.speculationTitle")}
+                  </span>
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {t("run.interpretationBadge")}
+                  </Badge>
+                </div>
+                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  {turn.answer.speculation.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {turn.answer.unknowns.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("whatIf.unknownsTitle")}
+                </div>
+                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  {turn.answer.unknowns.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {turn.contextCounts !== null && (
+              <p className="text-[11.5px] text-muted-foreground">
+                {t("whatIf.transparency", {
+                  evidence: turn.contextCounts.evidence,
+                  pins: turn.contextCounts.pins,
+                  turns: turn.contextCounts.turns,
+                })}
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            {t("whatIf.stageContext")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,10 @@
 import type { RunSummary, Verdict } from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { History as HistoryIcon, Info, TriangleAlert } from "lucide-react";
+import { History as HistoryIcon, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,11 +58,6 @@ export function HistoryPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("history.title")} description={t("history.description")} />
-
-      <Alert>
-        <Info className="size-4" />
-        <AlertDescription>{t("history.banner")}</AlertDescription>
-      </Alert>
 
       {runsQuery.isError ? (
         <Card>
