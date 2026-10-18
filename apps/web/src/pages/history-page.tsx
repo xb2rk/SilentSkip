@@ -1,7 +1,7 @@
 import type { RunSummary, Verdict } from "@craftland-qa/contracts";
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { History as HistoryIcon, TriangleAlert } from "lucide-react";
+import { ChevronRight, History as HistoryIcon, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -76,9 +76,9 @@ export function HistoryPage() {
         </Card>
       ) : runsQuery.isPending ? (
         <div className="space-y-3">
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
         </div>
       ) : runs.length === 0 ? (
         <Card>
@@ -97,66 +97,81 @@ export function HistoryPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {runs.map((run) => (
-            <Card key={run.id}>
-              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
-                        STATUS_STYLES[run.status],
-                      )}
-                    >
-                      {t(STATUS_LABEL_KEYS[run.status])}
-                    </span>
-                    <span className="truncate text-body font-medium">
-                      {projects.find((project) => project.id === run.projectId)?.name ??
-                        run.projectId}
-                    </span>
-                    <span className="text-meta text-muted-foreground tabular-nums">
-                      {formatDateTime(run.createdAt)}
-                    </span>
-                  </div>
-                  <div
-                    className="truncate font-mono text-meta"
-                    title={`${run.baseRef} → ${run.currentRef}`}
-                  >
-                    {run.baseRef} → {run.currentRef}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {run.verdict !== null && (
-                      <>
+          {runs.map((run) => {
+            const projectName =
+              projects.find((project) => project.id === run.projectId)?.name ?? run.projectId;
+            return (
+              <Link
+                key={run.id}
+                to="/runs/$runId"
+                params={{ runId: run.id }}
+                className="group block"
+              >
+                <Card className="py-4 transition-colors hover:border-foreground/25 hover:bg-muted/20">
+                  <CardContent className="flex flex-col gap-2 px-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={cn(
                             "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
-                            VERDICT_STYLES[run.verdict],
+                            STATUS_STYLES[run.status],
                           )}
                         >
-                          {t(VERDICT_LABEL_KEYS[run.verdict])}
+                          {t(STATUS_LABEL_KEYS[run.status])}
                         </span>
-                        {run.qualityScore !== null && (
-                          <span className="text-meta text-muted-foreground tabular-nums">
-                            {run.qualityScore}/100
+                        <span className="truncate text-body font-medium">{projectName}</span>
+                        <span className="text-meta text-muted-foreground tabular-nums">
+                          {formatDateTime(run.createdAt)}
+                        </span>
+                      </div>
+                      <div
+                        className="truncate font-mono text-meta"
+                        title={`${run.baseRef} → ${run.currentRef}`}
+                      >
+                        {run.baseRef} → {run.currentRef}
+                      </div>
+                      {run.goal !== null && run.goal.trim() !== "" && (
+                        <p className="truncate text-meta text-muted-foreground">
+                          {t("history.goal", { goal: run.goal })}
+                        </p>
+                      )}
+                      {run.error !== null && (
+                        <p className="truncate text-meta text-danger">{run.error}</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      {run.verdict !== null && (
+                        <>
+                          <span
+                            className={cn(
+                              "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
+                              VERDICT_STYLES[run.verdict],
+                            )}
+                          >
+                            {t(VERDICT_LABEL_KEYS[run.verdict])}
                           </span>
-                        )}
-                      </>
-                    )}
-                    {run.durationMs !== null && (
-                      <span className="text-meta text-muted-foreground tabular-nums">
-                        {formatDuration(run.durationMs)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm" className="self-start sm:self-center">
-                  <Link to="/runs/$runId" params={{ runId: run.id }}>
-                    {t("history.open")}
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+                          {run.qualityScore !== null && (
+                            <span className="text-meta text-muted-foreground tabular-nums">
+                              {run.qualityScore}/100
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {run.durationMs !== null && (
+                        <span className="text-meta text-muted-foreground tabular-nums">
+                          {formatDuration(run.durationMs)}
+                        </span>
+                      )}
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
