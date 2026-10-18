@@ -39,11 +39,11 @@ import { useRunStream } from "@/lib/use-run-stream";
 import { useCancelReview, useRun } from "@/lib/use-runs";
 
 const VERDICT_STYLES: Record<Verdict, string> = {
-  pass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  pass_with_warnings: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  needs_review: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  fail: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  insufficient_evidence: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-400",
+  pass: "bg-positive/15 text-positive dark:text-positive",
+  pass_with_warnings: "bg-info/15 text-info dark:text-info",
+  needs_review: "bg-warning/15 text-warning dark:text-warning",
+  fail: "bg-danger/15 text-danger dark:text-danger",
+  insufficient_evidence: "bg-neutral/15 text-neutral dark:text-neutral",
 };
 
 const VERDICT_LABEL_KEYS: Record<Verdict, string> = {
@@ -195,11 +195,11 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
             <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
           </Button>
         </div>
-        <p className={cn("text-[12.5px] leading-relaxed", !open && "line-clamp-3")}>
+        <p className={cn("text-body leading-relaxed", !open && "line-clamp-3")}>
           {result.report.executiveSummary}
         </p>
         {!open && result.report.topConcerns.length > 0 && (
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-meta text-muted-foreground">
             {t("run.summaryMoreConcerns", { count: result.report.topConcerns.length })}
           </p>
         )}
@@ -207,8 +207,8 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
           <div className="space-y-4">
             {result.report.topConcerns.length > 0 && (
               <section className="space-y-1.5">
-                <h3 className="text-[13px] font-semibold">{t("run.notesConcernsTitle")}</h3>
-                <ol className="list-decimal space-y-1 pl-5 text-[12.5px] leading-relaxed">
+                <h3 className="text-body font-semibold">{t("run.notesConcernsTitle")}</h3>
+                <ol className="list-decimal space-y-1 pl-5 text-body leading-relaxed">
                   {result.report.topConcerns.map((concern) => (
                     <li key={concern}>{concern}</li>
                   ))}
@@ -217,8 +217,8 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
             )}
             {result.report.recommendedTests.length > 0 && (
               <section className="space-y-1.5">
-                <h3 className="text-[13px] font-semibold">{t("run.notesTestsTitle")}</h3>
-                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed">
+                <h3 className="text-body font-semibold">{t("run.notesTestsTitle")}</h3>
+                <ul className="list-disc space-y-1 pl-5 text-body leading-relaxed">
                   {result.report.recommendedTests.map((test) => (
                     <li key={test}>{test}</li>
                   ))}
@@ -227,8 +227,8 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
             )}
             {result.report.unknowns.length > 0 && (
               <section className="space-y-1.5">
-                <h3 className="text-[13px] font-semibold">{t("run.notesUnknownsTitle")}</h3>
-                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                <h3 className="text-body font-semibold">{t("run.notesUnknownsTitle")}</h3>
+                <ul className="list-disc space-y-1 pl-5 text-body leading-relaxed text-muted-foreground">
                   {result.report.unknowns.map((unknown) => (
                     <li key={unknown}>{unknown}</li>
                   ))}
@@ -236,8 +236,8 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
               </section>
             )}
             <div className="space-y-1.5 border-t border-border/60 pt-3">
-              <h3 className="text-[13px] font-semibold">{t("run.summaryProcessTitle")}</h3>
-              <p className="text-[11.5px] text-muted-foreground">
+              <h3 className="text-body font-semibold">{t("run.summaryProcessTitle")}</h3>
+              <p className="text-meta text-muted-foreground">
                 {t("run.summaryProcess", {
                   calls: result.passes.length,
                   duration: formatDuration(totalMs),
@@ -257,7 +257,7 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
                 ))}
               </div>
               {dropped > 0 && (
-                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                <p className="text-meta leading-relaxed text-muted-foreground">
                   {t("run.coverageNote", {
                     evidence: result.contextManifest.counts.evidence,
                     total: result.contextManifest.counts.evidence + dropped,
@@ -461,9 +461,9 @@ export function RunPage() {
       />
 
       <Card>
-        <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]">
+        <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 text-meta">
           <span className="font-medium">{projectName ?? run.projectId}</span>
-          <span className="font-mono text-[11.5px]" title={`${run.baseRef} → ${run.currentRef}`}>
+          <span className="font-mono text-meta" title={`${run.baseRef} → ${run.currentRef}`}>
             {run.baseRef} → {run.currentRef}
           </span>
           <span className="text-muted-foreground">
@@ -528,9 +528,9 @@ export function RunPage() {
                 metas.push(t("run.passLatency", { ms: state.latencyMs }));
               }
               return (
-                <div key={stage} className="flex items-center gap-2 text-[12.5px]">
+                <div key={stage} className="flex items-center gap-2 text-body">
                   {state.state === "done" ? (
-                    <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 className="size-4 text-positive dark:text-positive" />
                   ) : state.state === "active" ? (
                     <Loader2 className="size-4 animate-spin text-primary" />
                   ) : (
@@ -540,16 +540,16 @@ export function RunPage() {
                     {t(STAGE_LABEL_KEYS[stage])}
                   </span>
                   {metas.map((meta) => (
-                    <span key={meta} className="text-[11.5px] text-muted-foreground tabular-nums">
+                    <span key={meta} className="text-meta text-muted-foreground tabular-nums">
                       · {meta}
                     </span>
                   ))}
                 </div>
               );
             })}
-            <p className="pt-1 text-[11.5px] text-muted-foreground">{t("run.progressNote")}</p>
+            <p className="pt-1 text-meta text-muted-foreground">{t("run.progressNote")}</p>
             {streamError && (
-              <p className="text-[11.5px] text-amber-600 dark:text-amber-400">
+              <p className="text-meta text-warning dark:text-warning">
                 {t("run.streamReconnecting")}
               </p>
             )}
@@ -588,7 +588,7 @@ export function RunPage() {
               <div className="flex flex-wrap items-center gap-4">
                 <span
                   className={cn(
-                    "inline-flex h-7 items-center rounded-lg px-2.5 text-[12.5px] font-semibold",
+                    "inline-flex h-7 items-center rounded-lg px-2.5 text-body font-semibold",
                     VERDICT_STYLES[result.report.verdict],
                   )}
                 >
@@ -598,11 +598,11 @@ export function RunPage() {
                   <span className="text-xl font-semibold tabular-nums">
                     {result.report.qualityScore}
                   </span>
-                  <span className="text-[11.5px] text-muted-foreground">/100</span>
+                  <span className="text-meta text-muted-foreground">/100</span>
                 </div>
-                <span className="text-[12px] text-muted-foreground">{t("run.scoreHint")}</span>
+                <span className="text-meta text-muted-foreground">{t("run.scoreHint")}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-[12px]">
+              <div className="flex flex-wrap items-center gap-3 text-meta">
                 <span className="font-medium">
                   {verification.percent === null
                     ? t("run.verifiedNone")
@@ -643,7 +643,7 @@ export function RunPage() {
 
             <TabsContent value="changes" className="pt-2">
               {run.currentRef === "WORKTREE" && (
-                <p className="mb-3 text-[11.5px] text-muted-foreground">
+                <p className="mb-3 text-meta text-muted-foreground">
                   {t("run.changesWorktreeNote")}
                 </p>
               )}
@@ -680,7 +680,7 @@ export function RunPage() {
                     className="rounded-lg border border-border/60 p-3"
                     onToggle={(event) => setShowRawChanges(event.currentTarget.open)}
                   >
-                    <summary className="cursor-pointer text-[12px] font-medium">
+                    <summary className="cursor-pointer text-meta font-medium">
                       {t("run.rawDetailsTitle")}
                     </summary>
                     {showRawChanges && (
@@ -709,7 +709,7 @@ export function RunPage() {
                 </div>
               )}
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                <p className="text-meta leading-relaxed text-muted-foreground">
                   {t("run.aiFindingsHint")}
                 </p>
                 <Button
@@ -722,7 +722,7 @@ export function RunPage() {
                 </Button>
               </div>
               {visibleAi.length === 0 ? (
-                <p className="text-[12.5px] text-muted-foreground">{t("run.findingsEmpty")}</p>
+                <p className="text-body text-muted-foreground">{t("run.findingsEmpty")}</p>
               ) : (
                 visibleAi.map((finding) => (
                   <FindingCard
@@ -738,11 +738,11 @@ export function RunPage() {
             </TabsContent>
 
             <TabsContent value="engine" className="space-y-3 pt-2">
-              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+              <p className="text-meta leading-relaxed text-muted-foreground">
                 {t("run.engineFindingsHint")}
               </p>
               {visibleEngine.length === 0 ? (
-                <p className="text-[12.5px] text-muted-foreground">{t("run.engineEmpty")}</p>
+                <p className="text-body text-muted-foreground">{t("run.engineEmpty")}</p>
               ) : (
                 visibleEngine.map((finding) => (
                   <EngineFindingCard
@@ -760,25 +760,25 @@ export function RunPage() {
             <TabsContent value="notes" className="pt-2">
               <div className="space-y-5">
                 <section className="space-y-2">
-                  <h3 className="text-[13px] font-semibold">{t("run.verificationTitle")}</h3>
+                  <h3 className="text-body font-semibold">{t("run.verificationTitle")}</h3>
                   {result.verification.issues.length === 0 ? (
-                    <p className="text-[12px] text-muted-foreground">
+                    <p className="text-meta text-muted-foreground">
                       {t("run.verificationIssuesEmpty")}
                     </p>
                   ) : (
                     <details className="rounded-lg border border-border/60 p-3">
-                      <summary className="cursor-pointer text-[12px] font-medium">
+                      <summary className="cursor-pointer text-meta font-medium">
                         {t("run.verificationIssuesTitle", {
                           count: result.verification.issues.length,
                         })}
                       </summary>
-                      <ul className="mt-2 max-h-60 space-y-1.5 overflow-y-auto text-[11.5px]">
+                      <ul className="mt-2 max-h-60 space-y-1.5 overflow-y-auto text-meta">
                         {result.verification.issues.map((issue) => (
                           <li
                             key={`${issue.pass}|${issue.kind}|${issue.target}|${issue.detail.slice(0, 80)}`}
                             className="leading-relaxed"
                           >
-                            <span className="font-mono text-[11px] text-muted-foreground">
+                            <span className="font-mono text-micro text-muted-foreground">
                               {issue.pass} · {issue.kind}
                             </span>
                             <span className="text-muted-foreground"> — </span>
@@ -791,8 +791,8 @@ export function RunPage() {
                 </section>
 
                 <section className="space-y-1.5">
-                  <h3 className="text-[13px] font-semibold">{t("run.notesContextTitle")}</h3>
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <h3 className="text-body font-semibold">{t("run.notesContextTitle")}</h3>
+                  <p className="text-meta text-muted-foreground">
                     {t("run.contextCounts", {
                       changeFacts: result.contextManifest.counts.changeFacts,
                       linked: result.contextManifest.counts.linked,
@@ -802,7 +802,7 @@ export function RunPage() {
                     })}
                   </p>
                   {result.contextManifest.notes.map((note) => (
-                    <p key={note} className="text-[11.5px] text-muted-foreground">
+                    <p key={note} className="text-meta text-muted-foreground">
                       {note}
                     </p>
                   ))}

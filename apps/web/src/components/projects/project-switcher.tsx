@@ -33,12 +33,12 @@ export function ProjectSwitcher() {
                   <FolderGit2 className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate text-[13px] font-medium">
+                  <span className="truncate text-body font-medium">
                     {isLoading
                       ? t("projects.loadingSwitcher")
                       : (activeProject?.name ?? t("projects.selectPrompt"))}
                   </span>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="truncate text-micro text-muted-foreground">
                     {t("projects.switcherLabel")}
                     {projects.length > 0 ? ` · ${projects.length}` : ""}
                   </span>
@@ -63,7 +63,7 @@ export function ProjectSwitcher() {
                   <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate">{project.name}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">
+                    <span className="truncate text-micro text-muted-foreground">
                       {project.rootPath}
                     </span>
                   </span>

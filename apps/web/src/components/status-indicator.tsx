@@ -7,7 +7,7 @@ import { useHealth } from "@/lib/use-health";
 
 /**
  * Header health indicator. Intentionally invisible while the server and database are
- * healthy — it only appears (amber triangle) when something is wrong, linking to /status.
+ * healthy — it only appears (warning triangle) when something is wrong, linking to /status.
  */
 export function StatusIndicator() {
   const { t } = useTranslation();
@@ -25,7 +25,7 @@ export function StatusIndicator() {
           asChild
           variant="ghost"
           size="icon"
-          className="size-8 text-amber-600 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-400"
+          className="size-8 text-warning hover:text-warning dark:text-warning dark:hover:text-warning"
         >
           <Link to="/status" aria-label={t("header.systemIssue")}>
             <TriangleAlert className="size-4" />

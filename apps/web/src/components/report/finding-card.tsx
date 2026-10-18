@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 type ReportFinding = SynthesizeOutput["findings"][number];
 
 const SEVERITY_STYLES: Record<ReportFinding["severity"], string> = {
-  critical: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  major: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  minor: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  info: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-400",
+  critical: "bg-danger/15 text-danger dark:text-danger",
+  major: "bg-warning/15 text-warning dark:text-warning",
+  minor: "bg-info/15 text-info dark:text-info",
+  info: "bg-neutral/15 text-neutral dark:text-neutral",
 };
 
 const SEVERITY_LABEL_KEYS: Record<ReportFinding["severity"], string> = {
@@ -54,7 +54,7 @@ export function AnchorChip({ anchorId, anchorsById, onAnchorClick, compact }: An
         if (anchor !== undefined) onAnchorClick(anchor);
       }}
       className={cn(
-        "inline-flex min-h-6 max-w-72 items-center gap-1 truncate rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 font-mono text-[11px] transition-colors",
+        "chip max-w-72 truncate py-0.5 font-mono transition-colors",
         anchor === undefined ? "opacity-60" : "hover:bg-accent/60",
       )}
     >
@@ -87,25 +87,25 @@ export function FindingCard({
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4">
+    <div className="surface p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium",
+            "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
             SEVERITY_STYLES[finding.severity],
           )}
         >
           {t(SEVERITY_LABEL_KEYS[finding.severity])}
         </span>
-        <span className="inline-flex h-6 items-center rounded-md border border-border/70 px-2 text-[11px] text-muted-foreground">
+        <span className="inline-flex h-6 items-center rounded-md border border-border/70 px-2 text-micro text-muted-foreground">
           {t(CONFIDENCE_LABEL_KEYS[finding.confidence])}
         </span>
         {finding.confidence === "unknown" && (
-          <span className="inline-flex h-6 items-center rounded-md bg-amber-500/15 px-2 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+          <span className="inline-flex h-6 items-center rounded-md bg-warning/15 px-2 text-micro font-medium text-warning dark:text-warning">
             {t("run.needsVerification")}
           </span>
         )}
-        <h3 className="min-w-0 flex-1 text-[13px] font-semibold">{finding.title}</h3>
+        <h3 className="min-w-0 flex-1 text-body font-semibold">{finding.title}</h3>
         <button
           type="button"
           aria-expanded={open}
@@ -116,19 +116,19 @@ export function FindingCard({
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
-      <p className={cn("mt-2 text-[12.5px] leading-relaxed", !open && "line-clamp-2")}>
+      <p className={cn("mt-2 text-body leading-relaxed", !open && "line-clamp-2")}>
         {finding.statement}
       </p>
       {open && (
         <>
           {finding.consequence !== undefined && finding.consequence !== "" && (
-            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-meta leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground/80">{t("run.consequenceLabel")}: </span>
               {finding.consequence}
             </p>
           )}
           {finding.recommendation !== undefined && finding.recommendation !== "" && (
-            <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+            <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground/80">
                 {t("run.recommendationLabel")}:{" "}
               </span>

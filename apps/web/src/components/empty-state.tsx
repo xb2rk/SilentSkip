@@ -33,7 +33,7 @@ export function EmptyState({ icon: Icon, title, description, action, compact }: 
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">{title}</h3>
         {description ? (
-          <p className="mx-auto max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
+          <p className="mx-auto max-w-md text-body leading-relaxed text-muted-foreground">
             {description}
           </p>
         ) : null}

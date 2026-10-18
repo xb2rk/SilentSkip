@@ -19,9 +19,9 @@ const STATUS_LABEL_KEYS: Record<"added" | "removed" | "changed", string> = {
 };
 
 const STATUS_STYLES: Record<"added" | "removed" | "changed", string> = {
-  added: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  removed: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  changed: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  added: "bg-positive/15 text-positive dark:text-positive",
+  removed: "bg-danger/15 text-danger dark:text-danger",
+  changed: "bg-warning/15 text-warning dark:text-warning",
 };
 
 const SYMBOL_KIND_LABEL_KEYS: Record<string, string> = {
@@ -102,7 +102,7 @@ function StatusBadge({ status }: { readonly status: "added" | "removed" | "chang
   const { t } = useTranslation();
   return (
     <span
-      className={`inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-[10.5px] font-medium ${STATUS_STYLES[status]}`}
+      className={`inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-micro font-medium ${STATUS_STYLES[status]}`}
     >
       {t(STATUS_LABEL_KEYS[status])}
     </span>
@@ -113,7 +113,7 @@ function StatusBadge({ status }: { readonly status: "added" | "removed" | "chang
 function EntryChip({ entry, ...context }: { readonly entry: Entry } & ChipContext) {
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-0.5">
-      <span className="font-mono text-[11.5px]">{entry.name}</span>
+      <span className="font-mono text-meta">{entry.name}</span>
       {entry.anchorIds.map((anchorId, index) => (
         <span key={anchorId} className="inline-flex items-center gap-1">
           {index > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
@@ -135,7 +135,7 @@ function GroupLabel({ kind, verbKey }: { readonly kind: string; readonly verbKey
   const labelKey = SYMBOL_KIND_LABEL_KEYS[kind];
   const label = labelKey === undefined ? kind : t(labelKey);
   return (
-    <span className="text-[11px] text-muted-foreground">
+    <span className="text-micro text-muted-foreground">
       {t("run.groupLabel", { label, verb: t(verbKey) })}
     </span>
   );
@@ -213,11 +213,11 @@ function ScriptChangeCard({
         className="flex w-full flex-wrap items-center gap-2 p-3 text-left"
       >
         <StatusBadge status={change.status} />
-        <span className="truncate font-mono text-[11.5px]" title={change.path}>
+        <span className="truncate font-mono text-meta" title={change.path}>
           {change.path}
         </span>
         <span className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">{summary}</span>
+          <span className="text-micro text-muted-foreground">{summary}</span>
           <ChevronDown
             className={cn(
               "size-3.5 shrink-0 text-muted-foreground transition-transform",
@@ -248,7 +248,7 @@ function RowNameList({
   const shown = showAll ? entries : entries.slice(0, ROW_NAME_LIMIT);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-micro text-muted-foreground">{label}</span>
       {shown.map((entry) => (
         <EntryChip
           key={`${entry.name}:${entry.anchorIds.join(",")}`}
@@ -262,7 +262,7 @@ function RowNameList({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-5 px-1.5 text-[10.5px]"
+          className="h-5 px-1.5 text-micro"
           onClick={() => setShowAll(!showAll)}
         >
           {showAll
@@ -295,16 +295,16 @@ function TableChangeCard({
         className="flex w-full flex-wrap items-center gap-2 p-3 text-left"
       >
         <StatusBadge status={change.status} />
-        <span className="truncate font-mono text-[11.5px]" title={change.path}>
+        <span className="truncate font-mono text-meta" title={change.path}>
           {change.path}
         </span>
         {change.headerChanged && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10.5px] font-normal">
+          <Badge variant="outline" className="h-5 px-1.5 text-micro font-normal">
             {t("run.headerChanged")}
           </Badge>
         )}
         <span className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-micro text-muted-foreground">
             {t("run.tableSummary", {
               added: change.rowsAdded.length,
               removed: change.rowsRemoved.length,
@@ -329,18 +329,18 @@ function TableChangeCard({
           )}
           {change.rowsChanged.length > 0 && (
             <div className="space-y-1.5">
-              <span className="text-[11px] text-muted-foreground">{t("run.tableRowsChanged")}</span>
+              <span className="text-micro text-muted-foreground">{t("run.tableRowsChanged")}</span>
               {change.rowsChanged.map((row) => (
                 <div
                   key={`${row.key}:${row.beforeLine}`}
                   className="rounded-md border border-border/40 px-2 py-1.5"
                 >
-                  <span className="font-mono text-[11.5px]">{row.key}</span>
+                  <span className="font-mono text-meta">{row.key}</span>
                   <div className="mt-1 space-y-1">
                     {row.columnsChanged.map((cell) => (
                       <div
                         key={String(cell.column)}
-                        className="flex flex-wrap items-center gap-1.5 text-[11.5px]"
+                        className="flex flex-wrap items-center gap-1.5 text-meta"
                       >
                         <span className="text-muted-foreground">{String(cell.column)}:</span>
                         <span className="font-mono">{cell.before}</span>
@@ -393,7 +393,7 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
   return (
     <div className="space-y-5">
       <div className="space-y-1">
-        <p className="text-[12px] text-muted-foreground">
+        <p className="text-meta text-muted-foreground">
           {t("run.changesSummary", {
             files: digest.stats.filesChanged,
             added: digest.stats.symbolsAdded,
@@ -401,23 +401,23 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
             changed: digest.stats.symbolsChanged,
           })}
         </p>
-        <p className="text-[12px] text-muted-foreground">
+        <p className="text-meta text-muted-foreground">
           {t("run.changesRows", {
             added: digest.stats.rowsAdded,
             removed: digest.stats.rowsRemoved,
             changed: digest.stats.rowsChanged,
           })}
         </p>
-        <p className="text-[11.5px] text-muted-foreground/80">{t("run.changesScope")}</p>
+        <p className="text-meta text-muted-foreground/80">{t("run.changesScope")}</p>
       </div>
 
       {scripts.length === 0 && tables.length === 0 ? (
-        <p className="text-[12.5px] text-muted-foreground">{t("run.changesEmpty")}</p>
+        <p className="text-body text-muted-foreground">{t("run.changesEmpty")}</p>
       ) : (
         <>
           {scripts.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-[13px] font-semibold">{t("run.scriptsTitle")}</h3>
+              <h3 className="text-body font-semibold">{t("run.scriptsTitle")}</h3>
               {scripts.map((change) => (
                 <ScriptChangeCard
                   key={change.path}
@@ -430,7 +430,7 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
           )}
           {tables.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-[13px] font-semibold">{t("run.tablesTitle")}</h3>
+              <h3 className="text-body font-semibold">{t("run.tablesTitle")}</h3>
               {tables.map((change) => (
                 <TableChangeCard
                   key={change.path}
@@ -446,16 +446,16 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
 
       <section>
         <details className="rounded-lg border border-border/50">
-          <summary className="flex cursor-pointer flex-wrap items-center gap-2 p-3 text-[13px] font-semibold">
+          <summary className="flex cursor-pointer flex-wrap items-center gap-2 p-3 text-body font-semibold">
             {t("run.journeysTitle")}
-            <span className="text-[11.5px] font-normal text-muted-foreground">
+            <span className="text-meta font-normal text-muted-foreground">
               {t("run.journeysCount", { count: digest.linked.length })}
             </span>
           </summary>
           <div className="space-y-2 border-t border-border/40 p-3">
-            <p className="text-[11.5px] text-muted-foreground">{t("run.journeysNote")}</p>
+            <p className="text-meta text-muted-foreground">{t("run.journeysNote")}</p>
             {digest.linked.length === 0 ? (
-              <p className="text-[12.5px] text-muted-foreground">{t("run.journeysEmpty")}</p>
+              <p className="text-body text-muted-foreground">{t("run.journeysEmpty")}</p>
             ) : (
               digest.linked.map((item) => (
                 <div
@@ -463,10 +463,10 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
                   className="rounded-lg border border-border/50 p-3"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11.5px]">{item.originLabel}</span>
+                    <span className="font-mono text-meta">{item.originLabel}</span>
                     <Badge
                       variant="outline"
-                      className="h-5 px-1.5 text-[10.5px] font-normal uppercase"
+                      className="h-5 px-1.5 text-micro font-normal uppercase"
                     >
                       {item.originKind}
                     </Badge>
@@ -479,14 +479,14 @@ export function ChangeFacts({ digest, anchorsById, onAnchorClick }: ChangeFactsP
                     )}
                   </div>
                   {item.chains.length === 0 ? (
-                    <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    <p className="mt-2 text-meta text-muted-foreground">
                       {item.note ?? t("run.journeysEmpty")}
                     </p>
                   ) : (
                     item.chains.map((chain) => (
                       <div
                         key={chain.nodes.map((node) => `${node.anchorId}@${node.label}`).join("|")}
-                        className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px]"
+                        className="mt-2 flex flex-wrap items-center gap-1.5 text-meta"
                       >
                         {chain.nodes.map((node, nodeIndex) => (
                           <span

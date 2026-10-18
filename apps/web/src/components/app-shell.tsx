@@ -41,11 +41,8 @@ const NAV_GROUPS = [
       { to: "/", labelKey: "nav.overview", icon: LayoutDashboard },
       { to: "/compare", labelKey: "nav.compare", icon: GitCompareArrows },
       { to: "/what-if", labelKey: "nav.whatIf", icon: Sparkles },
+      { to: "/history", labelKey: "nav.history", icon: History },
     ],
-  },
-  {
-    labelKey: "nav.group.library",
-    items: [{ to: "/history", labelKey: "nav.history", icon: History }],
   },
   {
     labelKey: "nav.group.system",
@@ -59,7 +56,7 @@ const NAV_GROUPS = [
 /**
  * App shell: collapsible sidebar (icon rail, Sheet on mobile — Ctrl+B toggles), a nearly
  * empty sticky header (search + What-If icons, plus a status alert that only appears when
- * something is wrong), and the routed page centered at a 1152px max width.
+ * something is wrong), and the routed page in a stable, left-anchored content column.
  */
 function readSidebarOpen(): boolean {
   try {
@@ -90,7 +87,7 @@ export function AppShell() {
                   </div>
                   <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                     <span className="truncate text-sm font-semibold">{t("app.product")}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">
+                    <span className="truncate text-micro text-muted-foreground">
                       v{PRODUCT_VERSION} · {t("app.tagline")}
                     </span>
                   </div>
@@ -127,19 +124,19 @@ export function AppShell() {
           ))}
         </SidebarContent>
         <SidebarFooter>
-          <div className="px-2 py-1 text-[11px] leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <div className="px-2 py-1 text-micro leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden">
             {t("app.phase")}
           </div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-4 backdrop-blur md:px-6 lg:px-8">
           <SidebarTrigger className="-ml-1" />
           {activeProject !== null && (
             <Link
               to="/compare"
-              className="ml-1 hidden max-w-[220px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground md:flex"
+              className="ml-1 hidden max-w-[220px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-meta text-muted-foreground transition-colors hover:text-foreground md:flex"
             >
               <FolderGit2 className="size-3.5 shrink-0" />
               <span className="truncate">{activeProject.name}</span>
@@ -174,7 +171,7 @@ export function AppShell() {
           </div>
         </header>
         <main className="flex-1">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 lg:px-8">
+          <div className="w-full max-w-6xl px-4 py-6 md:px-6 lg:px-8">
             <Outlet />
           </div>
         </main>

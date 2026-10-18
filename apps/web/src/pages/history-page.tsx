@@ -13,11 +13,11 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { useRuns } from "@/lib/use-runs";
 
 const STATUS_STYLES: Record<RunSummary["status"], string> = {
-  queued: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-400",
-  running: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  completed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  failed: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  cancelled: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  queued: "bg-neutral/15 text-neutral dark:text-neutral",
+  running: "bg-info/15 text-info dark:text-info",
+  completed: "bg-positive/15 text-positive dark:text-positive",
+  failed: "bg-danger/15 text-danger dark:text-danger",
+  cancelled: "bg-warning/15 text-warning dark:text-warning",
 };
 
 const STATUS_LABEL_KEYS: Record<RunSummary["status"], string> = {
@@ -29,11 +29,11 @@ const STATUS_LABEL_KEYS: Record<RunSummary["status"], string> = {
 };
 
 const VERDICT_STYLES: Record<Verdict, string> = {
-  pass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  pass_with_warnings: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  needs_review: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  fail: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  insufficient_evidence: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-400",
+  pass: "bg-positive/15 text-positive dark:text-positive",
+  pass_with_warnings: "bg-info/15 text-info dark:text-info",
+  needs_review: "bg-warning/15 text-warning dark:text-warning",
+  fail: "bg-danger/15 text-danger dark:text-danger",
+  insufficient_evidence: "bg-neutral/15 text-neutral dark:text-neutral",
 };
 
 const VERDICT_LABEL_KEYS: Record<Verdict, string> = {
@@ -104,22 +104,22 @@ export function HistoryPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={cn(
-                        "inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium",
+                        "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
                         STATUS_STYLES[run.status],
                       )}
                     >
                       {t(STATUS_LABEL_KEYS[run.status])}
                     </span>
-                    <span className="truncate text-[13px] font-medium">
+                    <span className="truncate text-body font-medium">
                       {projects.find((project) => project.id === run.projectId)?.name ??
                         run.projectId}
                     </span>
-                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                    <span className="text-meta text-muted-foreground tabular-nums">
                       {formatDateTime(run.createdAt)}
                     </span>
                   </div>
                   <div
-                    className="truncate font-mono text-[12px]"
+                    className="truncate font-mono text-meta"
                     title={`${run.baseRef} → ${run.currentRef}`}
                   >
                     {run.baseRef} → {run.currentRef}
@@ -129,21 +129,21 @@ export function HistoryPage() {
                       <>
                         <span
                           className={cn(
-                            "inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium",
+                            "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
                             VERDICT_STYLES[run.verdict],
                           )}
                         >
                           {t(VERDICT_LABEL_KEYS[run.verdict])}
                         </span>
                         {run.qualityScore !== null && (
-                          <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                          <span className="text-meta text-muted-foreground tabular-nums">
                             {run.qualityScore}/100
                           </span>
                         )}
                       </>
                     )}
                     {run.durationMs !== null && (
-                      <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                      <span className="text-meta text-muted-foreground tabular-nums">
                         {formatDuration(run.durationMs)}
                       </span>
                     )}

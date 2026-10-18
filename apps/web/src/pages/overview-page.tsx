@@ -6,7 +6,6 @@ import {
   FolderPlus,
   GitCompareArrows,
   ListChecks,
-  ShieldAlert,
   Sparkles,
   Trash2,
   TriangleAlert,
@@ -31,28 +30,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProject } from "@/contexts/project-context";
 import { useRemoveProject } from "@/lib/use-projects";
-
-const FEATURES = [
-  {
-    icon: GitCompareArrows,
-    titleKey: "overview.features.compareTitle",
-    descriptionKey: "overview.features.compareDescription",
-  },
-  {
-    icon: ShieldAlert,
-    titleKey: "overview.features.mismatchTitle",
-    descriptionKey: "overview.features.mismatchDescription",
-  },
-  {
-    icon: Sparkles,
-    titleKey: "overview.features.whatIfTitle",
-    descriptionKey: "overview.features.whatIfDescription",
-  },
-] as const;
 
 const STEPS = [
   {
@@ -100,7 +80,7 @@ function ProjectCard({ project, isActive, onSelect }: ProjectCardProps) {
             <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
               <FolderGit2 className="size-4" />
             </div>
-            <span className="truncate text-[13px] font-semibold">{project.name}</span>
+            <span className="truncate text-body font-semibold">{project.name}</span>
           </div>
           {isActive && (
             <Badge variant="secondary" className="shrink-0 font-normal text-primary">
@@ -112,13 +92,13 @@ function ProjectCard({ project, isActive, onSelect }: ProjectCardProps) {
           type="button"
           onClick={() => void handleCopy()}
           title={project.rootPath}
-          className="block w-full truncate rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-left font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+          className="block w-full truncate rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-left font-mono text-meta text-muted-foreground transition-colors hover:text-foreground"
         >
           {project.rootPath}
         </button>
         <div className="flex items-center justify-between gap-2">
           {isActive ? (
-            <span className="text-[11.5px] text-muted-foreground">{t("projects.activeHint")}</span>
+            <span className="text-meta text-muted-foreground">{t("projects.activeHint")}</span>
           ) : (
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onSelect}>
               {t("projects.useProject")}
@@ -199,7 +179,7 @@ export function OverviewPage() {
             </div>
             <div className="space-y-1.5">
               <h2 className="text-base font-semibold">{t("overview.startTitle")}</h2>
-              <p className="mx-auto max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
+              <p className="mx-auto max-w-md text-body leading-relaxed text-muted-foreground">
                 {t("overview.startDescription")}
               </p>
             </div>
@@ -207,23 +187,6 @@ export function OverviewPage() {
               <FolderPlus className="size-4" />
               {t("overview.addProject")}
             </Button>
-            <Separator className="max-w-2xl" />
-            <div className="grid w-full max-w-3xl gap-4 text-left sm:grid-cols-3">
-              {FEATURES.map((feature) => (
-                <div
-                  key={feature.titleKey}
-                  className="flex flex-col items-start gap-2 rounded-lg border border-border/60 p-4"
-                >
-                  <div className="flex size-8 items-center justify-center rounded-md bg-muted text-foreground">
-                    <feature.icon className="size-4" />
-                  </div>
-                  <p className="text-[13px] font-semibold">{t(feature.titleKey)}</p>
-                  <p className="text-[12px] leading-relaxed text-muted-foreground">
-                    {t(feature.descriptionKey)}
-                  </p>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       ) : (
@@ -231,10 +194,10 @@ export function OverviewPage() {
           <Card>
             <CardContent className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
-                <h2 className="text-[15px] font-semibold">
+                <h2 className="text-body-lg font-semibold">
                   {t("projects.spotlightTitle", { name: activeProject?.name ?? "" })}
                 </h2>
-                <p className="text-[12.5px] text-muted-foreground">
+                <p className="text-body text-muted-foreground">
                   {t("projects.spotlightDescription")}
                 </p>
               </div>
@@ -256,7 +219,7 @@ export function OverviewPage() {
           </Card>
 
           <div className="space-y-3">
-            <h2 className="text-[15px] font-semibold">{t("projects.listTitle")}</h2>
+            <h2 className="text-body-lg font-semibold">{t("projects.listTitle")}</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((project) => (
                 <ProjectCard
@@ -274,7 +237,7 @@ export function OverviewPage() {
                 <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
                   <FolderPlus className="size-4" />
                 </div>
-                <span className="text-[12.5px] font-medium">{t("projects.addCard")}</span>
+                <span className="text-body font-medium">{t("projects.addCard")}</span>
               </button>
             </div>
           </div>
@@ -293,8 +256,8 @@ export function OverviewPage() {
                   {index + 1}
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-[13px] font-semibold">{t(step.titleKey)}</p>
-                  <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  <p className="text-body font-semibold">{t(step.titleKey)}</p>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
                     {t(step.descriptionKey)}
                   </p>
                 </div>

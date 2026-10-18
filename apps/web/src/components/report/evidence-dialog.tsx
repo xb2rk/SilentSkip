@@ -52,7 +52,7 @@ export function EvidenceDialog({ anchor, onOpenChange }: EvidenceDialogProps) {
         {anchor !== null && (
           <>
             <DialogHeader>
-              <DialogTitle className="break-all font-mono text-[13px]">{anchor.file}</DialogTitle>
+              <DialogTitle className="break-all font-mono text-body">{anchor.file}</DialogTitle>
               <DialogDescription className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="font-normal">
                   {anchor.ref === "A" ? t("run.evidenceRefA") : t("run.evidenceRefB")}
@@ -65,7 +65,7 @@ export function EvidenceDialog({ anchor, onOpenChange }: EvidenceDialogProps) {
               </DialogDescription>
             </DialogHeader>
             <div className="max-h-80 overflow-auto rounded-lg border border-border/60 bg-muted/30">
-              <pre className="p-3 font-mono text-[11.5px] leading-relaxed">
+              <pre className="p-3 font-mono text-meta leading-relaxed">
                 {lines.map((line) => (
                   <div key={line.lineNumber} className="flex gap-3">
                     <span className="w-10 shrink-0 select-none text-right text-muted-foreground/60 tabular-nums">

@@ -109,7 +109,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 <FolderGit2 className="size-4" />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{project.name}</span>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="truncate text-micro text-muted-foreground">
                     {project.rootPath}
                   </span>
                 </span>
@@ -130,10 +130,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 }}
               >
                 <History className="size-4" />
-                <span className="truncate font-mono text-[11.5px]">
+                <span className="truncate font-mono text-meta">
                   {projectName(run.projectId)} · {run.baseRef} → {run.currentRef}
                 </span>
-                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                <span className="ml-auto shrink-0 text-micro text-muted-foreground">
                   {formatDateTime(run.createdAt)}
                 </span>
               </CommandItem>

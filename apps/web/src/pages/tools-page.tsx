@@ -52,7 +52,7 @@ export function ToolsPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold">{t(tool.titleKey)}</p>
-                <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <p className="text-body leading-relaxed text-muted-foreground">
                   {t(tool.descriptionKey)}
                 </p>
               </div>

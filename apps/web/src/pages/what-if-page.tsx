@@ -289,12 +289,12 @@ export function WhatIfPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-[13px]">{t("whatIf.scopeTitle")}</CardTitle>
+          <CardTitle className="text-body">{t("whatIf.scopeTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-[12px]">{t("whatIf.scopeProject")}</Label>
+              <Label className="text-meta">{t("whatIf.scopeProject")}</Label>
               <Select
                 value={projectId ?? ""}
                 onValueChange={(value) =>
@@ -318,7 +318,7 @@ export function WhatIfPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[12px]">{t("whatIf.scopeBase")}</Label>
+              <Label className="text-meta">{t("whatIf.scopeBase")}</Label>
               <Select
                 value={baseRef ?? ""}
                 onValueChange={(value) => changeScope({ baseRef: value === "" ? null : value })}
@@ -337,7 +337,7 @@ export function WhatIfPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[12px]">{t("whatIf.scopeCurrent")}</Label>
+              <Label className="text-meta">{t("whatIf.scopeCurrent")}</Label>
               <Select
                 value={currentRef ?? ""}
                 onValueChange={(value) => changeScope({ currentRef: value === "" ? null : value })}
@@ -359,11 +359,11 @@ export function WhatIfPage() {
           </div>
           {refsQuery.isError && (
             <div className="flex items-center gap-2">
-              <p className="text-[11.5px] text-destructive">{t("whatIf.refsError")}</p>
+              <p className="text-meta text-destructive">{t("whatIf.refsError")}</p>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2 text-[11px]"
+                className="h-6 px-2 text-micro"
                 onClick={() => void refsQuery.refetch()}
               >
                 {t("common.retry")}
@@ -371,9 +371,9 @@ export function WhatIfPage() {
             </div>
           )}
           {refsQuery.data?.head === null && (
-            <p className="text-[11.5px] text-muted-foreground">{t("compare.noCommits")}</p>
+            <p className="text-meta text-muted-foreground">{t("compare.noCommits")}</p>
           )}
-          <p className="text-[11.5px] text-muted-foreground">{t("whatIf.scopeHint")}</p>
+          <p className="text-meta text-muted-foreground">{t("whatIf.scopeHint")}</p>
         </CardContent>
       </Card>
 
@@ -381,7 +381,7 @@ export function WhatIfPage() {
         <div className="space-y-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[12.5px]">{t("whatIf.sessionsTitle")}</CardTitle>
+              <CardTitle className="text-body">{t("whatIf.sessionsTitle")}</CardTitle>
               <Button
                 size="sm"
                 variant="outline"
@@ -395,12 +395,10 @@ export function WhatIfPage() {
             </CardHeader>
             <CardContent className="space-y-1.5">
               {!scopeReady ? (
-                <p className="text-[12px] text-muted-foreground">
-                  {t("whatIf.selectSessionFirst")}
-                </p>
+                <p className="text-meta text-muted-foreground">{t("whatIf.selectSessionFirst")}</p>
               ) : sessionsQuery.isError ? (
                 <div className="space-y-2">
-                  <p className="text-[12px] text-muted-foreground">{t("whatIf.sessionsError")}</p>
+                  <p className="text-meta text-muted-foreground">{t("whatIf.sessionsError")}</p>
                   <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()}>
                     {t("common.retry")}
                   </Button>
@@ -411,7 +409,7 @@ export function WhatIfPage() {
                   <Skeleton className="h-12" />
                 </div>
               ) : (sessionsQuery.data?.sessions.length ?? 0) === 0 ? (
-                <p className="text-[12px] text-muted-foreground">{t("whatIf.noSessions")}</p>
+                <p className="text-meta text-muted-foreground">{t("whatIf.noSessions")}</p>
               ) : (
                 sessionsQuery.data?.sessions.map((session) => (
                   <button
@@ -425,8 +423,8 @@ export function WhatIfPage() {
                         : "w-full rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:bg-accent/40"
                     }
                   >
-                    <div className="truncate font-mono text-[12px]">{session.title}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="truncate font-mono text-meta">{session.title}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-micro text-muted-foreground">
                       <span>{t("whatIf.turnCount", { count: session.turnCount })}</span>
                       <span>·</span>
                       <span>{formatDateTime(session.updatedAt)}</span>
@@ -439,18 +437,18 @@ export function WhatIfPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-[12.5px]">{t("whatIf.pinsTitle")}</CardTitle>
+              <CardTitle className="text-body">{t("whatIf.pinsTitle")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {pinsQuery.isError ? (
                 <div className="space-y-2">
-                  <p className="text-[11.5px] text-muted-foreground">{t("whatIf.pinsError")}</p>
+                  <p className="text-meta text-muted-foreground">{t("whatIf.pinsError")}</p>
                   <Button size="sm" variant="outline" onClick={() => void pinsQuery.refetch()}>
                     {t("common.retry")}
                   </Button>
                 </div>
               ) : pins.length === 0 ? (
-                <p className="text-[11.5px] text-muted-foreground">{t("whatIf.noPins")}</p>
+                <p className="text-meta text-muted-foreground">{t("whatIf.noPins")}</p>
               ) : (
                 pins.map((pin) => (
                   <div key={pin.id} className="flex items-center gap-2">
@@ -478,7 +476,7 @@ export function WhatIfPage() {
 
         <Card className="flex h-[70vh] max-h-[820px] min-h-[520px] flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-[13px]">{t("whatIf.chatTitle")}</CardTitle>
+            <CardTitle className="text-body">{t("whatIf.chatTitle")}</CardTitle>
             {sessionId !== null && (
               <Button
                 size="sm"
@@ -507,7 +505,7 @@ export function WhatIfPage() {
                       {t("whatIf.newSession")}
                     </Button>
                     {!scopeReady && (
-                      <p className="text-[12px] text-muted-foreground">
+                      <p className="text-meta text-muted-foreground">
                         {t("whatIf.selectSessionFirst")}
                       </p>
                     )}
@@ -559,7 +557,7 @@ export function WhatIfPage() {
                   );
                 })}
                 {pendingTurnId !== null && (
-                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <div className="flex items-center gap-2 text-meta text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" />
                     {stageLabel ?? t("whatIf.stageContext")}
                   </div>
@@ -583,7 +581,7 @@ export function WhatIfPage() {
                 disabled={sessionId === null}
               />
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-meta text-muted-foreground">
                   {sessionId === null ? t("whatIf.selectSessionFirst") : t("whatIf.composerHint")}
                 </span>
                 <Button
@@ -664,8 +662,8 @@ function TurnView({
   if (turn.role === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
-        <span className="text-[11px] font-medium text-muted-foreground">{t("whatIf.you")}</span>
-        <div className="max-w-[85%] rounded-xl border border-border/60 bg-muted/40 px-3.5 py-2.5 text-[13px] leading-relaxed">
+        <span className="text-micro font-medium text-muted-foreground">{t("whatIf.you")}</span>
+        <div className="max-w-[85%] rounded-xl border border-border/60 bg-muted/40 px-3.5 py-2.5 text-body leading-relaxed">
           {turn.content}
         </div>
       </div>
@@ -674,17 +672,17 @@ function TurnView({
 
   return (
     <div className="space-y-1.5">
-      <span className="text-[11px] font-medium text-muted-foreground">{t("whatIf.assistant")}</span>
+      <span className="text-micro font-medium text-muted-foreground">{t("whatIf.assistant")}</span>
       <div className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5">
         {turn.error !== null ? (
-          <div className="flex items-start gap-2 text-[12.5px] text-destructive">
+          <div className="flex items-start gap-2 text-body text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <div className="space-y-2">
               <div className="space-y-1">
                 <div className="font-medium">{t("whatIf.aiError")}</div>
                 <div className="text-muted-foreground">{errorMessage}</div>
                 {errorMessage !== turn.error && (
-                  <details className="text-[11px] text-muted-foreground">
+                  <details className="text-micro text-muted-foreground">
                     <summary className="cursor-pointer">{t("whatIf.errorDetail")}</summary>
                     <code className="mt-1 block whitespace-pre-wrap break-words">{turn.error}</code>
                   </details>
@@ -700,19 +698,19 @@ function TurnView({
           </div>
         ) : turn.answer !== null ? (
           <>
-            <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{turn.answer.answer}</p>
+            <p className="whitespace-pre-wrap text-body leading-relaxed">{turn.answer.answer}</p>
 
             {turn.answer.evidence.length > 0 && (
               <div className="space-y-2 rounded-lg border border-border/70 bg-muted/25 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-semibold">{t("whatIf.evidenceTitle")}</span>
-                  <Badge variant="secondary" className="h-5 text-[10px]">
+                  <span className="text-meta font-semibold">{t("whatIf.evidenceTitle")}</span>
+                  <Badge variant="secondary" className="h-5 text-micro">
                     {t("whatIf.verifiedBadge")}
                   </Badge>
                 </div>
                 {turn.answer.evidence.map((item) => (
                   <div key={item.statement} className="space-y-1">
-                    <div className="text-[13px] leading-relaxed">{item.statement}</div>
+                    <div className="text-body leading-relaxed">{item.statement}</div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {item.anchors.map((anchorId) => (
                         <span key={anchorId} className="inline-flex items-center gap-0.5">
@@ -745,16 +743,16 @@ function TurnView({
             )}
 
             {turn.answer.speculation.length > 0 && (
-              <div className="space-y-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+              <div className="space-y-1.5 rounded-lg border border-warning/25 bg-warning/5 p-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                  <span className="text-meta font-semibold uppercase tracking-wide text-warning dark:text-warning">
                     {t("whatIf.speculationTitle")}
                   </span>
-                  <Badge variant="outline" className="h-5 text-[10px]">
+                  <Badge variant="outline" className="h-5 text-micro">
                     {t("run.interpretationBadge")}
                   </Badge>
                 </div>
-                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                <ul className="list-disc space-y-1 pl-5 text-body leading-relaxed text-muted-foreground">
                   {turn.answer.speculation.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
@@ -764,10 +762,10 @@ function TurnView({
 
             {turn.answer.unknowns.length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("whatIf.unknownsTitle")}
                 </div>
-                <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-muted-foreground">
+                <ul className="list-disc space-y-1 pl-5 text-body leading-relaxed text-muted-foreground">
                   {turn.answer.unknowns.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
@@ -776,7 +774,7 @@ function TurnView({
             )}
 
             {turn.contextCounts !== null && (
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-meta text-muted-foreground">
                 {t("whatIf.transparency", {
                   evidence: turn.contextCounts.evidence,
                   pins: turn.contextCounts.pins,
@@ -786,7 +784,7 @@ function TurnView({
             )}
           </>
         ) : (
-          <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-meta text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             {t("whatIf.stageContext")}
           </div>

@@ -52,10 +52,10 @@ const GOAL_SAMPLES = ["compare.goalSample1", "compare.goalSample2", "compare.goa
 type Preset = "worktree" | "vs-main" | "custom";
 
 const STATUS_STYLES: Record<DiffFileStatus, string> = {
-  A: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  M: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  D: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  R: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  A: "bg-positive/15 text-positive dark:text-positive",
+  M: "bg-warning/15 text-warning dark:text-warning",
+  D: "bg-danger/15 text-danger dark:text-danger",
+  R: "bg-info/15 text-info dark:text-info",
   U: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
 };
 
@@ -151,7 +151,7 @@ function VersionPanel({
   const hasOptions = leading.length > 0 || refGroups.head !== null || refGroups.groups.length > 0;
   return (
     <div className="space-y-2">
-      <Label className="text-[12.5px]">{label}</Label>
+      <Label className="text-body">{label}</Label>
       <Select value={value ?? ""} onValueChange={onValueChange} disabled={disabled || !hasOptions}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder={placeholder} />
@@ -177,12 +177,12 @@ function VersionPanel({
           ))}
         </SelectContent>
       </Select>
-      <div className="min-h-11 rounded-lg border border-border/60 bg-muted/40 p-3 text-[12px] text-muted-foreground">
+      <div className="min-h-11 rounded-lg border border-border/60 bg-muted/40 p-3 text-meta text-muted-foreground">
         {info === null ? (
           t("compare.refEmpty")
         ) : (
           <>
-            <span className="font-mono text-[11.5px]">{info.mono}</span>
+            <span className="font-mono text-meta">{info.mono}</span>
             {info.text !== "" && <span> · {info.text}</span>}
           </>
         )}
@@ -196,7 +196,7 @@ function StatusBadge({ status }: { readonly status: DiffFileStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-[10.5px] font-medium",
+        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-micro font-medium",
         STATUS_STYLES[status],
       )}
     >
@@ -227,14 +227,14 @@ function DiffPreview({
 }: DiffPreviewProps) {
   const { t } = useTranslation();
   if (files.length === 0) {
-    return <p className="text-[12.5px] text-muted-foreground">{t("compare.diffEmpty")}</p>;
+    return <p className="text-body text-muted-foreground">{t("compare.diffEmpty")}</p>;
   }
   const shown = files.slice(0, MAX_DIFF_ROWS);
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-[12px]">
-        <span className="tabular-nums text-emerald-600 dark:text-emerald-400">+{additions}</span>
-        <span className="tabular-nums text-rose-600 dark:text-rose-400">−{deletions}</span>
+      <div className="flex flex-wrap items-center gap-3 text-meta">
+        <span className="tabular-nums text-positive dark:text-positive">+{additions}</span>
+        <span className="tabular-nums text-danger dark:text-danger">−{deletions}</span>
         {untrackedFiles > 0 && (
           <span className="text-muted-foreground">
             {t("compare.diffUntracked", { count: untrackedFiles })}
@@ -248,32 +248,32 @@ function DiffPreview({
         {shown.map((file) => (
           <div
             key={file.path}
-            className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-[12px] last:border-0"
+            className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-meta last:border-0"
           >
             <StatusBadge status={file.status} />
             <Badge
               variant="outline"
-              className="h-5 shrink-0 px-1.5 text-[10.5px] font-normal uppercase"
+              className="h-5 shrink-0 px-1.5 text-micro font-normal uppercase"
             >
               {t(KIND_LABEL_KEYS[file.kind])}
             </Badge>
-            <span className="truncate font-mono text-[11.5px]" title={file.path}>
+            <span className="truncate font-mono text-meta" title={file.path}>
               {file.oldPath !== null ? `${file.oldPath} → ${file.path}` : file.path}
             </span>
-            <span className="ml-auto shrink-0 tabular-nums text-[11.5px] text-muted-foreground">
+            <span className="ml-auto shrink-0 tabular-nums text-meta text-muted-foreground">
               {file.additions !== null && (
-                <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+                <span className="text-positive dark:text-positive">+{file.additions}</span>
               )}
               {file.additions !== null && file.deletions !== null && " "}
               {file.deletions !== null && (
-                <span className="text-rose-600 dark:text-rose-400">−{file.deletions}</span>
+                <span className="text-danger dark:text-danger">−{file.deletions}</span>
               )}
             </span>
           </div>
         ))}
       </div>
       {files.length > shown.length && (
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-meta text-muted-foreground">
           {t("compare.diffMore", { count: files.length - shown.length })}
         </p>
       )}
@@ -448,7 +448,7 @@ export function ComparePage() {
         </CardHeader>
         <CardContent>
           {projects.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-body text-muted-foreground">
               {t("compare.projectPlaceholder")}{" "}
               <Link to="/" className="text-primary underline-offset-4 hover:underline">
                 {t("nav.overview")}
@@ -476,7 +476,7 @@ export function ComparePage() {
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle className="text-base">{t("compare.versionsTitle")}</CardTitle>
             {refsQuery.data?.dirty === true && (
-              <Badge variant="secondary" className="font-normal text-amber-600 dark:text-amber-400">
+              <Badge variant="secondary" className="font-normal text-warning dark:text-warning">
                 {t("compare.dirtyBadge")}
               </Badge>
             )}
@@ -515,13 +515,13 @@ export function ComparePage() {
             }}
             disabled={activeProjectId === null}
           >
-            <ToggleGroupItem value="worktree" className="text-[12.5px]">
+            <ToggleGroupItem value="worktree" className="text-body">
               {t("compare.presetWorktree")}
             </ToggleGroupItem>
-            <ToggleGroupItem value="vs-main" className="text-[12.5px]">
+            <ToggleGroupItem value="vs-main" className="text-body">
               {t("compare.presetVsMain")}
             </ToggleGroupItem>
-            <ToggleGroupItem value="custom" className="text-[12.5px]">
+            <ToggleGroupItem value="custom" className="text-body">
               {t("compare.presetCustom")}
             </ToggleGroupItem>
           </ToggleGroup>
@@ -603,13 +603,13 @@ export function ComparePage() {
         </CardHeader>
         <CardContent>
           {activeProjectId === null ? (
-            <p className="text-[12.5px] text-muted-foreground">{t("compare.selectProjectFirst")}</p>
+            <p className="text-body text-muted-foreground">{t("compare.selectProjectFirst")}</p>
           ) : refsQuery.isPending ? (
             <Skeleton className="h-24" />
           ) : notGit ? (
-            <p className="text-[12.5px] text-muted-foreground">{t("compare.notGitDescription")}</p>
+            <p className="text-body text-muted-foreground">{t("compare.notGitDescription")}</p>
           ) : noCommits ? (
-            <p className="text-[12.5px] text-muted-foreground">{t("compare.noCommits")}</p>
+            <p className="text-body text-muted-foreground">{t("compare.noCommits")}</p>
           ) : diffQuery.isPending ? (
             <div className="space-y-2">
               <Skeleton className="h-8" />
@@ -663,7 +663,7 @@ export function ComparePage() {
               </Button>
             ))}
           </div>
-          <p className="text-[12px] text-muted-foreground">{t("compare.goalHint")}</p>
+          <p className="text-meta text-muted-foreground">{t("compare.goalHint")}</p>
         </CardContent>
       </Card>
 
@@ -671,7 +671,7 @@ export function ComparePage() {
         <Card className="bg-card/95 py-4 shadow-lg backdrop-blur">
           <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
-              <p className="text-[13px] font-medium">
+              <p className="text-body font-medium">
                 {activeProjectId === null
                   ? t("compare.selectProjectFirst")
                   : refsQuery.isError
@@ -684,7 +684,7 @@ export function ComparePage() {
                           ? t("compare.ready", { count: diff.filesChanged })
                           : t("compare.runInsufficient")}
               </p>
-              <p className="text-[12px] text-muted-foreground">{t("compare.runNote")}</p>
+              <p className="text-meta text-muted-foreground">{t("compare.runNote")}</p>
             </div>
             <div className="flex items-center gap-2">
               <Button

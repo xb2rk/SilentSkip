@@ -85,7 +85,7 @@ export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDial
                     if (event.key === "Enter" && rootPath.trim() !== "") handleAdd();
                   }}
                   placeholder={t("projects.pathPlaceholder")}
-                  className="min-w-0 flex-1 font-mono text-[12.5px]"
+                  className="min-w-0 flex-1 font-mono text-body"
                 />
                 <Button type="button" variant="outline" onClick={() => setBrowserOpen(true)}>
                   <FolderOpen className="size-4" />
@@ -96,14 +96,14 @@ export function AddProjectDialog({ open, onOpenChange, onAdded }: AddProjectDial
 
             {recent.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[12px] text-muted-foreground">{t("projects.recent")}</span>
+                <span className="text-meta text-muted-foreground">{t("projects.recent")}</span>
                 {recent.map((recentPath) => (
                   <button
                     key={recentPath}
                     type="button"
                     title={recentPath}
                     onClick={() => setRootPath(recentPath)}
-                    className="max-w-56 truncate rounded-full border border-border/60 px-2.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    className="max-w-56 truncate rounded-full border border-border/60 px-2.5 py-0.5 font-mono text-micro text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                   >
                     {recentPath}
                   </button>

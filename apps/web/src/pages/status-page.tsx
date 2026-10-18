@@ -42,7 +42,7 @@ function StatusValue({
   return (
     <span className="inline-flex items-center gap-2">
       <span
-        className={cn("inline-block size-2 rounded-full", ok ? "bg-emerald-500" : "bg-rose-500")}
+        className={cn("inline-block size-2 rounded-full", ok ? "bg-positive" : "bg-danger")}
         aria-hidden="true"
       />
       {ok ? okText : errorText}
@@ -98,7 +98,7 @@ export function StatusPage() {
                 <Skeleton className="h-5 w-2/3" />
               </div>
             ) : (
-              <div className="divide-y divide-border/60 text-[13px]">
+              <div className="divide-y divide-border/60 text-body">
                 <Row label={t("status.apiLabel")}>
                   <StatusValue
                     ok={apiOk}
@@ -127,7 +127,7 @@ export function StatusPage() {
             )}
             <Separator className="my-3" />
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[12.5px] text-muted-foreground">{t("status.autoRefresh")}</span>
+              <span className="text-body text-muted-foreground">{t("status.autoRefresh")}</span>
               <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
             </div>
           </CardContent>
@@ -136,7 +136,7 @@ export function StatusPage() {
           <CardContent className="space-y-3">
             <h2 className="text-sm font-semibold">{t("status.diagnosticsTitle")}</h2>
             <EmptyState compact icon={Info} title={t("status.diagnosticsEmpty")} />
-            <p className="text-[12px] leading-relaxed text-muted-foreground">
+            <p className="text-meta leading-relaxed text-muted-foreground">
               {t("status.diagnosticsNote")}
             </p>
           </CardContent>

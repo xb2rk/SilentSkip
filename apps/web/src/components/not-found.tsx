@@ -14,7 +14,7 @@ export function NotFoundPage() {
       </div>
       <div className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight">{t("common.notFoundTitle")}</h1>
-        <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+        <p className="max-w-md text-body leading-relaxed text-muted-foreground">
           {t("common.notFoundDescription")}
         </p>
       </div>

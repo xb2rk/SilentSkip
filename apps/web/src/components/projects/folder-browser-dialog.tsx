@@ -67,7 +67,7 @@ export function FolderBrowserDialog({
             {t("folderBrowser.up")}
           </Button>
           <code
-            className="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11.5px] text-muted-foreground"
+            className="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-meta text-muted-foreground"
             title={data?.path ?? t("folderBrowser.drivesTitle")}
           >
             {data?.path ?? t("folderBrowser.drivesTitle")}
@@ -83,7 +83,7 @@ export function FolderBrowserDialog({
             </div>
           ) : listing.isError ? (
             <div className="space-y-3 p-3">
-              <p className="text-[12.5px] text-destructive">
+              <p className="text-body text-destructive">
                 {listing.error instanceof Error ? listing.error.message : String(listing.error)}
               </p>
               <Button type="button" variant="outline" size="sm" onClick={() => setPath(null)}>
@@ -91,7 +91,7 @@ export function FolderBrowserDialog({
               </Button>
             </div>
           ) : data === undefined ? null : data.directories.length === 0 ? (
-            <p className="p-3 text-[12.5px] text-muted-foreground">{t("folderBrowser.empty")}</p>
+            <p className="p-3 text-body text-muted-foreground">{t("folderBrowser.empty")}</p>
           ) : (
             data.directories.map((entry) => (
               <button
@@ -99,7 +99,7 @@ export function FolderBrowserDialog({
                 type="button"
                 onClick={() => setPath(entry.path)}
                 className={cn(
-                  "flex w-full items-center gap-2 border-b border-border/40 px-3 py-2 text-left text-[12.5px] transition-colors last:border-0 hover:bg-accent/40",
+                  "flex w-full items-center gap-2 border-b border-border/40 px-3 py-2 text-left text-body transition-colors last:border-0 hover:bg-accent/40",
                   entry.hidden && "opacity-60",
                 )}
               >

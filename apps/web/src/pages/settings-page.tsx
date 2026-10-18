@@ -89,8 +89,8 @@ export function SettingsPage() {
         <Card>
           <CardContent className="space-y-5">
             <div className="space-y-1">
-              <Label className="text-[13px] font-semibold">{t("settings.themeTitle")}</Label>
-              <p className="text-[12px] text-muted-foreground">{t("settings.themeDescription")}</p>
+              <Label className="text-body font-semibold">{t("settings.themeTitle")}</Label>
+              <p className="text-meta text-muted-foreground">{t("settings.themeDescription")}</p>
             </div>
             <ToggleGroup
               type="single"
@@ -99,25 +99,23 @@ export function SettingsPage() {
               onValueChange={handleThemeChange}
               className="w-fit"
             >
-              <ToggleGroupItem value="system" className="gap-1.5 px-3 text-[12.5px]">
+              <ToggleGroupItem value="system" className="gap-1.5 px-3 text-body">
                 <Monitor className="size-3.5" />
                 {t("settings.themeSystem")}
               </ToggleGroupItem>
-              <ToggleGroupItem value="light" className="gap-1.5 px-3 text-[12.5px]">
+              <ToggleGroupItem value="light" className="gap-1.5 px-3 text-body">
                 <Sun className="size-3.5" />
                 {t("settings.themeLight")}
               </ToggleGroupItem>
-              <ToggleGroupItem value="dark" className="gap-1.5 px-3 text-[12.5px]">
+              <ToggleGroupItem value="dark" className="gap-1.5 px-3 text-body">
                 <Moon className="size-3.5" />
                 {t("settings.themeDark")}
               </ToggleGroupItem>
             </ToggleGroup>
             <Separator />
             <div className="space-y-1">
-              <Label className="text-[13px] font-semibold">{t("settings.densityTitle")}</Label>
-              <p className="text-[12px] text-muted-foreground">
-                {t("settings.densityDescription")}
-              </p>
+              <Label className="text-body font-semibold">{t("settings.densityTitle")}</Label>
+              <p className="text-meta text-muted-foreground">{t("settings.densityDescription")}</p>
             </div>
             <ToggleGroup
               type="single"
@@ -126,22 +124,20 @@ export function SettingsPage() {
               onValueChange={handleDensityChange}
               className="w-fit"
             >
-              <ToggleGroupItem value="comfortable" className="px-3 text-[12.5px]">
+              <ToggleGroupItem value="comfortable" className="px-3 text-body">
                 {t("settings.densityComfortable")}
               </ToggleGroupItem>
-              <ToggleGroupItem value="compact" className="px-3 text-[12.5px]">
+              <ToggleGroupItem value="compact" className="px-3 text-body">
                 {t("settings.densityCompact")}
               </ToggleGroupItem>
             </ToggleGroup>
             <Separator />
             <div className="space-y-1">
-              <Label className="text-[13px] font-semibold">{t("settings.languageTitle")}</Label>
-              <p className="text-[12px] text-muted-foreground">
-                {t("settings.languageDescription")}
-              </p>
+              <Label className="text-body font-semibold">{t("settings.languageTitle")}</Label>
+              <p className="text-meta text-muted-foreground">{t("settings.languageDescription")}</p>
             </div>
             <div className="flex w-fit items-center gap-3 rounded-md border border-border/60 px-3 py-2">
-              <span className="text-[13px]">{t("settings.languageVi")}</span>
+              <span className="text-body">{t("settings.languageVi")}</span>
               <Badge variant="secondary" className="font-normal text-muted-foreground">
                 {t("settings.languageEn")} · {t("common.comingSoon")}
               </Badge>
@@ -155,23 +151,23 @@ export function SettingsPage() {
         <Card>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-[13px] font-semibold">{t("settings.aiTitle")}</Label>
+              <Label className="text-body font-semibold">{t("settings.aiTitle")}</Label>
               <PhaseBadge phase="E4" />
             </div>
-            <p className="text-[12px] text-muted-foreground">{t("settings.aiDescription")}</p>
+            <p className="text-meta text-muted-foreground">{t("settings.aiDescription")}</p>
             <div className="space-y-2">
-              <Label htmlFor="ai-url" className="text-[12.5px]">
+              <Label htmlFor="ai-url" className="text-body">
                 {t("settings.aiUrlLabel")}
               </Label>
               <Input
                 id="ai-url"
                 disabled
                 placeholder={t("settings.aiUrlPlaceholder")}
-                className="font-mono text-[12.5px]"
+                className="font-mono text-body"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ai-key" className="text-[12.5px]">
+              <Label htmlFor="ai-key" className="text-body">
                 {t("settings.aiKeyLabel")}
               </Label>
               <Input id="ai-key" type="password" disabled placeholder="••••••••••••" />
@@ -188,15 +184,13 @@ export function SettingsPage() {
         <Card>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-[13px] font-semibold">{t("settings.editorGenTitle")}</Label>
+              <Label className="text-body font-semibold">{t("settings.editorGenTitle")}</Label>
               <PhaseBadge phase="E8" />
             </div>
-            <p className="text-[12px] text-muted-foreground">
-              {t("settings.editorGenDescription")}
-            </p>
+            <p className="text-meta text-muted-foreground">{t("settings.editorGenDescription")}</p>
             <div className="flex items-center gap-3">
               <Switch id="editor-gen" disabled />
-              <Label htmlFor="editor-gen" className="text-[12.5px] text-muted-foreground">
+              <Label htmlFor="editor-gen" className="text-body text-muted-foreground">
                 {t("settings.editorGenToggle")}
               </Label>
             </div>
@@ -209,13 +203,13 @@ export function SettingsPage() {
         <Card>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <Label className="text-[13px] font-semibold">{t("settings.advancedDataTitle")}</Label>
-              <p className="text-[12px] text-muted-foreground">
+              <Label className="text-body font-semibold">{t("settings.advancedDataTitle")}</Label>
+              <p className="text-meta text-muted-foreground">
                 {t("settings.advancedDataDescription")}
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/40 px-3 py-2">
-              <code className="truncate font-mono text-[12px]">{DB_PATH}</code>
+              <code className="truncate font-mono text-meta">{DB_PATH}</code>
               <Button
                 variant="ghost"
                 size="icon"
@@ -228,8 +222,8 @@ export function SettingsPage() {
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label className="text-[13px] font-semibold">{t("settings.advancedDelete")}</Label>
-              <p className="text-[12px] text-muted-foreground">
+              <Label className="text-body font-semibold">{t("settings.advancedDelete")}</Label>
+              <p className="text-meta text-muted-foreground">
                 {t("settings.advancedDeleteDescription")}
               </p>
               <Button variant="outline" size="sm" className="text-destructive" disabled>
@@ -238,10 +232,8 @@ export function SettingsPage() {
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label className="text-[13px] font-semibold">
-                {t("settings.advancedToolsTitle")}
-              </Label>
-              <p className="text-[12px] text-muted-foreground">
+              <Label className="text-body font-semibold">{t("settings.advancedToolsTitle")}</Label>
+              <p className="text-meta text-muted-foreground">
                 {t("settings.advancedToolsDescription")}
               </p>
               <Button asChild variant="outline" size="sm">
@@ -259,16 +251,16 @@ export function SettingsPage() {
       content = (
         <Card>
           <CardContent className="space-y-1">
-            <div className="flex items-center justify-between py-2 text-[13px]">
+            <div className="flex items-center justify-between py-2 text-body">
               <span className="text-muted-foreground">{t("settings.aboutVersion")}</span>
               <span className="font-medium tabular-nums">
                 {health.data?.version ?? PRODUCT_VERSION}
               </span>
             </div>
             <Separator />
-            <div className="flex items-center justify-between py-2 text-[13px]">
+            <div className="flex items-center justify-between py-2 text-body">
               <span className="text-muted-foreground">{t("settings.aboutApi")}</span>
-              <span className="font-mono text-[12px]">{health.data?.apiVersion ?? "—"}</span>
+              <span className="font-mono text-meta">{health.data?.apiVersion ?? "—"}</span>
             </div>
             <Separator />
             <div className="pt-2">
@@ -299,7 +291,7 @@ export function SettingsPage() {
               type="button"
               onClick={() => setSection(item.id)}
               className={cn(
-                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-[13px] transition-colors",
+                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-body transition-colors",
                 section === item.id
                   ? "bg-accent font-medium text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",

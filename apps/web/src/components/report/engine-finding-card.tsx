@@ -14,10 +14,10 @@ import { AnchorChip } from "./finding-card";
  */
 
 const SEVERITY_STYLES: Record<DigestFinding["severity"], string> = {
-  critical: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-  major: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  minor: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  info: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+  critical: "bg-danger/15 text-danger dark:text-danger",
+  major: "bg-warning/15 text-warning dark:text-warning",
+  minor: "bg-info/15 text-info dark:text-info",
+  info: "bg-neutral/15 text-neutral dark:text-neutral",
 };
 
 const SEVERITY_LABEL_KEYS: Record<DigestFinding["severity"], string> = {
@@ -52,14 +52,14 @@ export function EngineFindingCard({
   const [open, setOpen] = useState(defaultOpen);
   const [showDerivation, setShowDerivation] = useState(false);
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4">
+    <div className="surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
+        <Badge variant="outline" className="font-mono text-micro">
           {finding.ruleId}
         </Badge>
         <span
           className={cn(
-            "inline-flex h-6 items-center rounded-md px-2 text-[11px]",
+            "inline-flex h-6 items-center rounded-md px-2 text-micro",
             SEVERITY_STYLES[finding.severity],
           )}
         >
@@ -67,14 +67,13 @@ export function EngineFindingCard({
         </span>
         <span
           className={cn(
-            "inline-flex h-6 items-center rounded-md border border-border/60 px-2 text-[11px] text-muted-foreground",
-            finding.confidence === "inferred" &&
-              "border-amber-400/40 text-amber-600 dark:text-amber-400",
+            "inline-flex h-6 items-center rounded-md border border-border/60 px-2 text-micro text-muted-foreground",
+            finding.confidence === "inferred" && "border-warning/40 text-warning dark:text-warning",
           )}
         >
           {t(CONFIDENCE_LABEL_KEYS[finding.confidence])}
         </span>
-        <span className="ml-auto text-[11px] text-muted-foreground">
+        <span className="ml-auto text-micro text-muted-foreground">
           {t("run.engineDeterministic")}
         </span>
         <button
@@ -87,10 +86,10 @@ export function EngineFindingCard({
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
-      <h3 className="mt-2 text-[13px] font-semibold leading-snug">{finding.title}</h3>
+      <h3 className="mt-2 text-body font-semibold leading-snug">{finding.title}</h3>
       <p
         className={cn(
-          "mt-1 text-[12.5px] leading-relaxed text-muted-foreground",
+          "mt-1 text-body leading-relaxed text-muted-foreground",
           !open && "line-clamp-2",
         )}
       >
@@ -113,7 +112,7 @@ export function EngineFindingCard({
           <button
             type="button"
             onClick={() => setShowDerivation((value) => !value)}
-            className="mt-2 flex items-center gap-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+            className="mt-2 flex items-center gap-1 text-meta text-muted-foreground hover:text-foreground"
           >
             <ChevronRight
               className={cn("size-3.5 transition-transform", showDerivation && "rotate-90")}
@@ -121,7 +120,7 @@ export function EngineFindingCard({
             {t("run.derivationTitle")}
           </button>
           {showDerivation && (
-            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-[11.5px] text-muted-foreground">
+            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-meta text-muted-foreground">
               {finding.derivation.map((step) => (
                 <li key={step}>{step}</li>
               ))}

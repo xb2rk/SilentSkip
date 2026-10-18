@@ -4,6 +4,21 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Type scale (rem-based so the density switch scales text with everything else).
+ * micro 11px · meta 12px · body 13px · body-lg 14px.
+ */
+@theme {
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.45;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.5;
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.55;
+  --text-body-lg: 0.875rem;
+  --text-body-lg--line-height: 1.5;
+}
+
+/*
  * Design tokens (oklch, shadcn/ui conventions). Product look: dark-first, indigo accent.
  * Keep the variable names stable — every shadcn component maps them via @theme inline below.
  */
@@ -37,6 +52,13 @@
   --sidebar-accent-foreground: oklch(0.42 0.16 277);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.585 0.233 277.117);
+
+  /* Semantic status colours — the only source for run/verdict/severity pills. */
+  --status-positive: oklch(0.508 0.118 165.612);
+  --status-info: oklch(0.5 0.134 242.749);
+  --status-warning: oklch(0.554 0.135 66.442);
+  --status-danger: oklch(0.577 0.245 27.325);
+  --status-neutral: oklch(0.552 0.014 285.94);
 }
 
 .dark {
@@ -67,6 +89,12 @@
   --sidebar-accent-foreground: oklch(0.86 0.07 275);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.673 0.182 276.935);
+
+  --status-positive: oklch(0.765 0.177 163.223);
+  --status-info: oklch(0.746 0.16 232.661);
+  --status-warning: oklch(0.828 0.189 84.429);
+  --status-danger: oklch(0.704 0.191 22.216);
+  --status-neutral: oklch(0.708 0.012 286);
 }
 
 @theme inline {
@@ -101,6 +129,12 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-positive: var(--status-positive);
+  --color-info: var(--status-info);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-danger);
+  --color-neutral: var(--status-neutral);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -125,5 +159,16 @@
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+@layer components {
+  /* One card recipe for report surfaces (Radix Card stays for primitives). */
+  .surface {
+    @apply rounded-xl border border-border/60 bg-card;
+  }
+  /* One chip recipe for anchors, counts and meta labels. */
+  .chip {
+    @apply inline-flex h-6 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-2 text-micro text-foreground/80;
   }
 }

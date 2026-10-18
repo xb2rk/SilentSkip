@@ -16,9 +16,9 @@ const STATUS_STYLES: Record<
   "added" | "removed" | "changed",
   { letter: string; className: string }
 > = {
-  added: { letter: "+", className: "text-emerald-600 dark:text-emerald-400" },
-  removed: { letter: "−", className: "text-rose-600 dark:text-rose-400" },
-  changed: { letter: "~", className: "text-amber-600 dark:text-amber-400" },
+  added: { letter: "+", className: "text-positive dark:text-positive" },
+  removed: { letter: "−", className: "text-danger dark:text-danger" },
+  changed: { letter: "~", className: "text-warning dark:text-warning" },
 };
 
 const MAX_VISIBLE_FILES = 12;
@@ -66,7 +66,7 @@ export function ThemeMap({
   }
 
   if (themes.length === 0) {
-    return <p className="text-[12.5px] text-muted-foreground">{t("run.themeMapEmpty")}</p>;
+    return <p className="text-body text-muted-foreground">{t("run.themeMapEmpty")}</p>;
   }
 
   const narrativeOf = new Map(
@@ -96,10 +96,8 @@ export function ThemeMap({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <h3 className="text-[13px] font-semibold">{t("run.themeMapTitle")}</h3>
-        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          {t("run.themeMapHint")}
-        </p>
+        <h3 className="text-body font-semibold">{t("run.themeMapTitle")}</h3>
+        <p className="text-meta leading-relaxed text-muted-foreground">{t("run.themeMapHint")}</p>
       </div>
       {themes.map((theme) => {
         const narrative = narrativeOf.get(theme.id);
@@ -109,12 +107,9 @@ export function ThemeMap({
         const themeEngine = engineCount.get(theme.id) ?? 0;
         const themeAi = aiCount.get(theme.id) ?? 0;
         return (
-          <div
-            key={theme.id}
-            className="space-y-2.5 rounded-xl border border-border/60 bg-card p-4"
-          >
+          <div key={theme.id} className="surface space-y-2.5 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="text-[13px] font-semibold">{theme.name}</h4>
+              <h4 className="text-body font-semibold">{theme.name}</h4>
               <Badge variant="secondary" className="font-normal">
                 {t("run.themeFiles", { count: theme.files.length })}
               </Badge>
@@ -122,7 +117,7 @@ export function ThemeMap({
                 <button
                   type="button"
                   onClick={() => onShowFindings(theme.id)}
-                  className="text-[11.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  className="text-meta text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                 >
                   {t("run.themeCounts", { engine: themeEngine, ai: themeAi })} ·{" "}
                   {t("run.themeViewFindings")}
@@ -134,17 +129,17 @@ export function ThemeMap({
                 {t("run.interpretationBadge")}
               </Badge>
               {narrative === undefined ? (
-                <p className="text-[12px] text-muted-foreground">{t("run.themeNoNarrative")}</p>
+                <p className="text-meta text-muted-foreground">{t("run.themeNoNarrative")}</p>
               ) : (
                 <div className="flex-1 space-y-1.5">
-                  <p className="text-[12.5px] leading-relaxed">{narrative.summary}</p>
-                  <p className="text-[12px] leading-relaxed">
+                  <p className="text-body leading-relaxed">{narrative.summary}</p>
+                  <p className="text-meta leading-relaxed">
                     <span className="font-medium text-muted-foreground">
                       {t("run.themeBehaviorLabel")}
                     </span>{" "}
                     {narrative.behaviorChange}
                   </p>
-                  <p className="text-[12px] leading-relaxed">
+                  <p className="text-meta leading-relaxed">
                     <span className="font-medium text-muted-foreground">
                       {t("run.themeWatchLabel")}
                     </span>{" "}
@@ -152,7 +147,7 @@ export function ThemeMap({
                   </p>
                   {narrative.anchorIds.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-micro text-muted-foreground">
                         {t("run.themeEvidenceLabel")}
                       </span>
                       {narrative.anchorIds.map((anchorId) => (
@@ -176,7 +171,7 @@ export function ThemeMap({
                   <span
                     key={file}
                     title={file}
-                    className="inline-flex max-w-80 items-center gap-1 truncate rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-mono text-[10.5px]"
+                    className="inline-flex max-w-80 items-center gap-1 truncate rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-mono text-micro"
                   >
                     <span className={cn("font-semibold", style.className)}>{style.letter}</span>
                     <span className="truncate">{file}</span>
@@ -187,7 +182,7 @@ export function ThemeMap({
                 <button
                   type="button"
                   onClick={() => toggleThemeFiles(theme.id)}
-                  className="inline-flex min-h-6 items-center rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  className="inline-flex min-h-6 items-center rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-micro text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 >
                   {isExpanded
                     ? t("run.themeHideFiles")
