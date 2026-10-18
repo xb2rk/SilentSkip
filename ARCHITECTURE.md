@@ -206,7 +206,14 @@ Tests use `openDatabase(":memory:")` + `migrateDatabase()`.
 
 ## 9. Roadmap pointer
 
-Six phases (see the locked master plan): **1** knowledge core + AI review (E0–E5, current) →
-**2** What-If + memory (E6) → **3** deep CSV facts (E7) → **4** semantic layer + silent-skip
-surface (E8) → **5** localization, attribution, recompute, export (E9–E10) → **6** hardening &
-packaging (E11).
+Six phases, tracked by epoch — the locked master plan lives outside the repo; the table below is
+the in-repo summary:
+
+| Phase | Scope | Epochs | Status |
+| --- | --- | --- | --- |
+| 1 | Knowledge core + AI review | E0–E5 | shipped |
+| 2 | What-If + memory | E6 | shipped |
+| 3 | Deep CSV facts | E7 | shipped |
+| 4 | Semantic layer + silent-skip surface | E8 | shipped |
+| 5 | Localization, attribution, recompute, export | E9–E10 | E9 shipped, E10 next |
+| 6 | Hardening & packaging (incl. eval corpus) | E11 | planned |
