@@ -178,6 +178,23 @@ describe("runReviewPipeline v2", () => {
     expect(chunkReadingUnit(unit, new Map(), 120)).toHaveLength(2);
   });
 
+  it("counts the anchor pack when packing a unit into chunks", () => {
+    const payload = JSON.stringify([
+      { path: "a.csv", text: "1" },
+      { path: "b.csv", text: "2" },
+    ]);
+    const unit = { index: 0, files: ["a.csv", "b.csv"], payload } as Parameters<
+      typeof chunkReadingUnit
+    >[0];
+    // Payload alone (~36 B per file) would fit one chunk; the anchor packs (600 B each) must split.
+    const anchors = new Map([
+      ["a.csv", 600],
+      ["b.csv", 600],
+    ]);
+    expect(chunkReadingUnit(unit, new Map(), 700)).toHaveLength(1);
+    expect(chunkReadingUnit(unit, new Map(), 700, anchors)).toHaveLength(2);
+  });
+
   it("re-runs map with repair constraints when the partition is invalid", async () => {
     const scripted = scriptedRunner({
       map: ((_request: unknown, callIndex: number) =>

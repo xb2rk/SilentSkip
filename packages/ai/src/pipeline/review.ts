@@ -142,11 +142,16 @@ interface ReadChunk {
  * Split a reading unit's material into read-call chunks of ~`budget` bytes. Files keep the unit's
  * order; a single oversized file goes into a chunk alone. The material stays lossless: chunks are
  * sequential read calls, not a sampling of the unit.
+ *
+ * The weight is what the call actually carries: the unit payload, the bodies and the anchor pack of
+ * each file (the fixed skeleton/prompt overhead — ~105 KB — sits on top of the budget, see
+ * `READ_CHUNK_BUDGET_BYTES`).
  */
 export function chunkReadingUnit(
   unit: DigestUnit,
   bodyBytesByFile: ReadonlyMap<string, number>,
   budget: number,
+  anchorBytesByFile: ReadonlyMap<string, number> = new Map(),
 ): ReadChunk[] {
   const entries = JSON.parse(unit.payload) as { path?: unknown }[];
   const byPath = new Map<string, unknown[]>();
@@ -166,7 +171,8 @@ export function chunkReadingUnit(
   }
   const weightOf = (path: string): number =>
     Buffer.byteLength(JSON.stringify(byPath.get(path) ?? []), "utf8") +
-    (bodyBytesByFile.get(path) ?? 0);
+    (bodyBytesByFile.get(path) ?? 0) +
+    (anchorBytesByFile.get(path) ?? 0);
   const serialize = (files: readonly string[]): string =>
     JSON.stringify(files.flatMap((file) => byPath.get(file) ?? []));
   const chunks: ReadChunk[] = [];
@@ -609,10 +615,30 @@ export async function runReviewPipeline(
       round: number,
       constraints: readonly string[],
     ): Promise<void> => {
-      const planned = batch.map((unit) => ({
-        unit,
-        chunks: chunkReadingUnit(unit, bodyBytesByFile, READ_CHUNK_BUDGET_BYTES),
-      }));
+      const planned = batch.map((unit) => {
+        const fileSet = new Set(unit.files);
+        const anchorBytesByFile = new Map<string, number>();
+        for (const anchor of selectUnitAnchors(
+          digest.anchors.filter((item) => fileSet.has(item.file)),
+          evidenceIds,
+        )) {
+          anchorBytesByFile.set(
+            anchor.file,
+            (anchorBytesByFile.get(anchor.file) ?? 0) +
+              Buffer.byteLength(JSON.stringify(anchor), "utf8") +
+              1,
+          );
+        }
+        return {
+          unit,
+          chunks: chunkReadingUnit(
+            unit,
+            bodyBytesByFile,
+            READ_CHUNK_BUDGET_BYTES,
+            anchorBytesByFile,
+          ),
+        };
+      });
       const tasks = planned.flatMap(({ unit, chunks }) =>
         chunks.map((chunk) => ({ unit, chunk, chunks: chunks.length })),
       );
