@@ -6,14 +6,17 @@ import type { DigestUnit } from "@silentskip/contracts";
  * nothing dropped).
  *
  * Only the unit material is budgeted, so the payload a read call sends is roughly
- * `budget + ~105 KB` (skeleton of every changed file + facts + prompt + manifest). Insea carried
- * 419 KB and 390 KB payloads and rejected a merged chunk whose material alone was 146 KB (~480 KB
- * by that ratio; plan §7), so the sum has to stay well under ~400 KB. At 90_000 this 72-file digest
- * split three units, and three of the six chunk calls it produced cost 30-53 s for 4-33 KB of
- * material — a call has a floor, so splitting is the expensive way to stay small. At 200_000 every
- * unit of the digest goes in one call (largest material: 179 KB) and the payload stays ~285 KB.
+ * `budget + ~105 KB` (skeleton of every changed file + facts + prompt + manifest). Measurements on
+ * the 78-file digest (2026-10-20, `AI_READ_CONCURRENCY=1`):
+ * - budget 200_000 with anchor packs counted: 9 chunked read calls, 13m54s total, 1m33s average,
+ *   payloads ~225 KB average. The 515 KB payloads of the un-counted run were accepted, so smaller
+ *   calls bought no timeout safety — they only paid the per-call floor more often.
+ * - uncapped (anchors not counted): 5 calls, 8m53s, largest payload 515 KB (accepted).
+ * 400_000 keeps pathological payloads in check (worst observed material 401 KB stays one chunk per
+ * unit unless a unit genuinely exceeds it) while not splitting units whose calls Insea already
+ * carries fine.
  */
-export const READ_CHUNK_BUDGET_BYTES = 200_000;
+export const READ_CHUNK_BUDGET_BYTES = 400_000;
 
 /** One attention slice of a reading unit — a chunk is one `read` call. */
 export interface ReadChunk {
