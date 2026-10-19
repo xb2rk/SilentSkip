@@ -1,4 +1,10 @@
-import { type CallFact, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
+import {
+  type CallFact,
+  createNameResolver,
+  type FileFacts,
+  type NameResolver,
+  type SymbolFact,
+} from "../facts/index.js";
 import type { CheckFinding, CheckInput } from "./types.js";
 
 /** Maximum reference witnesses per side attached to one DANGLING-REF finding. */
@@ -11,10 +17,16 @@ interface CallTarget {
 }
 
 /** Bare calls keep the same-file name ladder; import-level resolutions are skipped. */
-function resolveBareTarget(call: CallFact, file: FileFacts): CallTarget | undefined {
-  const resolution = resolveName(call.calleeName ?? "", call.container, file.symbols, file.imports);
+function resolveBareTarget(
+  call: CallFact,
+  file: FileFacts,
+  resolver: NameResolver,
+  symbolById: ReadonlyMap<string, SymbolFact>,
+): CallTarget | undefined {
+  const resolution = resolver.resolve(call.calleeName ?? "", call.container);
   if (resolution.status !== "resolved" || resolution.level === "import") return undefined;
-  const symbol = file.symbols.find((candidate) => candidate.id === resolution.resolvedId);
+  const symbol =
+    resolution.resolvedId === undefined ? undefined : symbolById.get(resolution.resolvedId);
   if (symbol === undefined || symbol.kind !== "function" || symbol.paramCount === undefined) {
     return undefined;
   }
@@ -154,11 +166,13 @@ export function checkCallArity(input: CheckInput): CheckFinding[] {
   const containerIndex = buildContainerIndex(input.current.factsByPath);
   const bundlePaths = [...input.current.factsByPath.keys()];
   for (const file of input.current.factsByPath.values()) {
+    const resolver = createNameResolver(file.symbols, file.imports);
+    const symbolById = new Map(file.symbols.map((symbol) => [symbol.id, symbol]));
     for (const call of file.calls) {
       if (call.calleeName === undefined) continue;
       const target =
         call.receiverText === undefined
-          ? resolveBareTarget(call, file)
+          ? resolveBareTarget(call, file, resolver, symbolById)
           : resolveMemberTarget(input, call, file, containerIndex, bundlePaths);
       if (target === undefined) continue;
       const { symbol, symbolFile } = target;

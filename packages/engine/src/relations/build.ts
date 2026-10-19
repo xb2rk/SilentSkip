@@ -1,4 +1,9 @@
-import { type FactBundle, type FileFacts, resolveName, type SymbolFact } from "../facts/index.js";
+import {
+  createNameResolver,
+  type FactBundle,
+  type FileFacts,
+  type SymbolFact,
+} from "../facts/index.js";
 import {
   RELATIONS_SCHEMA_VERSION,
   type Relation,
@@ -23,8 +28,9 @@ export function buildRelations(bundle: FactBundle, context: RelationContext = {}
 
   const relations: Relation[] = [];
   for (const file of bundle.files) {
-    collectRefRelations(file, relations);
-    collectCallRelations(file, relations);
+    const symbolById = new Map(file.symbols.map((symbol) => [symbol.id, symbol]));
+    collectRefRelations(file, relations, symbolById);
+    collectCallRelations(file, relations, symbolById);
     collectImportRelations(file, relations, bundlePaths);
     collectCsvRelations(file, relations, csvEntries);
     if (context.editorGenIndex === true) {
@@ -36,7 +42,11 @@ export function buildRelations(bundle: FactBundle, context: RelationContext = {}
 }
 
 /** `name-refers-to-symbol` / `name-refers-to-import`: resolved references become edges. */
-function collectRefRelations(file: FileFacts, out: Relation[]): void {
+function collectRefRelations(
+  file: FileFacts,
+  out: Relation[],
+  symbolById: ReadonlyMap<string, SymbolFact>,
+): void {
   for (const ref of file.refs) {
     const resolution = ref.resolution;
     if (resolution.status !== "resolved" || resolution.resolvedId === undefined) continue;
@@ -56,7 +66,7 @@ function collectRefRelations(file: FileFacts, out: Relation[]): void {
       continue;
     }
 
-    const symbol = file.symbols.find((s) => s.id === resolution.resolvedId);
+    const symbol = symbolById.get(resolution.resolvedId);
     if (!symbol) continue;
     const confidence = levelConfidence(resolution.level, symbol, ref.container);
     out.push({
@@ -79,7 +89,12 @@ function collectRefRelations(file: FileFacts, out: Relation[]): void {
  * ladder; member calls resolve through their receiver matching an import (v1 does not model
  * receiver types).
  */
-function collectCallRelations(file: FileFacts, out: Relation[]): void {
+function collectCallRelations(
+  file: FileFacts,
+  out: Relation[],
+  symbolById: ReadonlyMap<string, SymbolFact>,
+): void {
+  const resolver = createNameResolver(file.symbols, file.imports);
   for (const call of file.calls) {
     if (call.receiverText !== undefined) {
       const receiver = singleCandidate(
@@ -103,7 +118,7 @@ function collectCallRelations(file: FileFacts, out: Relation[]): void {
     }
 
     if (call.calleeName === undefined) continue;
-    const resolution = resolveName(call.calleeName, call.container, file.symbols, file.imports);
+    const resolution = resolver.resolve(call.calleeName, call.container);
     if (resolution.status !== "resolved" || resolution.resolvedId === undefined) continue;
 
     if (resolution.level === "import") {
@@ -121,7 +136,7 @@ function collectCallRelations(file: FileFacts, out: Relation[]): void {
       continue;
     }
 
-    const symbol = file.symbols.find((s) => s.id === resolution.resolvedId);
+    const symbol = symbolById.get(resolution.resolvedId);
     if (!symbol) continue;
     const confidence = levelConfidence(resolution.level, symbol, call.container);
     out.push({

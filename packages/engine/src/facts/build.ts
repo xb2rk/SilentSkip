@@ -396,13 +396,14 @@ function buildFileFacts(input: SourceInput): FileFacts {
 
   if (parsed.node) walkAst(parsed.node, visitor, exit);
 
+  const resolver = createNameResolver(symbols, imports);
   const refs: RefFact[] = rawRefs.map((raw) => ({
     name: raw.name,
     role: raw.role,
     span: raw.span,
     ...(raw.container !== undefined ? { container: raw.container } : {}),
     ...(raw.receiver !== undefined ? { receiver: raw.receiver } : {}),
-    resolution: resolveRef(raw, symbols, imports),
+    resolution: resolver.resolve(raw.name, raw.container),
   }));
 
   return {
@@ -424,14 +425,6 @@ function buildFileFacts(input: SourceInput): FileFacts {
   };
 }
 
-function resolveRef(
-  raw: RawRef,
-  symbols: readonly SymbolFact[],
-  imports: readonly ImportFact[],
-): RefResolution {
-  return resolveName(raw.name, raw.container, symbols, imports);
-}
-
 /**
  * Name-level resolution (deliberately not full scope analysis): walk the specificity ladder
  * local (same container) → member (same container) → member (any) → top-level → import, and
@@ -447,47 +440,109 @@ export function resolveName(
   symbols: readonly SymbolFact[],
   imports: readonly ImportFact[],
 ): RefResolution {
-  const locals = symbols.filter(
-    (s) => s.scope === "local" && s.name === name && s.container === container,
-  );
-  const local = singleCandidate(locals);
-  if (local) return { status: "resolved", level: "local", resolvedId: local.id };
-  if (locals.length > 1)
-    return { status: "ambiguous", level: "local", candidateIds: locals.map((s) => s.id) };
+  return createNameResolver(symbols, imports).resolve(name, container);
+}
 
-  const membersSame = symbols.filter(
-    (s) =>
-      s.scope === "member" &&
-      s.name === name &&
-      s.container !== undefined &&
-      s.container === container,
-  );
-  const memberSame = singleCandidate(membersSame);
-  if (memberSame) return { status: "resolved", level: "member", resolvedId: memberSame.id };
-  if (membersSame.length > 1) {
-    return { status: "ambiguous", level: "member", candidateIds: membersSame.map((s) => s.id) };
+/** A prepared name ladder for one file. */
+export interface NameResolver {
+  resolve(name: string, container: string | undefined): RefResolution;
+}
+
+/**
+ * Builds the symbol/import lookup tables once so a file with thousands of references does not
+ * rescan its symbol list per reference. Same ladder and ambiguity rules as {@link resolveName}.
+ */
+export function createNameResolver(
+  symbols: readonly SymbolFact[],
+  imports: readonly ImportFact[],
+): NameResolver {
+  const localByKey = new Map<string, SymbolFact[]>();
+  const memberByKey = new Map<string, SymbolFact[]>();
+  const membersAny = new Map<string, SymbolFact[]>();
+  const topsByName = new Map<string, SymbolFact[]>();
+  const importsByName = new Map<string, ImportFact[]>();
+
+  for (const symbol of symbols) {
+    const scoped = `${symbol.container ?? ""}\u0000${symbol.name}`;
+    if (symbol.scope === "local") {
+      pushTo(localByKey, scoped, symbol);
+    } else if (symbol.scope === "member") {
+      pushTo(membersAny, symbol.name, symbol);
+      if (symbol.container !== undefined) pushTo(memberByKey, scoped, symbol);
+    } else if (symbol.scope === "top") {
+      pushTo(topsByName, symbol.name, symbol);
+    }
+  }
+  for (const item of imports) {
+    if (item.imported !== undefined) pushTo(importsByName, item.imported, item);
+    if (item.alias !== undefined && item.alias !== item.imported) {
+      pushTo(importsByName, item.alias, item);
+    }
   }
 
-  const membersAny = symbols.filter((s) => s.scope === "member" && s.name === name);
-  const memberAny = singleCandidate(membersAny);
-  if (memberAny) return { status: "resolved", level: "member", resolvedId: memberAny.id };
-  if (membersAny.length > 1)
-    return { status: "ambiguous", level: "member", candidateIds: membersAny.map((s) => s.id) };
+  return {
+    resolve(name, container) {
+      const scoped = `${container ?? ""}\u0000${name}`;
+      const locals = localByKey.get(scoped) ?? [];
+      const local = singleCandidate(locals);
+      if (local) return { status: "resolved", level: "local", resolvedId: local.id };
+      if (locals.length > 1) {
+        return { status: "ambiguous", level: "local", candidateIds: locals.map((s) => s.id) };
+      }
 
-  const tops = symbols.filter((s) => s.scope === "top" && s.name === name);
-  const top = singleCandidate(tops);
-  if (top) return { status: "resolved", level: "top", resolvedId: top.id };
-  if (tops.length > 1)
-    return { status: "ambiguous", level: "top", candidateIds: tops.map((s) => s.id) };
+      if (container !== undefined) {
+        const membersSame = memberByKey.get(scoped) ?? [];
+        const memberSame = singleCandidate(membersSame);
+        if (memberSame) return { status: "resolved", level: "member", resolvedId: memberSame.id };
+        if (membersSame.length > 1) {
+          return {
+            status: "ambiguous",
+            level: "member",
+            candidateIds: membersSame.map((s) => s.id),
+          };
+        }
+      }
 
-  const matchingImports = imports.filter((i) => i.imported === name || i.alias === name);
-  const matchedImport = singleCandidate(matchingImports);
-  if (matchedImport) return { status: "resolved", level: "import", resolvedId: matchedImport.id };
-  if (matchingImports.length > 1) {
-    return { status: "ambiguous", level: "import", candidateIds: matchingImports.map((i) => i.id) };
-  }
+      const memberAnyList = membersAny.get(name) ?? [];
+      const memberAny = singleCandidate(memberAnyList);
+      if (memberAny) return { status: "resolved", level: "member", resolvedId: memberAny.id };
+      if (memberAnyList.length > 1) {
+        return {
+          status: "ambiguous",
+          level: "member",
+          candidateIds: memberAnyList.map((s) => s.id),
+        };
+      }
 
-  return { status: "unresolved" };
+      const topList = topsByName.get(name) ?? [];
+      const top = singleCandidate(topList);
+      if (top) return { status: "resolved", level: "top", resolvedId: top.id };
+      if (topList.length > 1) {
+        return { status: "ambiguous", level: "top", candidateIds: topList.map((s) => s.id) };
+      }
+
+      const matchingImports = importsByName.get(name) ?? [];
+      const matchedImport = singleCandidate(matchingImports);
+      if (matchedImport) {
+        return { status: "resolved", level: "import", resolvedId: matchedImport.id };
+      }
+      if (matchingImports.length > 1) {
+        return {
+          status: "ambiguous",
+          level: "import",
+          candidateIds: matchingImports.map((s) => s.id),
+        };
+      }
+
+      return { status: "unresolved" };
+    },
+  };
+}
+
+function pushTo<T>(map: Map<string, T[]>, key: string, value: T): void {
+  const list = map.get(key);
+  if (list === undefined) map.set(key, [value]);
+  else list.push(value);
 }
 
 /** Exactly-one-or-nothing helper that stays type-safe under `noUncheckedIndexedAccess`. */

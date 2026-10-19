@@ -14,8 +14,14 @@
  *   code path (dead value) and suggests pinning a binding.
  */
 
-import type { FactBundle, FactSpan } from "../facts/index.js";
+import type { FactBundle, FactSpan, SymbolFact } from "../facts/index.js";
 import type { RelationConfidence, RelationSet } from "../relations/index.js";
+
+/** Symbol id → owning file and symbol fact; build once and share across journeys. */
+export type JourneySymbolIndex = ReadonlyMap<
+  string,
+  { readonly file: string; readonly symbol: SymbolFact }
+>;
 
 /** Version of the journey JSON shape; bump when the structure changes. */
 export const JOURNEY_SCHEMA_VERSION = 1;
@@ -42,6 +48,8 @@ export interface JourneyInput {
   readonly bundle: FactBundle;
   readonly relations: RelationSet;
   readonly origin: JourneyOrigin;
+  /** Prebuilt symbol index shared across many journeys — built from `bundle` when absent. */
+  readonly symbolIndex?: JourneySymbolIndex;
   /** Layers expanded beyond the origin node; default 2. */
   readonly maxDepth?: number;
   /** Maximum kept nodes per layer; default 24. Overflow sets `truncated`. */

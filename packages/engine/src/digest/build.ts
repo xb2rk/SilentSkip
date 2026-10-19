@@ -29,7 +29,7 @@ import {
   parseCsv,
 } from "../csv/index.js";
 import {
-  buildDeltaBundle,
+  buildDeltaFromParsed,
   type CsvRowRef,
   type CsvTableDelta,
   type DeltaBundle,
@@ -43,7 +43,12 @@ import {
   type SourceInput,
   type SymbolKind,
 } from "../facts/index.js";
-import { buildJourney, type JourneyNode, type JourneyOrigin } from "../journey/index.js";
+import {
+  buildJourney,
+  buildSymbolIndex,
+  type JourneyNode,
+  type JourneyOrigin,
+} from "../journey/index.js";
 import {
   buildReadingPlan,
   type PlanInput,
@@ -546,12 +551,14 @@ function buildLinked(
   registry: AnchorRegistry,
 ): DigestLinked[] {
   const linked: DigestLinked[] = [];
+  const symbolIndex = buildSymbolIndex(current.bundle);
   for (const candidate of selectJourneyCandidates(candidates, maxJourneys)) {
     const journey = buildJourney({
       bundle: current.bundle,
       relations,
       origin: candidate.origin,
       maxDepth: 2,
+      symbolIndex,
     });
     const chains: DigestJourneyChain[] = [];
     for (const chain of journey.chains) {
@@ -937,7 +944,10 @@ export function buildDigest(input: DigestInput): DigestBundle {
   const current = buildSide(input.current.sources);
   const registry = new AnchorRegistry();
 
-  const delta = buildDeltaBundle({ before: input.base.sources, after: input.current.sources });
+  const delta = buildDeltaFromParsed(
+    { sources: base.sources, facts: base.factsByPath, tables: base.tables },
+    { sources: current.sources, facts: current.factsByPath, tables: current.tables },
+  );
   const relations = buildRelations(current.bundle, {
     csvPaths: [...current.tables.keys()],
     editorGenIndex: input.profile?.editorGenIndex === true,

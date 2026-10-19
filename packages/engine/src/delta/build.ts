@@ -39,14 +39,37 @@ const ROW_PREVIEW_LIMIT = 160;
 export function buildDeltaBundle(input: DeltaInput): DeltaBundle {
   const before = splitSources(input.before);
   const after = splitSources(input.after);
-  const beforeFacts = factsByPath(before.scripts);
-  const afterFacts = factsByPath(after.scripts);
+  return buildDeltaFromParsed(
+    {
+      sources: before.scripts,
+      facts: factsByPath(before.scripts),
+      tables: tableMap(before.tables),
+    },
+    {
+      sources: after.scripts,
+      facts: factsByPath(after.scripts),
+      tables: tableMap(after.tables),
+    },
+  );
+}
 
+/**
+ * Pre-parsed side for {@link buildDeltaFromParsed}: the digest already parsed both refs, so the
+ * delta reuses those artifacts instead of building the ASTs and CSV tables a second time.
+ */
+export interface ParsedDeltaSide {
+  readonly sources: ReadonlyMap<string, string>;
+  readonly facts: ReadonlyMap<string, FileFacts>;
+  readonly tables: ReadonlyMap<string, CsvTable>;
+}
+
+/** Builds the A/B delta from sides that were already parsed. */
+export function buildDeltaFromParsed(before: ParsedDeltaSide, after: ParsedDeltaSide): DeltaBundle {
   const scripts: ScriptFileDelta[] = [];
-  const scriptPaths = new Set([...before.scripts.keys(), ...after.scripts.keys()]);
+  const scriptPaths = new Set([...before.facts.keys(), ...after.facts.keys()]);
   for (const path of [...scriptPaths].sort()) {
-    const b = beforeFacts.get(path);
-    const a = afterFacts.get(path);
+    const b = before.facts.get(path);
+    const a = after.facts.get(path);
     if (b === undefined && a === undefined) continue;
     const delta =
       b === undefined && a !== undefined
@@ -57,8 +80,8 @@ export function buildDeltaBundle(input: DeltaInput): DeltaBundle {
               path,
               b as FileFacts,
               a as FileFacts,
-              before.scripts.get(path) as string,
-              after.scripts.get(path) as string,
+              requireSource(before.sources, path),
+              requireSource(after.sources, path),
             );
     if (delta !== undefined) scripts.push(delta);
   }
@@ -74,11 +97,27 @@ export function buildDeltaBundle(input: DeltaInput): DeltaBundle {
         ? addedTable(path, a)
         : a === undefined && b !== undefined
           ? removedTable(path, b)
-          : changedTable(path, b as string, a as string);
+          : changedTable(path, b as CsvTable, a as CsvTable);
     if (delta !== undefined) tables.push(delta);
   }
 
   return { schemaVersion: DELTA_SCHEMA_VERSION, scripts, tables };
+}
+
+/** Raw source for a script that exists in the parsed facts — caller bug when absent. */
+function requireSource(sources: ReadonlyMap<string, string>, path: string): string {
+  const source = sources.get(path);
+  if (source === undefined) throw new Error(`Delta source missing: ${path}`);
+  return source;
+}
+
+/** Parses table sources into CSV tables, rejecting duplicate paths at the split stage. */
+function tableMap(sources: Map<string, string>): Map<string, CsvTable> {
+  const tables = new Map<string, CsvTable>();
+  for (const [path, source] of sources) {
+    tables.set(path, parseCsv(source, delimiterForPath(path)));
+  }
+  return tables;
 }
 
 /** Parses both sides into script and table sources, rejecting duplicates. */
@@ -286,8 +325,7 @@ function diffImports(
 }
 
 /** Delta for a table that exists only in ref B. */
-function addedTable(path: string, afterSource: string): CsvTableDelta {
-  const table = parseCsv(afterSource, delimiterForPath(path));
+function addedTable(path: string, table: CsvTable): CsvTableDelta {
   const counts = firstColumnCounts(table);
   return {
     path,
@@ -300,8 +338,7 @@ function addedTable(path: string, afterSource: string): CsvTableDelta {
 }
 
 /** Delta for a table that exists only in ref A. */
-function removedTable(path: string, beforeSource: string): CsvTableDelta {
-  const table = parseCsv(beforeSource, delimiterForPath(path));
+function removedTable(path: string, table: CsvTable): CsvTableDelta {
   const counts = firstColumnCounts(table);
   return {
     path,
@@ -314,13 +351,7 @@ function removedTable(path: string, beforeSource: string): CsvTableDelta {
 }
 
 /** Delta for a table present on both sides; `undefined` when nothing changed. */
-function changedTable(
-  path: string,
-  beforeSource: string,
-  afterSource: string,
-): CsvTableDelta | undefined {
-  const before = parseCsv(beforeSource, delimiterForPath(path));
-  const after = parseCsv(afterSource, delimiterForPath(path));
+function changedTable(path: string, before: CsvTable, after: CsvTable): CsvTableDelta | undefined {
   const headerChanged = (before.rows[0]?.raw ?? "") !== (after.rows[0]?.raw ?? "");
 
   const beforeCounts = firstColumnCounts(before);

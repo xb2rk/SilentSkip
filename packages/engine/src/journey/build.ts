@@ -38,7 +38,7 @@ export function buildJourney(input: JourneyInput): Journey {
   const context: ExpandContext = {
     factsByFile,
     relations: input.relations.relations,
-    symbolIndex: buildSymbolIndex(input.bundle),
+    symbolIndex: input.symbolIndex ?? buildSymbolIndex(input.bundle),
   };
 
   const childrenByParent = new Map<string, JourneyNode[]>();
@@ -311,7 +311,7 @@ function makeNode(fields: Omit<JourneyNode, "id" | "level">): JourneyNode {
 }
 
 /** Indexes every symbol of the bundle by id. */
-function buildSymbolIndex(bundle: FactBundle): Map<string, { file: string; symbol: SymbolFact }> {
+export function buildSymbolIndex(bundle: FactBundle): JourneySymbolIndex {
   const index = new Map<string, { file: string; symbol: SymbolFact }>();
   for (const file of bundle.files) {
     for (const symbol of file.symbols) {
