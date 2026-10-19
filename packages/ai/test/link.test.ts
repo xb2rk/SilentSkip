@@ -216,6 +216,35 @@ describe("linkReport", () => {
     expect(result.issues.filter((issue) => issue.kind === "theme-invalid")).toHaveLength(3);
   });
 
+  it("strips a theme anchor the readings never cited without dropping the narrative", () => {
+    const result = linkReport(
+      makeReport(
+        [finding()],
+        [
+          {
+            themeId: "theme-1",
+            summary: "The constant changed.",
+            behaviorChange: "The skill scales differently.",
+            watchFor: "Skill damage in game.",
+            anchorIds: [ANCHOR_B_ATK, ANCHOR_A_MOD],
+          },
+        ],
+      ),
+      INDEX,
+      { seenAnchors: new Set([ANCHOR_B_ATK]), themeIds: ["theme-1"] },
+    );
+    expect(result.report.themes).toEqual([
+      {
+        themeId: "theme-1",
+        summary: "The constant changed.",
+        behaviorChange: "The skill scales differently.",
+        watchFor: "Skill damage in game.",
+        anchorIds: [ANCHOR_B_ATK],
+      },
+    ]);
+    expect(result.issues.map((issue) => issue.kind)).toEqual(["new-anchor"]);
+  });
+
   it("renders placeholders in narratives and drops narratives with free numbers", () => {
     const result = linkReport(
       makeReport(

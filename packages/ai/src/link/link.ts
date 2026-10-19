@@ -314,14 +314,28 @@ export function linkReport(
     const behaviorChange = renderThemeText(theme.behaviorChange, theme.themeId, "behaviorChange");
     const watchFor = renderThemeText(theme.watchFor, theme.themeId, "watchFor");
     const anchorIds = theme.anchorIds.filter((anchorId) => {
-      if (index.anchors.has(anchorId)) return true;
-      issues.push({
-        kind: "theme-invalid",
-        pass: "synthesize",
-        target: theme.themeId,
-        detail: `narrative anchor not in the registry: ${anchorId}`,
-      });
-      return false;
+      if (!index.anchors.has(anchorId)) {
+        issues.push({
+          kind: "theme-invalid",
+          pass: "synthesize",
+          target: theme.themeId,
+          detail: `narrative anchor not in the registry: ${anchorId}`,
+        });
+        return false;
+      }
+      // Same rule as findings: a narrative may only cite evidence the readings actually reached.
+      // Theme file membership is not enforced — an anchor from an unchanged context file is a
+      // legitimate reference to the loader or caller that explains the change.
+      if (!options.seenAnchors.has(anchorId)) {
+        issues.push({
+          kind: "new-anchor",
+          pass: "synthesize",
+          target: theme.themeId,
+          detail: `narrative anchor was never cited by the readings: ${anchorId}`,
+        });
+        return false;
+      }
+      return true;
     });
     if (summary === undefined || behaviorChange === undefined || watchFor === undefined) {
       continue;
