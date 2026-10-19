@@ -18,6 +18,7 @@ import {
   ErrorCodes,
   type ReviewContextManifest,
   type ReviewRunResult,
+  ReviewRunResultSchema,
   type ReviewStreamEvent,
   type RunDetailResponse,
   type RunSummary,
@@ -248,7 +249,7 @@ export class ReviewManager {
     if (existing !== undefined) return existing;
     const row = this.runRow(runId);
     const channel = new RunChannel();
-    const result = this.parseResult(row.reportJson);
+    const result = this.parseResult(row.id, row.reportJson);
     if (row.status === "completed") {
       void channel.emit({
         type: "completed",
@@ -624,12 +625,26 @@ export class ReviewManager {
   }
 
   private detail(row: typeof runs.$inferSelect): RunDetailResponse {
-    return { ...this.summary(row), result: this.parseResult(row.reportJson) };
+    return { ...this.summary(row), result: this.parseResult(row.id, row.reportJson) };
   }
 
-  private parseResult(reportJson: string | null): ReviewRunResult | null {
+  /**
+   * Stored reports are read back through the contract: a row written by an older build (or a
+   * corrupted one) must not crash the detail route with a blind cast.
+   */
+  private parseResult(runId: string, reportJson: string | null): ReviewRunResult | null {
     if (reportJson === null) return null;
-    return JSON.parse(reportJson) as ReviewRunResult;
+    try {
+      const parsed = ReviewRunResultSchema.safeParse(JSON.parse(reportJson));
+      if (parsed.success) return parsed.data;
+      this.deps.log.warn(
+        { runId, issues: parsed.error.issues.slice(0, 3) },
+        "stored run report failed validation",
+      );
+    } catch (error) {
+      this.deps.log.warn({ runId, err: error }, "stored run report is not valid JSON");
+    }
+    return null;
   }
 
   /**

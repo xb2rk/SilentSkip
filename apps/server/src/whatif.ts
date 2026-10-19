@@ -134,7 +134,7 @@ export class WhatIfManager {
       updatedAt: now,
     };
     this.deps.db.insert(sessions).values(row).run();
-    return { session: this.summary(row), turns: [] };
+    return { session: this.summary(row, 0), turns: [] };
   }
 
   /** Session detail with its turns in order. */
@@ -146,7 +146,10 @@ export class WhatIfManager {
       .where(eq(turns.sessionId, sessionId))
       .orderBy(asc(turns.turnIndex))
       .all();
-    return { session: this.summary(row), turns: turnRows.map((turn) => this.projectTurn(turn)) };
+    return {
+      session: this.summary(row, turnRows.length),
+      turns: turnRows.map((turn) => this.projectTurn(turn)),
+    };
   }
 
   /**
@@ -439,8 +442,14 @@ export class WhatIfManager {
       .select()
       .from(turns)
       .where(eq(turns.sessionId, sessionId))
-      .orderBy(asc(turns.turnIndex))
-      .all();
+      .orderBy(desc(turns.turnIndex))
+      .limit(RECENT_TURN_LIMIT * 2 + 1)
+      .all()
+      .reverse()
+      .filter((row) => row.id !== excludeTurnId);
+    // A window that starts mid-pair has no question for that answer — skip it instead of
+    // producing a question-less memory item.
+    if (rows[0]?.role === "assistant") rows.shift();
     const completed: WhatIfTurnInput[] = [];
     let pendingQuestion: string | undefined;
     for (const row of rows) {
@@ -581,14 +590,14 @@ export class WhatIfManager {
     return row;
   }
 
-  private summary(row: typeof sessions.$inferSelect): WhatIfSessionSummary {
+  private summary(row: typeof sessions.$inferSelect, turnCount: number): WhatIfSessionSummary {
     return {
       id: row.id,
       projectId: row.projectId,
       baseRef: row.baseRef ?? "",
       currentRef: row.currentRef ?? "",
       title: row.title,
-      turnCount: this.turnCount(row.id),
+      turnCount,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

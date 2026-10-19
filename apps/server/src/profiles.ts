@@ -1,5 +1,7 @@
 import {
+  AppError,
   EMPTY_READER_PROFILE,
+  ErrorCodes,
   emptyProjectProfile,
   type ProjectProfile,
   ProjectProfileSchema,
@@ -74,6 +76,9 @@ function parseJson<T>(value: string | null, fallback: T): T {
   try {
     return JSON.parse(value) as T;
   } catch {
-    throw new Error("Stored project profile JSON is invalid — rerun the profile save");
+    throw new AppError(
+      ErrorCodes.internal,
+      "Stored project profile JSON is invalid — rerun the profile save",
+    );
   }
 }
