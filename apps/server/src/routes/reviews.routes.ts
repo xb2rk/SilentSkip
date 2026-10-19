@@ -107,27 +107,5 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps): Hono {
     return c.json(RunDetailResponseSchema.parse(deps.manager.cancel(c.req.param("runId"))));
   });
 
-  /** Who changed the files of this run (E9.3) - commits per file plus worktree flags. */
-  app.get("/:runId/attribution", async (c) => {
-    const run = deps.manager.getRun(c.req.param("runId"));
-    const project = getProject(deps.db, run.projectId);
-    const attribution = await fileAttribution(project.rootPath, run.baseRef, run.currentRef);
-    return c.json(AttributionResponseSchema.parse(attribution));
-  });
-
-  /** Line-level blame inside one file of this run (E9.3). */
-  app.get("/:runId/blame", async (c) => {
-    const run = deps.manager.getRun(c.req.param("runId"));
-    const project = getProject(deps.db, run.projectId);
-    const file = c.req.query("file");
-    const lineStart = Number.parseInt(c.req.query("lineStart") ?? "", 10);
-    const lineEnd = Number.parseInt(c.req.query("lineEnd") ?? "", 10);
-    if (file === undefined || file === "" || Number.isNaN(lineStart) || Number.isNaN(lineEnd)) {
-      throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `file`, `lineStart` hoặc `lineEnd`");
-    }
-    const blame = await blameLines(project.rootPath, run.currentRef, file, lineStart, lineEnd);
-    return c.json(BlameResponseSchema.parse(blame));
-  });
-
   return app;
 }
