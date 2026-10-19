@@ -413,8 +413,11 @@ export async function runReviewPipeline(
   const collectedNegatives: string[] = [];
   const collectedAnswers: string[] = [];
   const queries: string[] = [];
-  /** First degraded pass wins — it names the root cause the user sees in the banner. */
-  let degradedReason: string | null = null;
+  /**
+   * Remaining degradations keyed by scope (pass + unit). A later successful retry clears its
+   * scope, so the banner names a cause only when the final result is actually partial.
+   */
+  const degradations = new Map<string, string>();
 
   let themes: NormalizedTheme[] = [];
 
@@ -448,9 +451,11 @@ export async function runReviewPipeline(
     pass: "map" | "read" | "dig" | "synthesize",
     error: AiError,
     target: string,
+    scope: string = "",
   ): void => {
-    if (degradedReason === null) {
-      degradedReason = `AI review incomplete (${error.code}): ${error.message}`;
+    const key = scope === "" ? pass : `${pass}:${scope}`;
+    if (!degradations.has(key)) {
+      degradations.set(key, `AI review incomplete (${error.code}): ${error.message}`);
     }
     issues.push({
       kind: degradedIssueKind(pass, error.code),
@@ -671,7 +676,7 @@ export async function runReviewPipeline(
           if (!outcome.ok) {
             failedChunks += 1;
             if (outcome.kind === "degraded") {
-              degrade("read", outcome.error, outcome.target);
+              degrade("read", outcome.error, outcome.target, `unit-${unit.index}`);
             } else {
               issues.push({
                 kind: "read-invalid",
@@ -702,6 +707,8 @@ export async function runReviewPipeline(
         } else if (signalSeen) {
           retryUnits.delete(unit.index);
         }
+        // A fully answered unit clears the degradation left by an earlier failed attempt.
+        if (failedChunks === 0) degradations.delete(`read:unit-${unit.index}`);
       }
 
       await notifyCheckpoint();
@@ -862,6 +869,7 @@ export async function runReviewPipeline(
     issues.push(...linked.issues);
     synthesizeStats = linked.stats;
     report = linked.report;
+    degradations.delete("synthesize");
     const blocking = linked.issues.some((issue) => BLOCKING_SYNTHESIZE_ISSUE_KINDS.has(issue.kind));
     if (!blocking) break;
 
@@ -897,6 +905,7 @@ export async function runReviewPipeline(
       .slice(0, MAX_CONSTRAINT_LINES)
       .map((issue) => `${issue.kind}: ${issue.target} — ${issue.detail}`);
   }
+  let degradedReason: string | null = degradations.values().next().value ?? null;
   if (report === undefined) {
     // Nothing the model produced at all: hand over to the deterministic fallback exactly as
     // before — there is no reading to rescue.

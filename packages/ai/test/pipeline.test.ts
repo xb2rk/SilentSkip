@@ -604,6 +604,63 @@ describe("runReviewPipeline v2", () => {
     expect(result.passes.map((meta) => meta.pass)).toEqual(["map", "read", "read"]);
   });
 
+  it("clears the degraded label when a failed read recovers on the L1 re-read", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: (request) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    let readCalls = 0;
+    const flakyRead: WorkflowRunner = async (request) => {
+      if (stageOf(request) !== "read") return await scripted.runner(request);
+      const index = readCalls;
+      readCalls += 1;
+      if (index === 1) throw new AiError("network", "socket hang up");
+      return await scripted.runner(request);
+    };
+    const result = await runReviewPipeline(
+      { runner: flakyRead, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    expect(result.verification.issues.some((issue) => issue.kind === "read-unavailable")).toBe(
+      true,
+    );
+    expect(result.degradedReason).toBeNull();
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("clears the degraded label when synthesize recovers on the second round", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: (request) =>
+        (unitFilesOf(request) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    let synthCalls = 0;
+    const flakySynthesize: WorkflowRunner = async (request) => {
+      if (stageOf(request) !== "synthesize") return await scripted.runner(request);
+      const index = synthCalls;
+      synthCalls += 1;
+      if (index === 0) throw new AiError("timeout", "timed out");
+      return await scripted.runner(request);
+    };
+    const result = await runReviewPipeline(
+      { runner: flakySynthesize, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    expect(result.verification.issues.some((issue) => issue.kind === "synthesize-timeout")).toBe(
+      true,
+    );
+    expect(synthCalls).toBe(2);
+    expect(result.degradedReason).toBeNull();
+    expect(result.report.verdict).toBe("needs_review");
+  });
+
   it("never degrades a cancelled run", async () => {
     await expect(
       runReviewPipeline(
