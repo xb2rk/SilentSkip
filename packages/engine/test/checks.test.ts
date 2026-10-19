@@ -363,8 +363,8 @@ describe("STRUCT-02 row keys", () => {
 });
 
 describe("STRUCT-03 header hygiene", () => {
-  it("reports empty, duplicate, whitespace and unicode header names", () => {
-    const after = "id, atk,atk,,V\u1ec7t\n1,2,3,4,5\n";
+  it("reports empty, duplicate, whitespace and invisible header names", () => {
+    const after = "id, atk,atk,,V\u1ec7t,\u200b\n1,2,3,4,5,6\n";
     const findings = byRule(
       checks([{ path: TABLE_PATH, source: TABLE_CLEAN }], [{ path: TABLE_PATH, source: after }]),
       "STRUCT-03",
@@ -377,10 +377,23 @@ describe("STRUCT-03 header hygiene", () => {
     expect(finding.message).toContain("1 duplicate name(s)");
     expect(finding.message).toContain("1 empty cell(s)");
     expect(finding.message).toContain("1 name(s) with surrounding whitespace");
-    expect(finding.message).toContain("1 non-ASCII name(s)");
+    expect(finding.message).toContain(
+      "1 name(s) with invisible characters (zero-width or control)",
+    );
     // Header row plus four witness cells.
     expect(finding.anchors).toHaveLength(5);
     expect(finding.anchors[0]).toBe(`B:${TABLE_PATH}:1:1:csv`);
+  });
+
+  it("does not flag accented header names as hygiene noise", () => {
+    const findings = byRule(
+      checks(
+        [{ path: TABLE_PATH, source: TABLE_CLEAN }],
+        [{ path: TABLE_PATH, source: "id,V\u1ec7t\n1,2\n" }],
+      ),
+      "STRUCT-03",
+    );
+    expect(findings).toEqual([]);
   });
 });
 
@@ -720,6 +733,92 @@ describe("CALL-ARITY-01 receiver resolution", () => {
     const finding = firstFinding(findings);
     expect(finding.message).toContain("2 argument(s)");
     expect(finding.message).toContain("1 parameter(s)");
+  });
+
+  it("counts an out-var argument toward the call arity", () => {
+    const caller = [
+      "static graph Caller {",
+      "  func Run() int {",
+      "    return Svc.Pick(out var picked)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const svc = [
+      "static graph Svc {",
+      "  func Pick(out result int) int {",
+      "    return 1",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const findings = byRule(
+      checks(
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: svc },
+        ],
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: svc },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    // `out var picked` is one argument; the declaration has one parameter, so silence is correct.
+    expect(findings).toEqual([]);
+  });
+
+  it("stays silent when two containers share the receiver name", () => {
+    const caller = [
+      "static graph Caller {",
+      "  func Run() int {",
+      "    return Svc.Helper(1)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const svc = [
+      "static graph Svc {",
+      "  func Helper(a int, b int) int {",
+      "    return a",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const findings = byRule(
+      checks(
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: svc },
+          { path: "Assets/Scripts/Svc2.fcg", source: svc },
+        ],
+        [
+          { path: CALLER_PATH, source: caller },
+          { path: SVC_PATH, source: svc },
+          { path: "Assets/Scripts/Svc2.fcg", source: svc },
+        ],
+      ),
+      "CALL-ARITY-01",
+    );
+    // Two candidate containers named Svc: resolution is ambiguous, and a guess is never worth a major finding.
+    expect(findings).toEqual([]);
+  });
+
+  it("stays silent when the receiver is an unknown identifier", () => {
+    const caller = [
+      "static graph Caller {",
+      "  func Run() int {",
+      "    return Unknown.Helper(1)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const findings = byRule(
+      checks([{ path: CALLER_PATH, source: caller }], [{ path: CALLER_PATH, source: caller }]),
+      "CALL-ARITY-01",
+    );
+    expect(findings).toEqual([]);
   });
 
   it("resolves generic receivers by the type name (entity<T>.Method())", () => {

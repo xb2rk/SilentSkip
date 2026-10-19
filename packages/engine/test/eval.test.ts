@@ -201,7 +201,7 @@ const CASES: readonly EvalCase[] = [
     name: "STRUCT-03 header hygiene",
     ruleId: "STRUCT-03",
     before: { [T]: T_CLEAN },
-    after: { [T]: "id, atk,atk,,Vi\u1ec7t\n1,2,3,4,5\n" },
+    after: { [T]: "id, atk,atk,,\u200b\n1,2,3,4,5\n" },
   },
   {
     name: "TYPE-01 type mismatch and leading zero",

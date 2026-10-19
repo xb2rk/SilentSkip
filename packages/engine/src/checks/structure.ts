@@ -24,8 +24,26 @@ const MAX_CELL_WITNESSES = 8;
 /** Maximum position witnesses attached to one DRIFT-01 finding. */
 const MAX_DRIFT_WITNESSES = 6;
 
-/** Non-ASCII range check for header hygiene. */
-const NON_ASCII_PATTERN = /[^\x20-\x7E]/u;
+/**
+ * Invisible characters a header cell should never carry: control codes, zero-width marks and the
+ * BOM. Accented letters (Vietnamese, CJK, …) are legitimate header text and are NOT flagged.
+ */
+function hasHiddenChar(text: string): boolean {
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
+    if (
+      code === 0x200b ||
+      code === 0x200c ||
+      code === 0x200d ||
+      code === 0x2060 ||
+      code === 0xfeff
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------------------------
 // STRUCT-01 — row width differs from the header
@@ -230,7 +248,7 @@ function hygieneFindingForSide(
   const emptyIndexes: number[] = [];
   const duplicateIndexes: number[] = [];
   const whitespaceIndexes: number[] = [];
-  const unicodeIndexes: number[] = [];
+  const hiddenIndexes: number[] = [];
   const seen = new Set<string>();
   header.cells.forEach((cell, index) => {
     const text = cell.text;
@@ -242,13 +260,13 @@ function hygieneFindingForSide(
     if (text !== trimmed) whitespaceIndexes.push(index);
     if (seen.has(trimmed)) duplicateIndexes.push(index);
     else seen.add(trimmed);
-    if (NON_ASCII_PATTERN.test(text)) unicodeIndexes.push(index);
+    if (hasHiddenChar(text)) hiddenIndexes.push(index);
   });
   if (
     emptyIndexes.length === 0 &&
     duplicateIndexes.length === 0 &&
     whitespaceIndexes.length === 0 &&
-    unicodeIndexes.length === 0
+    hiddenIndexes.length === 0
   ) {
     return [];
   }
@@ -258,7 +276,7 @@ function hygieneFindingForSide(
     ...emptyIndexes,
     ...duplicateIndexes,
     ...whitespaceIndexes,
-    ...unicodeIndexes,
+    ...hiddenIndexes,
   ].slice(0, MAX_CELL_WITNESSES);
   for (const index of witnessIndexes) {
     const cell = header.cells[index];
@@ -269,7 +287,8 @@ function hygieneFindingForSide(
   if (emptyIndexes.length > 0) parts.push(`${emptyIndexes.length} empty cell(s)`);
   if (whitespaceIndexes.length > 0)
     parts.push(`${whitespaceIndexes.length} name(s) with surrounding whitespace`);
-  if (unicodeIndexes.length > 0) parts.push(`${unicodeIndexes.length} non-ASCII name(s)`);
+  if (hiddenIndexes.length > 0)
+    parts.push(`${hiddenIndexes.length} name(s) with invisible characters (zero-width or control)`);
   return [
     {
       id: `STRUCT-03|${ref}|${path}`,
@@ -283,7 +302,7 @@ function hygieneFindingForSide(
       anchors,
       derivation: [
         `Header cells on side ${ref}: ${header.cells.length}.`,
-        "Each header cell checked for emptiness, trimmed duplicates, surrounding whitespace and non-ASCII characters — raw text comparison.",
+        "Each header cell checked for emptiness, trimmed duplicates, surrounding whitespace and invisible characters (zero-width/control) — raw text comparison. Accented letters are not flagged.",
         `Witness anchors: header row plus the first ${witnessIndexes.length} offending cell(s).`,
       ],
     },
@@ -291,7 +310,7 @@ function hygieneFindingForSide(
 }
 
 /**
- * STRUCT-03 — header hygiene: empty/whitespace/duplicate/unicode header names.
+ * STRUCT-03 — header hygiene: empty/whitespace/duplicate/invisible-character header names.
  */
 export function checkHeaderHygiene(input: CheckInput): CheckFinding[] {
   const findings: CheckFinding[] = [];
