@@ -1,15 +1,13 @@
 import type {
-  Anchor,
   DigestBundle,
-  DigestUnit,
   ReadFinding,
   ReviewLens,
   SynthesizeOutput,
 } from "@silentskip/contracts";
 import { buildReviewContext, changeFileIds, evidenceAnchorsOf } from "../context/build.js";
-import type { EvidenceAnchor, ReviewContextManifest } from "../context/types.js";
+import type { ReviewContextManifest } from "../context/types.js";
 import { AiError } from "../errors.js";
-import { buildFactIndex, evaluateClaim, type FactIndex } from "../facts/fact-index.js";
+import { buildFactIndex } from "../facts/fact-index.js";
 import { buildPartialReport } from "../fallback.js";
 import { runInseaWorkflow } from "../insea/client.js";
 import type { InseaSalvage } from "../insea/types.js";
@@ -28,42 +26,20 @@ import { type NormalizedTheme, normalizeThemes, runMapPass } from "../passes/map
 import { type ReadPassResult, runReadPass } from "../passes/read.js";
 import { runSynthesizePass, type SynthesizePassResult } from "../passes/synthesize.js";
 import type { PassConfig, PassMeta, WorkflowRunner } from "../passes/types.js";
+import { compareStrings } from "../text/compare.js";
+import { chunkReadingUnit, READ_CHUNK_BUDGET_BYTES, type ReadChunk } from "./chunking.js";
+import { selectCoverageTargets, selectUnitAnchors } from "./coverage.js";
+import { fastRepairSynthesizeOutput } from "./repair.js";
+
+export { chunkReadingUnit, READ_CHUNK_BUDGET_BYTES, type ReadChunk } from "./chunking.js";
+export {
+  type CoverageTargetInput,
+  type CoverageUnit,
+  selectCoverageTargets,
+} from "./coverage.js";
 
 /** Coverage loop bound: after this many reading rounds the rest is reported, not chased. */
 export const MAX_COVERAGE_ROUNDS = 2;
-
-/** The slice of a reading unit that coverage targeting needs. */
-export interface CoverageUnit {
-  /** Zero-based position in the reading plan; also the order the units are read in. */
-  readonly index: number;
-  /** Files the unit covers, as the digest's plan lists them. */
-  readonly files: readonly string[];
-}
-
-export interface CoverageTargetInput<T extends CoverageUnit> {
-  readonly units: readonly T[];
-  /** Units whose calls never answered: timeout, dead transport, or output that failed to parse. */
-  readonly retryUnits: ReadonlySet<number>;
-}
-
-/**
- * Picks the units worth a second reading pass in the L1 coverage round, in unit order: only units
- * whose reading never arrived (timeout, dead transport, unparsable output) qualify — a unit with no
- * reading at all is worse than an expensive one.
- *
- * Engine findings are NOT a re-read trigger any more: they are deterministic facts the engine has
- * already proven, they travel straight to `synthesize` as `engine-findings.jsonl`, and linkReport
- * accepts their anchors as seen. Spending a whole extra reading round so the model repeats a
- * finding the engine already reports (real run: two units, ~3.5 minutes of call time) bought
- * nothing the report did not already have.
- */
-export function selectCoverageTargets<T extends CoverageUnit>(
-  input: CoverageTargetInput<T>,
-): readonly T[] {
-  return input.units
-    .filter((unit) => input.retryUnits.has(unit.index))
-    .sort((left, right) => left.index - right.index);
-}
 
 /** Map loop bound: map re-runs with repair constraints; then the engine partition takes over. */
 export const MAX_MAP_ROUNDS = 2;
@@ -110,144 +86,6 @@ function degradedIssueKind(
 
 /** How many constraints/issues are handed back to a re-run (attention quality). */
 const MAX_CONSTRAINT_LINES = 10;
-
-/** Upper bound of snippet anchors shipped to one read call (grounding text per unit). */
-const MAX_UNIT_ANCHORS = 300;
-
-/** Per-file cap inside one read call — every file keeps representation (E7.5 balance). */
-const MAX_ANCHORS_PER_FILE = 40;
-
-/**
- * Byte budget of one read call's material (compact entries + function bodies) — a bound on the call
- * payload, not a preference: units above it are read chunk by chunk (E7.5, nothing dropped).
- *
- * Only the unit material is budgeted, so the payload a read call sends is roughly
- * `budget + ~105 KB` (skeleton of every changed file + facts + anchors + prompt + manifest). Insea
- * carried 419 KB and 390 KB payloads and rejected a merged chunk whose material alone was 146 KB
- * (~480 KB by that ratio; plan §7), so the sum has to stay well under ~400 KB. At 90_000 this 72-file
- * digest split three units, and three of the six chunk calls it produced cost 30-53 s for 4-33 KB of
- * material — a call has a floor, so splitting is the expensive way to stay small. At 200_000 every
- * unit of the digest goes in one call (largest material: 179 KB) and the payload stays ~285 KB.
- */
-const READ_CHUNK_BUDGET_BYTES = 200_000;
-
-/** One attention slice of a reading unit — a chunk is one `read` call. */
-interface ReadChunk {
-  readonly index: number;
-  readonly files: readonly string[];
-  readonly payload: string;
-}
-
-/**
- * Split a reading unit's material into read-call chunks of ~`budget` bytes. Files keep the unit's
- * order; a single oversized file goes into a chunk alone. The material stays lossless: chunks are
- * sequential read calls, not a sampling of the unit.
- *
- * The weight is what the call actually carries: the unit payload, the bodies and the anchor pack of
- * each file (the fixed skeleton/prompt overhead — ~105 KB — sits on top of the budget, see
- * `READ_CHUNK_BUDGET_BYTES`).
- */
-export function chunkReadingUnit(
-  unit: DigestUnit,
-  bodyBytesByFile: ReadonlyMap<string, number>,
-  budget: number,
-  anchorBytesByFile: ReadonlyMap<string, number> = new Map(),
-): ReadChunk[] {
-  const entries = JSON.parse(unit.payload) as { path?: unknown }[];
-  const byPath = new Map<string, unknown[]>();
-  const order: string[] = [];
-  for (const entry of entries) {
-    const path = typeof entry.path === "string" ? entry.path : "";
-    const list = byPath.get(path);
-    if (list === undefined) {
-      byPath.set(path, [entry]);
-      order.push(path);
-    } else {
-      list.push(entry);
-    }
-  }
-  if (order.length <= 1) {
-    return [{ index: 0, files: [...unit.files], payload: unit.payload }];
-  }
-  const weightOf = (path: string): number =>
-    Buffer.byteLength(JSON.stringify(byPath.get(path) ?? []), "utf8") +
-    (bodyBytesByFile.get(path) ?? 0) +
-    (anchorBytesByFile.get(path) ?? 0);
-  const serialize = (files: readonly string[]): string =>
-    JSON.stringify(files.flatMap((file) => byPath.get(file) ?? []));
-  const chunks: ReadChunk[] = [];
-  let current: string[] = [];
-  let currentBytes = 0;
-  for (const path of order) {
-    const weight = weightOf(path);
-    if (current.length > 0 && currentBytes + weight > budget) {
-      chunks.push({ index: chunks.length, files: current, payload: serialize(current) });
-      current = [];
-      currentBytes = 0;
-    }
-    current.push(path);
-    currentBytes += weight;
-  }
-  if (current.length > 0) {
-    chunks.push({ index: chunks.length, files: current, payload: serialize(current) });
-  }
-  return chunks;
-}
-
-/**
- * Balanced unit anchors (E7.5): group by file, keep evidence-pack anchors first per file, cap
- * `MAX_ANCHORS_PER_FILE` per file and interleave files round-robin under `MAX_UNIT_ANCHORS` —
- * one noisy file (localization tables say) can no longer starve every other file of context.
- */
-function selectUnitAnchors(
-  anchors: readonly Anchor[],
-  evidenceIds: ReadonlySet<string>,
-): EvidenceAnchor[] {
-  const byFile = new Map<string, Anchor[]>();
-  for (const anchor of anchors) {
-    const list = byFile.get(anchor.file);
-    if (list === undefined) byFile.set(anchor.file, [anchor]);
-    else list.push(anchor);
-  }
-  const files = [...byFile.keys()].sort(compareStrings);
-  const queues = files.map((file) => {
-    const list = byFile.get(file) ?? [];
-    return list
-      .sort(
-        (a, b) =>
-          Number(evidenceIds.has(b.id)) - Number(evidenceIds.has(a.id)) ||
-          a.lineStart - b.lineStart ||
-          compareStrings(a.id, b.id),
-      )
-      .slice(0, MAX_ANCHORS_PER_FILE);
-  });
-  const cursors = queues.map(() => 0);
-  const selected: EvidenceAnchor[] = [];
-  let progressed = true;
-  while (progressed && selected.length < MAX_UNIT_ANCHORS) {
-    progressed = false;
-    for (let index = 0; index < queues.length; index++) {
-      const queue = queues[index];
-      const cursor = cursors[index];
-      if (queue === undefined || cursor === undefined) continue;
-      const next = queue[cursor];
-      if (next === undefined) continue;
-      cursors[index] = cursor + 1;
-      selected.push({
-        id: next.id,
-        ref: next.ref,
-        file: next.file,
-        lineStart: next.lineStart,
-        lineEnd: next.lineEnd,
-        kind: next.kind,
-        snippet: next.snippet,
-      });
-      progressed = true;
-      if (selected.length >= MAX_UNIT_ANCHORS) break;
-    }
-  }
-  return selected;
-}
 
 /** Progress event of one pipeline stage — what the server relays over SSE. */
 export interface PipelineStageEvent {
@@ -926,9 +764,6 @@ export async function runReviewPipeline(
 }
 
 /** Code-unit string compare — deterministic across platforms and locales. */
-function compareStrings(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /**
  * What one read call contributed. Reads run in a bounded pool (`mapBounded`), so a call may not
@@ -997,64 +832,4 @@ function normalizeConcurrency(value: number | undefined): number {
   if (value === undefined) return 1;
   if (!Number.isFinite(value) || value < 1) return 1;
   return Math.max(1, Math.floor(value));
-}
-
-/**
- * Fast repair gate for synthesize output: mechanically repairs fixable issues
- * (e.g., dropping invalid/false claims so statements survive) to avoid an expensive re-synthesis
- * round that could time out. Missing theme narratives are only filled on the final round, and the
- * filler says plainly that no narrative was written — never a generic sentence that reads like an
- * analysis the model never produced.
- */
-function fastRepairSynthesizeOutput(
-  raw: SynthesizeOutput,
-  index: FactIndex,
-  normalizedThemes: readonly NormalizedTheme[],
-  fillMissingThemes: boolean,
-): SynthesizeOutput | null {
-  let modified = false;
-
-  const findings = raw.findings.map((f) => {
-    if (f.claims && f.claims.length > 0) {
-      const validClaims = f.claims.filter((c) => {
-        try {
-          return evaluateClaim(c, index) === "true";
-        } catch {
-          return false;
-        }
-      });
-      if (validClaims.length !== f.claims.length) {
-        modified = true;
-        return {
-          ...f,
-          claims: validClaims,
-          confidence: f.confidence === "exact" ? ("inferred" as const) : f.confidence,
-        };
-      }
-    }
-    return f;
-  });
-
-  const themes = [...raw.themes];
-  if (fillMissingThemes) {
-    const presentThemeIds = new Set(raw.themes.map((theme) => theme.themeId));
-    for (const theme of normalizedThemes) {
-      if (presentThemeIds.has(theme.id)) continue;
-      modified = true;
-      themes.push({
-        themeId: theme.id,
-        summary: `No narrative was written for theme "${theme.name}" — see its carried findings.`,
-        behaviorChange: "Not stated by the model; the anchored findings describe what changed.",
-        watchFor: "Read this theme's files and verify the change in game.",
-        anchorIds: [],
-      });
-    }
-  }
-
-  if (!modified) return null;
-  return {
-    ...raw,
-    findings,
-    themes,
-  };
 }
