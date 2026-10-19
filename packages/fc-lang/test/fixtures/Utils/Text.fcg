@@ -1,0 +1,26 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Text.fcg
+
+  Deterministic string scoring for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Text {
+  _ALPHABET string = "abcdefghijklmnopqrstuvwxyz0123456789-"
+
+  func Score(input string) int {
+    var total int = 0
+    var length int = StdLibrary.Length(input)
+    for i = 0, length, 1 {
+      var ch string = StdLibrary.Sub(input, i, 1)
+      total = total + StdLibrary.Find(_ALPHABET, ch, 0) + 1
+    }
+    return total
+  }
+
+  func IsEmpty(input string) bool {
+    return StdLibrary.Length(input) == 0
+  }
+}

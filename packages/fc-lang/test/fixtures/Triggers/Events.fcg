@@ -1,0 +1,28 @@
+import "Systems/Combat.fcg" as Combat
+
+/**
+  Events.fcg
+
+  Sample trigger dispatch for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Events {
+  _HIT int = 101
+  _MISS int = 102
+
+  func Kind(landed bool) int {
+    if landed {
+      return _HIT
+    }
+    return _MISS
+  }
+
+  func IsHit(kind int) bool {
+    return kind == _HIT
+  }
+
+  func Lethal(damage int, health int) bool {
+    return Combat.IsLethal(damage, health)
+  }
+}

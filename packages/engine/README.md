@@ -9,7 +9,7 @@ eventually findings.
   (ragged rows, empty lines and the header are all preserved); every cell/row carries exact
   source coordinates (1-based lines, 0-based UTF-16 offsets) so UI anchors map 1:1 to files;
   malformed input (unterminated quotes) is reported in `anomalies`, never silently repaired.
-  Guarded by a checked-in 33-file corpus gate (`test/corpus`, provenance in its README).
+  Guarded by a checked-in 12-file CSV fixture gate (`test/fixtures/csv`).
 - **Facts (E2.3, v3 at E7.5)** — `buildFactBundle(sources)`: walks `fc-lang` ASTs of `.fcc`/`.fcg`
   sources into a deterministic `FactBundle` — symbols with scope/container, name references with
   name-level resolution (`resolved` / `ambiguous` / `unresolved` — never guessed), calls
@@ -21,21 +21,21 @@ eventually findings.
   numbers through, so a claim about a value must point at the fact that owns it.
   v3 adds `paramCount` on function/event symbols — the deterministic material for the call-arity
   check.
-  Guarded by a 245-file corpus gate plus engineered fixtures (`test/facts*.test.ts`).
+  Guarded by the FC fixture gate plus engineered fixtures (`test/facts*.test.ts`).
 - **Relations (E2.5)** — `buildRelations(bundle, { csvPaths })`: derives `name-refers-to-symbol`,
   `name-refers-to-import`, `call-name-resolves`, `call-receiver-import`, `import-statement`,
   `import-path-matches-file` and `string-names-csv` edges — each with exact spans, a confidence
   class (same-container/top-level bindings and literal facts are `exact`; cross-container
   fallback, import receivers and path-suffix matching are `inferred`) and a human-readable
   derivation chain. Unresolved or ambiguous sites produce no relation at all. Guarded by
-  engineered fixtures plus the 245-file corpus gate (`test/relations*.test.ts`).
+  engineered fixtures plus the FC fixture gate (`test/relations*.test.ts`).
 - **Delta (E2.4)** — `buildDeltaBundle({ before, after })`: identity-keyed A/B diff — symbols
   matched by `kind|container|name` (moved code keeps identity), container declarations reported
   as added/removed only, imports as a set diff, CSV rows keyed by trimmed first column
   (fallback `#row:<index>` for empty/duplicate keys) with changed column indexes and previews.
   Changed symbols also carry `beforeValue`/`afterValue` — the raw literal initializer from each
   side when one exists, honestly omitted otherwise (E7.1).
-  Guarded by engineered fixtures plus corpus-grounded mutations (`test/delta*.test.ts`).
+  Guarded by engineered fixtures plus fixture-grounded mutations (`test/delta*.test.ts`).
 - **Value Journey (E2.6)** — `buildJourney({ bundle, relations, origin })`: layered chains from
   a CSV table/row or a symbol — naming literals → binding symbol → use-sites → runtime
   containers, each node with a raw-faithful span, step confidence and derivation; cycles are
@@ -82,7 +82,7 @@ eventually findings.
   per-function truncation is counted in the manifest). A content-stable anchor registry
   (ref+file+line ids with git blob SHAs) and a manifest (budgets, counts, selection notes) ship
   with it; every number is computed here — never by a model. Guarded by engineered +
-  corpus-grounded tests (`test/digest*.test.ts`).
+  fixture-grounded tests (`test/digest*.test.ts`).
 
 ## Dev probes
 

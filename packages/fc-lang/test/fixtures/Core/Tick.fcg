@@ -1,0 +1,28 @@
+import "Utils/Math.fcg" as Math
+
+/**
+  Tick.fcg
+
+  Fixed-step tick helpers for the synthetic fixtures. No clocks: the caller
+  supplies the step count.
+  */
+
+[platform_server]
+static graph Tick {
+  _STEP_MS int = 250
+
+  func Advance(step int, limit int) int {
+    var elapsed int = 0
+    for i = 0, step, 1 {
+      if elapsed >= limit {
+        break
+      }
+      elapsed = elapsed + _STEP_MS
+    }
+    return elapsed
+  }
+
+  func Within(elapsed int, limit int) bool {
+    return elapsed < limit
+  }
+}

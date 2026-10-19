@@ -9,11 +9,9 @@
 /** Marker: the FC language layer in this package is a vendored upstream copy (not a stub). */
 export const FC_LANG_VENDORED = true;
 
-/** Upstream revision the vendored `src/` tree was copied from. Keep in sync with PROVENANCE.md. */
+/** Upstream package the vendored `src/` tree was copied from. Keep in sync with PROVENANCE.md. */
 export const FC_LANG_UPSTREAM = {
   package: "fc-format-v4",
   version: "0.4.0",
-  commit: "418d7d6f3764071669bd3b35a613b62680fbda00",
-  committedAt: "2026-10-15T17:10:45+07:00",
   syncedAt: "2026-10-16",
 } as const;

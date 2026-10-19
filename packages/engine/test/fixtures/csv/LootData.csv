@@ -1,0 +1,7 @@
+Id,SourceKey,ItemId,Quantity,Weight
+int,string,int,int,int
+00600,loot_common,00001,10,100
+00601,loot_uncommon,00001,50,40
+00602,loot_rare,00002,5,15
+00603,loot_epic,00003,1,5
+00604,loot_legendary,00004,1,1

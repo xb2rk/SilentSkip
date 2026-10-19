@@ -11,7 +11,7 @@ describe("database schema + migrations", () => {
 
     const id = randomUUID();
     db.insert(projects)
-      .values({ id, name: "SampleProject", rootPath: "C:/games/pvz", createdAt: new Date() })
+      .values({ id, name: "SampleProject", rootPath: "C:/games/example", createdAt: new Date() })
       .run();
 
     const row = db.select().from(projects).where(eq(projects.id, id)).get();

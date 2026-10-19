@@ -1,0 +1,6 @@
+Id,Key,Multiplier,Color
+int,string,float,string
+00800,element_none,1.0,#FFFFFF
+00801,element_ember,1.5,#FF5500
+00802,element_frost,1.25,#3399FF
+00803,element_volt,1.75,#FFDD00

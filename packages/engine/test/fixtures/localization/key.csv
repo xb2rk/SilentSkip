@@ -1,0 +1,9 @@
+Key,English,Vietnamese
+LanguageKey,en,vi
+GAME_NAME,Silent Garden,Vườn Tĩnh Lặng
+NAN,Placeholder,Placeholder
+ERROR_LOAD_FAILED,"Failed to load data, please retry.",Không thể tải dữ liệu, vui lòng thử lại.
+ERROR_SERVER_FULL,The server is full. Try again soon.,Máy chủ đã đầy. Vui lòng thử lại sau.
+MENU_START,Start,Bắt đầu
+MENU_SETTINGS,Settings,Cài đặt
+MENU_QUIT,Quit,Thoát

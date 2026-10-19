@@ -36,7 +36,10 @@ export function assertAddableProjectPath(input: string): string {
     throw new AppError(ErrorCodes.badRequest, "Đường dẫn không được để trống");
   }
   if (!isAbsolute(trimmed)) {
-    throw new AppError(ErrorCodes.badRequest, "Cần đường dẫn tuyệt đối (ví dụ C:\\…\\TenGame)");
+    throw new AppError(
+      ErrorCodes.badRequest,
+      "Cần đường dẫn tuyệt đối (ví dụ C:\\Projects\\MyGame)",
+    );
   }
   const normalized = normalizePath(trimmed);
   if (isRootPath(normalized)) {

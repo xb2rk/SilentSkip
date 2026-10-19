@@ -1,0 +1,22 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Inventory.fcc
+
+  Shared inventory vocabulary for the synthetic fixtures: physical slot names
+  and one typed stack record.
+  */
+
+enum SlotKind {
+  None = -1
+  Backpack = 0
+  Hotbar = 1
+  Chest = 2
+}
+
+tuple StackRecord {
+  Kind int = 0
+  ItemId int = 0
+  Count int = 0
+  Bound bool = false
+}

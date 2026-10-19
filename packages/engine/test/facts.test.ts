@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Engineered fixtures for the fact walkers. Sources use only constructs verified against the
- * checked-in corpus (real syntax), so a parse diagnostic here means the walker or fixture is
+ * checked-in fixtures (real syntax), so a parse diagnostic here means the walker or fixture is
  * wrong — never the grammar.
  */
 

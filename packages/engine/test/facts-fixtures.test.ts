@@ -5,12 +5,12 @@ import { buildFactBundle } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**
- * Corpus gate for the fact walkers: every checked-in FC source of the sample project
- * (245 files, the same corpus the vendored fc-lang gate uses) must walk without crashing,
+ * Fixture gate for the fact walkers: every checked-in synthetic FC fixture
+ * (15 files, the same set the vendored fc-lang gate uses) must walk without crashing,
  * keep every span raw-faithful, parse cleanly and build deterministically.
  */
 
-const corpusRoot = fileURLToPath(new URL("../../fc-lang/test/corpus", import.meta.url));
+const fixtureRoot = fileURLToPath(new URL("../../fc-lang/test/fixtures", import.meta.url));
 
 /** Collect `.fcc`/`.fcg` files recursively, sorted for deterministic iteration. */
 function collectFcFiles(directory: string): string[] {
@@ -23,19 +23,19 @@ function collectFcFiles(directory: string): string[] {
   return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-describe("FC corpus fact gate", () => {
-  const files = collectFcFiles(corpusRoot);
+describe("FC fixture fact gate", () => {
+  const files = collectFcFiles(fixtureRoot);
 
-  it("covers the full checked-in corpus", () => {
-    expect(files).toHaveLength(245);
+  it("covers the full checked-in fixture set", () => {
+    expect(files).toHaveLength(15);
   });
 
-  it("builds raw-faithful, deterministic facts for every corpus file", () => {
+  it("builds raw-faithful, deterministic facts for every fixture file", () => {
     let totalValues = 0;
     let totalComparisons = 0;
     for (const file of files) {
       const source = readFileSync(file, "utf8");
-      const path = relative(corpusRoot, file).split("\\").join("/");
+      const path = relative(fixtureRoot, file).split("\\").join("/");
       const bundle = buildFactBundle([{ path, source }]);
 
       for (const fileFacts of bundle.files) {

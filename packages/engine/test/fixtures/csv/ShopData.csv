@@ -1,0 +1,7 @@
+Id,ItemKey,Price,Currency,StockLimit,UnlockLevel
+int,string,int,string,int,int
+00400,pack_small,100,Coin,10,1
+00401,pack_medium,450,Coin,5,3
+00402,pack_large,1200,Coin,2,6
+00403,pack_scout,250,Gem,3,2
+00404,pack_guard,600,Gem,2,4

@@ -1,0 +1,26 @@
+import "Contracts/Inventory.fcc" as Inventory
+
+/**
+  Inventory.fcg
+
+  Sample slot allocation for the synthetic fixtures.
+  */
+
+static graph InventorySystem {
+  _CAPACITY int = 24
+  _EMPTY int = -1
+
+  func FirstFree(used int) int {
+    if used < 0 {
+      return _EMPTY
+    }
+    if used >= _CAPACITY {
+      return _EMPTY
+    }
+    return used
+  }
+
+  func Count(items int) int {
+    return items
+  }
+}

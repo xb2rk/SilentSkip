@@ -12,8 +12,7 @@ describe("pass I/O schemas (v2)", () => {
       findings: [
         {
           title: "Attack spike",
-          statement:
-            "scout atk rises from {{f:q:value|A|Assets/CSV/UnitData.csv|atk}} to 120",
+          statement: "scout atk rises from {{f:q:value|A|Assets/CSV/UnitData.csv|atk}} to 120",
           anchors: ["B:Assets/CSV/UnitData.csv:2:2:csv:r:scout:c:atk"],
           severity: "major",
           confidence: "exact",
@@ -65,7 +64,7 @@ describe("pass I/O schemas (v2)", () => {
     const output = {
       themes: [
         { name: "Combat refactor", files: ["Assets/Scripts/Server_Combat.fcg"] },
-        { name: "Special enemies", files: ["Assets/CSV/SpecialUnitData.csv"] },
+        { name: "Special enemys", files: ["Assets/CSV/SpecialUnitData.csv"] },
       ],
     };
     expect(MapOutputSchema.parse(output)).toEqual(output);

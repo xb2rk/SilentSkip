@@ -1,0 +1,21 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Stats.fcc
+
+  Numeric attribute vocabulary for the synthetic fixtures.
+  */
+
+enum Attribute {
+  Health = 0
+  Attack = 1
+  Defense = 2
+  Speed = 3
+}
+
+tuple AttributeVector {
+  Health int = 100
+  Attack int = 10
+  Defense int = 5
+  Speed int = 3
+}

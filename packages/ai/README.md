@@ -26,8 +26,8 @@ linker that gates every citation.
   (model drift → `AiError` `invalid-output`, never silent); `dig` resolves `needMore` queries
   deterministically (substring match against the full anchor registry → ≤40 focused anchors,
   exactly one round); `mergeReadOutputs`
-  dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (Sample
-  `e96f6ff→418d7d6f`): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
+  dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (sample
+  project): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
   7 unknowns / 3 answers — and the dig pass honestly reported its 3 unanswered queries.
 - **Citation verifier (E4.3)** — deterministic and model-independent; runs on every pass boundary
   inside `runReviewPipeline`. Checks per finding: cited anchor ids exist in the **full digest
@@ -37,7 +37,7 @@ linker that gates every citation.
   trace to engine metrics, the goal, or the cited snippets (token boundaries — `75` does not pass
   as `0.75`); quoted fragments must appear in the cited snippets. Nothing is silent: every strip
   and downgrade emits a `VerifyIssue` and moves a counter in `PipelineVerification`. Real run
-  (Sample `e96f6ff→418d7d6f`): the read pass stripped 3 truly unknown ids and honestly downgraded 3
+  (sample project): the read pass stripped 3 truly unknown ids and honestly downgraded 3
   findings; synthesize introduced 0 new anchors and stripped 0.
 - **Fallback + progress events (E4.4)** — `buildFallbackReport(digest, error)`: when the AI is
   unavailable (any `AiError` except cancellation) the run still completes with an honest
@@ -90,7 +90,7 @@ linker that gates every citation.
   comparison** (not a run) and survive new runs of the same pair; answers are in Vietnamese with
   evidence / speculation / unknowns blocks and a transparency line (ngữ cảnh: X dẫn chứng · Y ghim ·
   N lượt). Every turn persists (`turns` + `context_manifests.turnId`) and streams over SSE with
-  replay. Real smoke (Sample `refactor/localization→main`, 2 turns): grounded Vietnamese answer citing
+  replay. Real smoke (sample refactor range, 2 turns): grounded Vietnamese answer citing
   `SpecialUnitData.fcg:159`; follow-up carried `turns=1` + `pins=1` in its context and answered the
   spawn-flow question coherently.
 
@@ -103,7 +103,7 @@ linker that gates every citation.
 
 - **LOC-01 (E9)** shipped in the engine (shape-detected localization tables, exact multiset
   placeholders) together with the localization report page, git attribution, and the two-run
-  history compare; the eval corpus lands at E11. The E8 semantic checks and silent-skip surface
+  history compare; the eval fixture set lands at E11. The E8 semantic checks and silent-skip surface
   are shipped, and surfaces stay outside the prompts.
 
 ## Hard rules

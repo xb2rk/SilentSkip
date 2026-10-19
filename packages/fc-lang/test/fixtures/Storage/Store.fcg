@@ -1,0 +1,25 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Store.fcg
+
+  Sample storage keys for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Store {
+  _TABLE string = "Main"
+  _KEY string = "Main"
+
+  func Table() string {
+    return _TABLE
+  }
+
+  func Key() string {
+    return _KEY
+  }
+
+  func Same(a string, b string) bool {
+    return a == b
+  }
+}

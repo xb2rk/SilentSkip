@@ -1,0 +1,30 @@
+import "Contracts/Stats.fcc" as Stats
+import "Utils/Math.fcg" as Math
+
+/**
+  Combat.fcg
+
+  Sample combat resolution for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Combat {
+  _CRIT_MULT int = 2
+  _MIN_DAMAGE int = 1
+
+  func Damage(base int, bonus int) int {
+    var total int = base + bonus
+    if total < _MIN_DAMAGE {
+      return _MIN_DAMAGE
+    }
+    return total
+  }
+
+  func Crit(base int) int {
+    return base * _CRIT_MULT
+  }
+
+  func IsLethal(damage int, health int) bool {
+    return damage >= health
+  }
+}

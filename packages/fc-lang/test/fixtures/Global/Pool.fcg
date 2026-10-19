@@ -1,0 +1,27 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Pool.fcg
+
+  Sample object-pool arithmetic for the synthetic fixtures.
+  */
+
+static graph Pool {
+  _PREWARM int = 8
+  _MAX int = 64
+
+  func WarmCount() int {
+    return _PREWARM
+  }
+
+  func CanGrow(size int) bool {
+    return size < _MAX
+  }
+
+  func Next(size int) int {
+    if size < _MAX {
+      return size + 1
+    }
+    return _MAX
+  }
+}

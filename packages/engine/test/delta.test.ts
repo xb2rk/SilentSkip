@@ -1,6 +1,6 @@
 /**
  * DeltaBundle tests — engineered fixtures for every classification rule plus
- * two corpus-grounded mutations (a real `.fcg` field and a real CSV row) so
+ * two fixture-grounded mutations (a real `.fcg` field and a real CSV row) so
  * the rules are proven on genuine project data, not only toy inputs.
  */
 
@@ -198,10 +198,10 @@ describe("buildDeltaBundle — CSV tables", () => {
   });
 });
 
-describe("buildDeltaBundle — corpus ground truth", () => {
-  it("detects a changed field in a real corpus .fcg", () => {
+describe("buildDeltaBundle — fixture ground truth", () => {
+  it("detects a changed field in a checked-in .fcg fixture", () => {
     const path = fileURLToPath(
-      new URL("../../fc-lang/test/corpus/Utils/TextHash.fcg", import.meta.url),
+      new URL("../../fc-lang/test/fixtures/Utils/Math.fcg", import.meta.url),
     );
     const source = readFileSync(path, "utf8");
     const mutated = source.replaceAll("104729", "999983");
@@ -210,14 +210,14 @@ describe("buildDeltaBundle — corpus ground truth", () => {
     expect(file.symbolsChanged.map((c) => c.name)).toEqual(["_MOD"]);
   });
 
-  it("detects a changed row in a real corpus CSV", () => {
-    const path = fileURLToPath(new URL("./corpus/csv/UnitData.csv", import.meta.url));
+  it("detects a changed row in a checked-in CSV fixture", () => {
+    const path = fileURLToPath(new URL("./fixtures/csv/UnitData.csv", import.meta.url));
     const source = readFileSync(path, "utf8");
     const lines = source.split("\n");
     let last = lines.length - 1;
     while (last >= 0 && (lines[last] ?? "").trim() === "") last--;
     const target = (lines[last] ?? "").replace(/\r$/, "");
-    if (target === "") throw new Error("corpus CSV unexpectedly empty");
+    if (target === "") throw new Error("fixture CSV unexpectedly empty");
     const mutated = [...lines.slice(0, last), `${target},999`, ...lines.slice(last + 1)].join("\n");
 
     const table = onlyTable(

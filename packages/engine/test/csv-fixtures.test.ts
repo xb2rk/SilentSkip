@@ -6,12 +6,12 @@ import { describe, expect, it } from "vitest";
 import { expectRawFaithful } from "./helpers/invariants.js";
 
 /**
- * Corpus gate for the CSV parser: every checked-in CSV of the sample project (31 config
+ * Fixture gate for the CSV parser: every checked-in synthetic CSV fixture (10 config
  * tables + 2 localization tables) must parse raw-faithfully and deterministically.
- * See `test/corpus/README.md` for provenance.
+ * See `test/fixtures/README.md` for details.
  */
 
-const corpusRoot = fileURLToPath(new URL("./corpus", import.meta.url));
+const fixtureRoot = fileURLToPath(new URL("./fixtures", import.meta.url));
 
 /** Collect `.csv` files recursively, sorted for deterministic iteration. */
 function collectCsvFiles(directory: string): string[] {
@@ -24,14 +24,14 @@ function collectCsvFiles(directory: string): string[] {
   return files.sort((a, b) => a.localeCompare(b, "en"));
 }
 
-describe("CSV corpus gate", () => {
-  const files = collectCsvFiles(corpusRoot);
+describe("CSV fixture gate", () => {
+  const files = collectCsvFiles(fixtureRoot);
 
-  it("covers the full checked-in corpus", () => {
-    expect(files).toHaveLength(33);
+  it("covers the full checked-in fixture set", () => {
+    expect(files).toHaveLength(12);
   });
 
-  it("parses every corpus file raw-faithfully and deterministically", () => {
+  it("parses every fixture file raw-faithfully and deterministically", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       const table = parseCsv(source);

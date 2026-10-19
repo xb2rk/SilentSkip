@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * E8 hardening gate: every injected defect must surface as its owning deterministic rule,
- * and a clean corpus must produce zero findings. This runs the real digest pipeline
+ * and clean inputs must produce zero findings. This runs the real digest pipeline
  * (facts, delta, relations, checks, surfaces), not individual helpers.
  */
 
@@ -413,7 +413,7 @@ const CLEAN_REFACTOR_AFTER = [
   "",
 ].join("\n");
 
-describe("E8 hardening gate - clean corpus (0 false positives)", () => {
+describe("E8 hardening gate - clean fixtures (0 false positives)", () => {
   it("an unchanged localization table is silent", () => {
     const localization = "Key,English,Vietnamese\nHELLO,Hello,Xin chào\n";
     const result = digest(
@@ -436,13 +436,13 @@ describe("E8 hardening gate - clean corpus (0 false positives)", () => {
     expect(result.findings).toEqual([]);
   });
 
-  it("the checked-in Sample CSV corpus is silent when unchanged", () => {
-    const directory = fileURLToPath(new URL("./corpus/csv", import.meta.url));
+  it("the checked-in CSV fixtures are silent when unchanged", () => {
+    const directory = fileURLToPath(new URL("./fixtures/csv", import.meta.url));
     const files: Files = {};
     for (const name of readdirSync(directory)) {
       files[`Assets/CSV/${name}`] = readFileSync(`${directory}/${name}`, "utf8");
     }
-    expect(Object.keys(files).length).toBeGreaterThanOrEqual(30);
+    expect(Object.keys(files).length).toBeGreaterThanOrEqual(10);
     const result = digest(files, files);
     expect(result.findings).toEqual([]);
   });

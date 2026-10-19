@@ -48,8 +48,8 @@ least two header cells must be known language names (English, Vietnamese, Thai, 
 Simplified Chinese, Indonesian, Brazilian Portuguese, Spanish, Russian, French, German, Turkish,
 Hindi, Arabic, Bengali, Malay, Burmese, Urdu, Romanian, Japanese, Korean, Italian, Portuguese).
 The source column is English when present, otherwise the first known language. A row whose trimmed
-key is `LanguageKey` is treated as metadata and skipped; hand-verified on Sample (`LanguageKey` row)
-and harmless on SpeedyRace (no such row).
+key is `LanguageKey` is treated as metadata and skipped; hand-verified on a project whose table
+carries a `LanguageKey` metadata row, and harmless on one without such a row.
 
 Observations are exact and multiset-based: placeholder tokens (`{0}`, `%s`, `%1$d`) are compared
 as multisets after ignoring color tags, duplicate keys are counted on the trimmed key, and empty
@@ -162,7 +162,7 @@ findings do reach the AI as engine findings, with `effectConfidence` attached.
 (each must surface as its owning rule: STRUCT-01/02/03, TYPE-01, BIND-01/02/03, DRIFT-01, REF-01/02,
 DANGLING-REF, CALL-ARITY-01, ORPHAN-ADD-01) plus 4 clean cases that must yield zero findings: a
 value-only CSV change behind a named loader, a rename with both call and definition updated, the
-checked-in 31-file Sample CSV corpus unchanged, and an `EResCSV` link that only activates with
+checked-in 10-file CSV fixtures unchanged, and an `EResCSV` link that only activates with
 editorGen indexing enabled.
 
 ```bash

@@ -184,10 +184,7 @@ describe("silent-skip surfaces", () => {
   });
 
   it("records a ragged row as an inferred length-guard skip", () => {
-    const result = surfaces(
-      table("id,atk\nscout,100\n"),
-      table("id,atk\nscout,100\nguard\n"),
-    );
+    const result = surfaces(table("id,atk\nscout,100\n"), table("id,atk\nscout,100\nguard\n"));
     const entry = result.delta.newSilent.find((item) => item.mechanism === "length_guard");
     expect(entry).toBeDefined();
     expect(entry?.rowKey).toBe("guard");
@@ -249,7 +246,7 @@ describe("silent-skip surfaces", () => {
   it("records enum_fallback for a value outside the pinned enum", () => {
     const script = {
       path: "Assets/Scripts/Kinds.fcc",
-      source: "enum EKind {\n  Unit = 0\n  enemy = 1\n}\n",
+      source: "enum EKind {\n  Unit = 0\n  Enemy = 1\n}\n",
     };
     const before = [script, ...table("id,kind\nPea,Unit\n")];
     const after = [script, ...table("id,kind\nPea,Boss\n")];

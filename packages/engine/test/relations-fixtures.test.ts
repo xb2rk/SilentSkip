@@ -5,12 +5,12 @@ import { buildFactBundle, buildRelations } from "@silentskip/engine";
 import { describe, expect, it } from "vitest";
 
 /**
- * Corpus gate for the relation builder: every checked-in FC source must produce relations
- * without crashing, every relation must carry a non-empty derivation chain, and the build
- * must be deterministic. Intra-file relations only (no CSV paths, single-file bundles).
+ * Fixture gate for the relation builder: every checked-in synthetic FC fixture must produce
+ * relations without crashing, every relation must carry a non-empty derivation chain, and the
+ * build must be deterministic. Intra-file relations only (no CSV paths, single-file bundles).
  */
 
-const corpusRoot = fileURLToPath(new URL("../../fc-lang/test/corpus", import.meta.url));
+const fixtureRoot = fileURLToPath(new URL("../../fc-lang/test/fixtures", import.meta.url));
 
 /** Collect `.fcc`/`.fcg` files recursively, sorted for deterministic iteration. */
 function collectFcFiles(directory: string): string[] {
@@ -23,14 +23,14 @@ function collectFcFiles(directory: string): string[] {
   return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-describe("FC corpus relation gate", () => {
-  const files = collectFcFiles(corpusRoot);
+describe("FC fixture relation gate", () => {
+  const files = collectFcFiles(fixtureRoot);
 
-  it("builds derived, deterministic relations for every corpus file", () => {
+  it("builds derived, deterministic relations for every fixture file", () => {
     let totalRelations = 0;
     for (const file of files) {
       const source = readFileSync(file, "utf8");
-      const path = relative(corpusRoot, file).split("\\").join("/");
+      const path = relative(fixtureRoot, file).split("\\").join("/");
       const bundle = buildFactBundle([{ path, source }]);
       const first = buildRelations(bundle, { csvPaths: [] });
       const second = buildRelations(bundle, { csvPaths: [] });

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Engineered fixtures for the relation builder. Sources use only constructs verified against
- * the checked-in corpus; a parse diagnostic here means a fixture is wrong, never the grammar.
+ * the checked-in fixtures; a parse diagnostic here means a fixture is wrong, never the grammar.
  */
 
 const LIST_FCC = `import "StdLibrary.fcc" as StdLibrary
@@ -24,7 +24,7 @@ enum Element {
 func GetBaseATK(id int) int
 `;
 
-const PLANT_DATA_FCG = `import "../Contracts/List.fcc" as List
+const UNIT_DATA_FCG = `import "../Contracts/List.fcc" as List
 import "Strings.fcc" as Strings
 import HashString from "../Utils/TextHash.fcg"
 
@@ -66,7 +66,7 @@ const CSV_PATHS = ["Assets/CSV/UnitData.csv", "Assets/CSV/Other.csv"];
 function buildFixtureBundle(): FactBundle {
   return buildFactBundle([
     { path: "Contracts/List.fcc", source: LIST_FCC },
-    { path: "Data/UnitData.fcg", source: PLANT_DATA_FCG },
+    { path: "Data/UnitData.fcg", source: UNIT_DATA_FCG },
     { path: "Utils/TextHash.fcg", source: TEXT_HASH_FCG },
   ]);
 }
@@ -204,11 +204,11 @@ describe("buildRelations — names_csv", () => {
   const relations = buildFixtureRelations();
 
   it("links a literal filename to exactly one CSV table (exact)", () => {
-    const plantCsv = relations.find(
+    const unitCsv = relations.find(
       (r) => r.ruleId === "string-names-csv" && r.to.file === "Assets/CSV/UnitData.csv",
     );
-    expect(plantCsv?.confidence).toBe("exact");
-    expect(plantCsv?.from.file).toBe("Data/UnitData.fcg");
+    expect(unitCsv?.confidence).toBe("exact");
+    expect(unitCsv?.from.file).toBe("Data/UnitData.fcg");
   });
 
   it("produces no relation for a filename with no match", () => {

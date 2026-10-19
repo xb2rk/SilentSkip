@@ -157,13 +157,13 @@ recipes.
 
 `pnpm verify` (typecheck + lint + tests + build) must be green before every commit.
 
-Correctness is additionally gated by checked-in corpora and eval suites:
+Correctness is additionally gated by checked-in fixtures and eval suites:
 
-- the 245-file fc-lang corpus — every file must parse, format, reparse and keep its semantic
+- the fc-lang fixture set — every file must parse, format, reparse and keep its semantic
   fingerprint;
 - the engine hardening gate (`packages/engine/test/eval.test.ts`) — 20 injected defects must each
-  surface as their owning check, and 4 clean cases (including the unchanged checked-in 31-file
-  Sample CSV corpus) must yield zero findings.
+  surface as their owning check, and 4 clean cases (including the unchanged checked-in 10-file
+  CSV fixtures) must yield zero findings.
 
 ## Documentation map
 

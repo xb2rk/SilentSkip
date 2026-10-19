@@ -1,20 +1,19 @@
 import { readFileSync } from "node:fs";
 import { formatSource, lex, parseGraphFile, parseHeaderFile } from "@silentskip/fc-lang";
 import { describe, expect, it } from "vitest";
-import { collectCorpusFiles } from "./helpers/corpus.js";
+import { collectFixtureFiles } from "./helpers/fixtures.js";
 import { semanticFingerprint } from "./helpers/semantic-fingerprint.js";
 
 /**
- * Corpus gate for the vendored toolchain (adapted from upstream, see PROVENANCE.md).
+ * Fixture gate for the vendored toolchain (adapted from upstream, see PROVENANCE.md).
  *
- * The vendored language layer must handle every checked-in FC source of the sample project
- * (245 files) exactly as upstream promises: parse without diagnostics, consume through EOF,
- * format idempotently, and preserve semantics. This is the universality proof that the
- * engine can later walk *any* real-world FC file without crashing.
+ * The vendored language layer must handle every checked-in synthetic FC fixture: parse
+ * without diagnostics, consume through EOF, format idempotently, and preserve semantics.
+ * This is the regression proof that the engine can walk real-world FC files without crashing.
  */
-describe("formatter corpus gate (vendored)", () => {
-  it("formats, reparses, and stabilizes every checked-in FC source", () => {
-    const files = collectCorpusFiles();
+describe("formatter fixture gate (vendored)", () => {
+  it("formats, reparses, and stabilizes every checked-in FC fixture", () => {
+    const files = collectFixtureFiles();
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const source = readFileSync(file, "utf8");

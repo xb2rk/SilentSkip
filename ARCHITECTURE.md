@@ -216,4 +216,4 @@ the in-repo summary:
 | 3 | Deep CSV facts | E7 | shipped |
 | 4 | Semantic layer + silent-skip surface | E8 | shipped |
 | 5 | Localization, attribution, recompute, export | E9–E10 | E9 shipped, E10 next |
-| 6 | Hardening & packaging (incl. eval corpus) | E11 | planned |
+| 6 | Hardening & packaging (incl. eval set) | E11 | planned |

@@ -1,0 +1,8 @@
+Id,Key,Kind,CooldownMs,Power,Description
+int,string,string,int,float,string
+00200,skill_burst,Active,3000,1.5,"Hits every nearby target, once"
+00201,skill_shield,Active,8000,2.0,"Raises a temporary barrier"
+00202,skill_haste,Passive,0,1.1,"Shortens the attack interval"
+00203,skill_focus,Passive,0,1.25,"Raises critical chance"
+00204,skill_mend,Active,12000,3.0,"Restores health over time, slowly"
+00205,skill_pierce,Passive,0,1.4,"Ignores part of target defense"

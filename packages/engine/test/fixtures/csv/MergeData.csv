@@ -1,0 +1,7 @@
+Id,Tier,RequiresCount,ResultKey,PowerBonus
+int,int,int,string,float
+00300,1,2,unit_scout_plus,1.2
+00301,2,2,unit_guard_plus,1.35
+00302,3,3,unit_raider_plus,1.5
+00303,4,3,unit_artillery_plus,1.75
+00304,5,4,unit_fortress_plus,2.0

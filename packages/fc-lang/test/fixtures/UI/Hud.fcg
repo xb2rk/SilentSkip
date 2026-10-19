@@ -1,0 +1,24 @@
+import "Core/Boot.fcg" as Boot
+
+/**
+  Hud.fcg
+
+  Sample HUD formatting for the synthetic fixtures.
+  */
+
+[platform_client]
+static graph Hud {
+  _LABEL string = "ready"
+  _SCALE float = 1.5
+
+  func Label(ready bool) string {
+    if ready {
+      return _LABEL
+    }
+    return "busy"
+  }
+
+  func Scale() float {
+    return _SCALE
+  }
+}

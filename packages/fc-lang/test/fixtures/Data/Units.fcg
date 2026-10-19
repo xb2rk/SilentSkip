@@ -1,0 +1,25 @@
+import "Contracts/Stats.fcc" as Stats
+
+/**
+  Units.fcg
+
+  Sample unit-table reader for the synthetic fixtures.
+  */
+
+static graph Units {
+  _PATH string = "UnitData.csv"
+  _DEFAULT_ATTACK int = 10
+  _DEFAULT_HEALTH int = 100
+
+  func BaseAttack() int {
+    return _DEFAULT_ATTACK
+  }
+
+  func BaseHealth() int {
+    return _DEFAULT_HEALTH
+  }
+
+  func IsDurable(health int) bool {
+    return health > 500
+  }
+}

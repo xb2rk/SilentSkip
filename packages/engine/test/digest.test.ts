@@ -232,19 +232,19 @@ describe("buildDigest", () => {
     expect(digest.manifest.notes.some((note) => note.includes("Removed origins"))).toBe(true);
   });
 
-  it("builds a valid digest from real corpus files", () => {
+  it("builds a valid digest from checked-in fixtures", () => {
     const textHash = readFileSync(
-      new URL("../../fc-lang/test/corpus/Utils/TextHash.fcg", import.meta.url),
+      new URL("../../fc-lang/test/fixtures/Utils/Math.fcg", import.meta.url),
       "utf8",
     );
-    const plantData = readFileSync(new URL("./corpus/csv/UnitData.csv", import.meta.url), "utf8");
+    const unitData = readFileSync(new URL("./fixtures/csv/UnitData.csv", import.meta.url), "utf8");
     const digest = buildDigest({
       base: {
         ref: "main",
         commitHash: "b".repeat(40),
         sources: [
           { path: "Assets/Scripts/Utils/TextHash.fcg", source: textHash },
-          { path: "Assets/CSV/UnitData.csv", source: plantData },
+          { path: "Assets/CSV/UnitData.csv", source: unitData },
         ],
       },
       current: {
@@ -255,7 +255,7 @@ describe("buildDigest", () => {
             path: "Assets/Scripts/Utils/TextHash.fcg",
             source: textHash.replaceAll("104729", "999983"),
           },
-          { path: "Assets/CSV/UnitData.csv", source: `${plantData.replace(/\r?\n$/u, "")},999\n` },
+          { path: "Assets/CSV/UnitData.csv", source: `${unitData.replace(/\r?\n$/u, "")},999\n` },
         ],
       },
     });

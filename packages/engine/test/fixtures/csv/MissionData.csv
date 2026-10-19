@@ -1,0 +1,7 @@
+Id,Key,GoalType,GoalCount,RewardItemId,RewardQty
+int,string,string,int,int,int
+00500,mission_first_win,Wins,1,00001,50
+00501,mission_collect_units,Collect,5,00001,120
+00502,mission_merge_once,Merge,1,00002,10
+00503,mission_spend_coins,Spend,500,00001,200
+00504,mission_reach_level,Reach,3,00003,1

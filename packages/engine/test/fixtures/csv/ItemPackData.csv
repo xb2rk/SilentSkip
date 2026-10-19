@@ -1,0 +1,5 @@
+Id,Key,ItemId,Quantity,Price
+int,string,int,int,int
+01000,pack_scout_bundle,00100,5,120
+01001,pack_guard_bundle,00101,5,240
+01002,pack_mixed_bundle,00001,100,90

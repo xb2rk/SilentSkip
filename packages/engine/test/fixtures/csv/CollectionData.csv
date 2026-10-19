@@ -1,0 +1,7 @@
+Id,Key,UnlockItemId,ClaimRewardId,ClaimQty
+int,string,int,int,int
+00900,collection_scout,00100,00001,20
+00901,collection_guard,00101,00001,20
+00902,collection_raider,00102,00002,5
+00903,collection_artillery,00103,00002,5
+00904,collection_fortress,00104,00003,1

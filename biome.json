@@ -9,7 +9,7 @@
       "!**/.turbo",
       "!**/coverage",
       "!**/fc-lang/src",
-      "!**/fc-lang/test/corpus"
+      "!**/fc-lang/test/fixtures"
     ]
   },
   "formatter": {

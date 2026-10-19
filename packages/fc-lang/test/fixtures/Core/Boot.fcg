@@ -1,0 +1,25 @@
+import "Contracts/Inventory.fcc" as Inventory
+
+/**
+  Boot.fcg
+
+  Deterministic boot computations for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Boot {
+  _MAX_SLOTS int = 24
+  _RESERVED int = 4
+
+  func UsableSlots() int {
+    var total int = _MAX_SLOTS - _RESERVED
+    if total < 0 {
+      return 0
+    }
+    return total
+  }
+
+  func IsFull(count int) bool {
+    return count >= _MAX_SLOTS
+  }
+}

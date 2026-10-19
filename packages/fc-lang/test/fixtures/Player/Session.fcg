@@ -1,0 +1,29 @@
+import "Contracts/Inventory.fcc" as Inventory
+
+/**
+  Session.fcg
+
+  Sample session lifecycle for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Session {
+  _READY int = 0
+  _ACTIVE int = 1
+  _DRAINING int = 2
+
+  func CanWrite(state int) bool {
+    return state == _ACTIVE
+  }
+
+  func IsClosed(state int) bool {
+    return state >= _DRAINING
+  }
+
+  func Next(state int) int {
+    if state < _READY {
+      return _READY
+    }
+    return state
+  }
+}

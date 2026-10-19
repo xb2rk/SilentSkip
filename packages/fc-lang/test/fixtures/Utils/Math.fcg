@@ -1,0 +1,27 @@
+import "StdLibrary.fcc" as StdLibrary
+
+/**
+  Math.fcg
+
+  Deterministic integer helpers for the synthetic fixtures.
+  */
+
+[platform_server]
+static graph Math {
+  _MOD int = 104729
+  _SCALE int = 31
+
+  func Clamp(value int, low int, high int) int {
+    if value < low {
+      return low
+    }
+    if value > high {
+      return high
+    }
+    return value
+  }
+
+  func Fold(hash int, score int) int {
+    return (hash * _SCALE + score) % _MOD
+  }
+}
