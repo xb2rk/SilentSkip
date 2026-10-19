@@ -322,6 +322,40 @@ describe("runReviewPipeline v2", () => {
     expect(result.report.verdict).toBe("needs_review");
   });
 
+  it("salvages findings with failing claims via Fast Repair Gate on final synthesize round", async () => {
+    const findingWithBadClaim = {
+      title: "Script constant",
+      statement: "The constant changed",
+      anchors: [ANCHOR_B_MOD],
+      severity: "major" as const,
+      confidence: "exact" as const,
+      claims: [
+        {
+          subject: "q:value|A|Assets/Scripts/Config.fcg|_MOD",
+          relation: "equals" as const,
+          object: "q:value|B|Assets/Scripts/Config.fcg|_MOD",
+        },
+      ],
+    };
+    const reportWithBadClaim = report([findingWithBadClaim], GOOD_REPORT.themes);
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: reportWithBadClaim as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    expect(result.report.verdict).toBe("needs_review");
+    expect(result.report.findings).toHaveLength(1);
+    expect(result.report.findings[0]?.confidence).toBe("inferred");
+    expect(result.report.findings[0]?.claims).toHaveLength(0);
+  });
+
   it("answers reading queries through one dig round", async () => {
     const scripted = scriptedRunner({
       map: MAP_OUTPUT as unknown as ScriptValue,

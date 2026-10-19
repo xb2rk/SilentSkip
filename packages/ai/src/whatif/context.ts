@@ -5,10 +5,32 @@ import { buildFactIndex, type FactIndex } from "../facts/fact-index.js";
 import type { InseaAttachment } from "../insea/types.js";
 
 /** Evidence budget of one What-If call (attention economy; the digest registry stays authority). */
-export const WHATIF_EVIDENCE_BUDGET = 400;
+export const WHATIF_EVIDENCE_BUDGET = 200;
 /** Ledger limits — the session memory stays small enough to always ride along. */
 export const LEDGER_CLAIM_LIMIT = 30;
 export const LEDGER_ANCHOR_LIMIT = 20;
+
+/**
+ * Extract semantic search tokens from a question (length >= 3, excluding stopwords).
+ */
+export function extractQuestionKeywords(question: string): string[] {
+  const STOPWORDS = new Set([
+    "the", "and", "for", "with", "from", "that", "this", "what", "which",
+    "when", "where", "why", "how", "did", "does", "done", "have", "has",
+    "had", "are", "were", "was", "been", "being", "into", "over", "about",
+    "tại", "sao", "cho", "của", "trong", "với", "được", "không", "những",
+    "nào", "thế", "này", "đang", "thay", "đổi", "biến", "động", "kiểm", "tra",
+  ]);
+  return [
+    ...new Set(
+      question
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}_./-]+/gu, " ")
+        .split(/\s+/)
+        .filter((token) => token.length >= 3 && !STOPWORDS.has(token)),
+    ),
+  ];
+}
 
 /**
  * Mechanically composed session memory — no AI summarization call. After each linked answer
@@ -93,7 +115,7 @@ export interface WhatIfContext {
 
 /**
  * Build the per-message context: fact store + evidence pack (pins and ledger anchors boosted
- * to tier -1 so they are always present) + mechanical memory (ledger + recent turns).
+ * to tier -2, question keywords boosted to tier -1) + mechanical memory (ledger + recent turns).
  */
 export function buildWhatIfContext(input: WhatIfContextInput): WhatIfContext {
   const digest = input.digest;
@@ -103,7 +125,25 @@ export function buildWhatIfContext(input: WhatIfContextInput): WhatIfContext {
     ...input.pins.map((pin) => pin.anchorId),
     ...input.ledger.anchors,
   ]);
-  for (const id of pinnedIds) priorities.set(id, -1);
+  for (const id of pinnedIds) priorities.set(id, -2);
+
+  const keywords = extractQuestionKeywords(input.question);
+  if (keywords.length > 0) {
+    for (const anchor of allEvidence) {
+      if (pinnedIds.has(anchor.id)) continue;
+      const fileLower = anchor.file.toLowerCase();
+      const snippetLower = anchor.snippet.toLowerCase();
+      const idLower = anchor.id.toLowerCase();
+      if (
+        keywords.some(
+          (kw) => fileLower.includes(kw) || snippetLower.includes(kw) || idLower.includes(kw),
+        )
+      ) {
+        priorities.set(anchor.id, -1);
+      }
+    }
+  }
+
   const evidence = selectEvidence(allEvidence, priorities, WHATIF_EVIDENCE_BUDGET);
   const anchorsById = new Map(allEvidence.map((anchor) => [anchor.id, anchor]));
   const taskPack: TaskPack = {
@@ -178,18 +218,14 @@ export function serializeWhatIfTaskFile(context: WhatIfContext): InseaAttachment
   return attachment(
     "task.json",
     "application/json",
-    JSON.stringify(
-      {
-        mode: "whatif",
-        refs: {
-          base: { ref: context.taskPack.baseRef, commitHash: context.taskPack.baseCommit },
-          current: { ref: context.taskPack.currentRef, commitHash: context.taskPack.currentCommit },
-        },
-        stats: context.taskPack.stats,
+    JSON.stringify({
+      mode: "whatif",
+      refs: {
+        base: { ref: context.taskPack.baseRef, commitHash: context.taskPack.baseCommit },
+        current: { ref: context.taskPack.currentRef, commitHash: context.taskPack.currentCommit },
       },
-      null,
-      2,
-    ),
+      stats: context.taskPack.stats,
+    }),
   );
 }
 
@@ -198,14 +234,10 @@ export function serializeWhatIfFactsFile(context: WhatIfContext): InseaAttachmen
   return attachment(
     "facts.json",
     "application/json",
-    JSON.stringify(
-      {
-        quantities: [...context.factIndex.quantities.values()],
-        engineFindings: context.engineFindings,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      quantities: [...context.factIndex.quantities.values()],
+      engineFindings: context.engineFindings,
+    }),
   );
 }
 
@@ -214,7 +246,7 @@ export function serializeWhatIfHistoryFile(context: WhatIfContext): InseaAttachm
   return attachment(
     "history.json",
     "application/json",
-    JSON.stringify({ ledger: context.ledger, recentTurns: context.recentTurns }, null, 2),
+    JSON.stringify({ ledger: context.ledger, recentTurns: context.recentTurns }),
   );
 }
 
@@ -241,14 +273,10 @@ export function serializeWhatIfReportFile(context: WhatIfContext): InseaAttachme
   return attachment(
     "report.json",
     "application/json",
-    JSON.stringify(
-      {
-        verdict: context.runSummary?.verdict ?? null,
-        qualityScore: context.runSummary?.qualityScore ?? null,
-        report: context.runSummary?.report ?? null,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      verdict: context.runSummary?.verdict ?? null,
+      qualityScore: context.runSummary?.qualityScore ?? null,
+      report: context.runSummary?.report ?? null,
+    }),
   );
 }

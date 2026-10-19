@@ -114,19 +114,15 @@ export function serializeTaskFile(context: ReviewContext): InseaAttachment {
   return attachment(
     "task.json",
     "application/json",
-    JSON.stringify(
-      {
-        refs: {
-          base: { ref: taskPack.baseRef, commitHash: taskPack.baseCommit },
-          current: { ref: taskPack.currentRef, commitHash: taskPack.currentCommit },
-        },
-        stats: taskPack.stats,
-        goal: taskPack.goal,
-        lens: taskPack.lens,
+    JSON.stringify({
+      refs: {
+        base: { ref: taskPack.baseRef, commitHash: taskPack.baseCommit },
+        current: { ref: taskPack.currentRef, commitHash: taskPack.currentCommit },
       },
-      null,
-      2,
-    ),
+      stats: taskPack.stats,
+      goal: taskPack.goal,
+      lens: taskPack.lens,
+    }),
   );
 }
 
@@ -134,9 +130,9 @@ export function serializeTaskFile(context: ReviewContext): InseaAttachment {
 export function serializeContextFiles(context: ReviewContext): InseaAttachment[] {
   return [
     serializeTaskFile(context),
-    attachment("changes.json", "application/json", JSON.stringify(context.changeFacts, null, 2)),
-    attachment("journeys.json", "application/json", JSON.stringify(context.linked, null, 2)),
-    attachment("context.json", "application/json", JSON.stringify(context.contextItems, null, 2)),
+    attachment("changes.json", "application/json", JSON.stringify(context.changeFacts)),
+    attachment("journeys.json", "application/json", JSON.stringify(context.linked)),
+    attachment("context.json", "application/json", JSON.stringify(context.contextItems)),
     attachment("anchors.jsonl", "application/x-ndjson", serializeAnchorsJsonl(context.evidence)),
   ];
 }
@@ -223,14 +219,10 @@ export function serializeFactsFile(
   return attachment(
     "facts.json",
     "application/json",
-    JSON.stringify(
-      {
-        quantities: context.quantities.filter((quantity) => fileSet.has(quantity.file)),
-        engineFindings: findings,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      quantities: context.quantities.filter((quantity) => fileSet.has(quantity.file)),
+      engineFindings: findings,
+    }),
   );
 }
 
@@ -257,7 +249,7 @@ export function serializeThemesFile(
     readonly files: readonly string[];
   }[],
 ): InseaAttachment {
-  return attachment("themes.json", "application/json", JSON.stringify(themes, null, 2));
+  return attachment("themes.json", "application/json", JSON.stringify(themes));
 }
 
 /** Build the Insea `Manifest` field — exactly what was sent, with real byte sizes. */

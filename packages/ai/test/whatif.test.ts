@@ -4,6 +4,7 @@ import {
   buildWhatIfContext,
   buildWhatIfPrompt,
   emptyWhatIfLedger,
+  extractQuestionKeywords,
   linkAnswer,
   PROMPT_VERSIONS,
   parseWhatIfLedger,
@@ -48,6 +49,20 @@ describe("what-if context", () => {
   it("boosts pinned anchors to the front of the evidence pack", () => {
     const context = build({ pins: [{ anchorId: ANCHOR_A_ATK, note: "theo dõi" }] });
     expect(context.evidence[0]?.id).toBe(ANCHOR_A_ATK);
+  });
+
+  it("extracts keywords ignoring stopwords and punctuation", () => {
+    const keywords = extractQuestionKeywords("Tại sao _MOD lại bị thay đổi trong Config.fcg?");
+    expect(keywords).toContain("_mod");
+    expect(keywords).toContain("config.fcg");
+    expect(keywords).not.toContain("tại");
+    expect(keywords).not.toContain("sao");
+    expect(keywords).not.toContain("trong");
+  });
+
+  it("boosts question-matching anchors ahead of standard tiers", () => {
+    const context = build({ question: "Điều gì xảy ra với scout?" });
+    expect(context.evidence[0]?.snippet).toContain("scout");
   });
 });
 

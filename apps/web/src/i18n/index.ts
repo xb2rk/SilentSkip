@@ -11,7 +11,7 @@ const resources = {
       app: {
         product: "SilentSkip",
         tagline: "Game Review & Ops",
-        phase: "Phase 1 · AI review",
+        phase: "v2.0 · AI Engine Active",
       },
       nav: {
         group: { main: "Chính", library: "Thư viện", system: "Hệ thống" },

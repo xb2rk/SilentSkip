@@ -82,7 +82,7 @@ export async function runDigPass(
     {
       uploadName: "queries.json",
       mimeType: "application/json",
-      content: JSON.stringify(focused.queries, null, 2),
+      content: JSON.stringify(focused.queries),
     },
     {
       uploadName: "focus.jsonl",

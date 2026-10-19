@@ -287,7 +287,7 @@ export function WhatIfPage() {
     <div className="space-y-6">
       <PageHeader title={t("whatIf.title")} description={t("whatIf.description")} />
 
-      <Card>
+      <Card className="surface">
         <CardHeader className="pb-3">
           <CardTitle className="text-body">{t("whatIf.scopeTitle")}</CardTitle>
         </CardHeader>
@@ -379,7 +379,7 @@ export function WhatIfPage() {
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-3">
-          <Card>
+          <Card className="surface">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-body">{t("whatIf.sessionsTitle")}</CardTitle>
               <Button
@@ -435,7 +435,7 @@ export function WhatIfPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="surface">
             <CardHeader className="pb-2">
               <CardTitle className="text-body">{t("whatIf.pinsTitle")}</CardTitle>
             </CardHeader>
@@ -474,7 +474,7 @@ export function WhatIfPage() {
           </Card>
         </div>
 
-        <Card className="flex h-[70vh] max-h-[820px] min-h-[520px] flex-col">
+        <Card className="surface flex h-[70vh] max-h-[820px] min-h-[520px] flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-body">{t("whatIf.chatTitle")}</CardTitle>
             {sessionId !== null && (

@@ -5,52 +5,52 @@
 
 /*
  * Type scale (rem-based so the density switch scales text with everything else).
- * micro 11px · meta 12px · body 13px · body-lg 14px.
+ * micro 12px · meta 13px · body 14px · body-lg 16px.
  */
 @theme {
-  --text-micro: 0.6875rem;
+  --text-micro: 0.75rem;
   --text-micro--line-height: 1.45;
-  --text-meta: 0.75rem;
+  --text-meta: 0.8125rem;
   --text-meta--line-height: 1.5;
-  --text-body: 0.8125rem;
+  --text-body: 0.875rem;
   --text-body--line-height: 1.55;
-  --text-body-lg: 0.875rem;
+  --text-body-lg: 1rem;
   --text-body-lg--line-height: 1.5;
 }
 
 /*
- * Design tokens (oklch, shadcn/ui conventions). Product look: dark-first, indigo accent.
+ * Design tokens (oklch, shadcn/ui conventions). Product look: dark-first, crisp modern aesthetic.
  * Keep the variable names stable — every shadcn component maps them via @theme inline below.
  */
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(0.995 0 0);
-  --foreground: oklch(0.16 0.008 286);
+  --background: oklch(0.985 0.002 260);
+  --foreground: oklch(0.18 0.015 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.008 286);
+  --card-foreground: oklch(0.18 0.015 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.008 286);
+  --popover-foreground: oklch(0.18 0.015 260);
   --primary: oklch(0.511 0.262 276.966);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.014 285.94);
-  --accent: oklch(0.955 0.018 275.5);
-  --accent-foreground: oklch(0.42 0.16 277);
+  --secondary: oklch(0.96 0.005 260);
+  --secondary-foreground: oklch(0.22 0.01 260);
+  --muted: oklch(0.955 0.005 260);
+  --muted-foreground: oklch(0.48 0.015 260);
+  --accent: oklch(0.945 0.02 275);
+  --accent-foreground: oklch(0.4 0.16 277);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
+  --border: oklch(0.89 0.006 260);
+  --input: oklch(0.89 0.006 260);
   --ring: oklch(0.585 0.233 277.117);
 
-  --sidebar: oklch(0.985 0.002 286.375);
-  --sidebar-foreground: oklch(0.16 0.008 286);
+  --sidebar: oklch(0.975 0.003 260);
+  --sidebar-foreground: oklch(0.18 0.015 260);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.955 0.018 275.5);
-  --sidebar-accent-foreground: oklch(0.42 0.16 277);
-  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-accent: oklch(0.945 0.02 275);
+  --sidebar-accent-foreground: oklch(0.4 0.16 277);
+  --sidebar-border: oklch(0.89 0.006 260);
   --sidebar-ring: oklch(0.585 0.233 277.117);
 
   /* Semantic status colours — the only source for run/verdict/severity pills. */
@@ -58,37 +58,37 @@
   --status-info: oklch(0.5 0.134 242.749);
   --status-warning: oklch(0.554 0.135 66.442);
   --status-danger: oklch(0.577 0.245 27.325);
-  --status-neutral: oklch(0.552 0.014 285.94);
+  --status-neutral: oklch(0.52 0.015 260);
 }
 
 .dark {
-  --background: oklch(0.145 0.008 285.9);
-  --foreground: oklch(0.97 0.002 286);
-  --card: oklch(0.196 0.008 285.9);
-  --card-foreground: oklch(0.97 0.002 286);
-  --popover: oklch(0.196 0.008 285.9);
-  --popover-foreground: oklch(0.97 0.002 286);
-  --primary: oklch(0.585 0.233 277.117);
+  --background: oklch(0.135 0.008 265);
+  --foreground: oklch(0.96 0.005 260);
+  --card: oklch(0.175 0.01 265);
+  --card-foreground: oklch(0.96 0.005 260);
+  --popover: oklch(0.175 0.01 265);
+  --popover-foreground: oklch(0.96 0.005 260);
+  --primary: oklch(0.62 0.22 275);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.255 0.008 285.9);
-  --secondary-foreground: oklch(0.97 0.002 286);
-  --muted: oklch(0.255 0.008 285.9);
-  --muted-foreground: oklch(0.708 0.012 286);
-  --accent: oklch(0.28 0.035 276.5);
-  --accent-foreground: oklch(0.86 0.07 275);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.673 0.182 276.935);
+  --secondary: oklch(0.23 0.01 265);
+  --secondary-foreground: oklch(0.96 0.005 260);
+  --muted: oklch(0.22 0.01 265);
+  --muted-foreground: oklch(0.68 0.015 260);
+  --accent: oklch(0.26 0.035 275);
+  --accent-foreground: oklch(0.9 0.07 275);
+  --destructive: oklch(0.68 0.2 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.65 0.2 275);
 
-  --sidebar: oklch(0.17 0.008 285.9);
-  --sidebar-foreground: oklch(0.97 0.002 286);
+  --sidebar: oklch(0.155 0.008 265);
+  --sidebar-foreground: oklch(0.96 0.005 260);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.28 0.035 276.5);
-  --sidebar-accent-foreground: oklch(0.86 0.07 275);
+  --sidebar-accent: oklch(0.25 0.035 275);
+  --sidebar-accent-foreground: oklch(0.9 0.07 275);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.673 0.182 276.935);
+  --sidebar-ring: oklch(0.65 0.2 275);
 
   --status-positive: oklch(0.765 0.177 163.223);
   --status-info: oklch(0.746 0.16 232.661);
@@ -152,27 +152,44 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
-  /* Density "Gọn": shrinks the whole rem-based UI ~12% (root 16px → 14px). */
+  /* Density "Gọn": gentle scale down without sacrificing legibility. */
   html[data-density="compact"] {
-    font-size: 87.5%;
+    font-size: 93.75%;
   }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms;
+      transition-duration: 0.01ms;
     }
   }
 }
 
 @layer components {
-  /* One card recipe for report surfaces (Radix Card stays for primitives). */
+  /* Surface with subtle border & shadow */
   .surface {
-    @apply rounded-xl border border-border/60 bg-card;
+    @apply rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200;
   }
-  /* One chip recipe for anchors, counts and meta labels. */
+  /* Interactive card with hover-lift and refined border glow */
+  .surface-interactive {
+    @apply rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200 hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5;
+  }
+  /* Refined chip recipe for anchors, counts and meta labels */
   .chip {
-    @apply inline-flex h-6 items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-2 text-micro text-foreground/80;
+    @apply inline-flex h-6 items-center gap-1.5 rounded-md border border-border/80 bg-muted/50 px-2 text-micro font-medium text-foreground/80 transition-colors hover:bg-muted hover:border-primary/40 hover:text-foreground;
+  }
+  /* Severity left-accent borders */
+  .finding-critical {
+    @apply border-l-4 border-l-destructive bg-destructive/[0.03];
+  }
+  .finding-major {
+    @apply border-l-4 border-l-warning bg-warning/[0.03];
+  }
+  .finding-minor {
+    @apply border-l-4 border-l-info bg-info/[0.03];
+  }
+  .finding-info {
+    @apply border-l-4 border-l-neutral bg-neutral/[0.03];
   }
 }

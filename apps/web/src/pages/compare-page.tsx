@@ -1,16 +1,6 @@
-import {
-  AppError,
-  type DiffFileEntry,
-  type DiffFileStatus,
-  ErrorCodes,
-  type GitHead,
-  type GitRef,
-  type GitRefKind,
-  WORKTREE_REF,
-} from "@silentskip/contracts";
+import { AppError, ErrorCodes, WORKTREE_REF } from "@silentskip/contracts";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import type { TFunction } from "i18next";
 import {
   ArrowLeftRight,
   GitCompareArrows,
@@ -24,18 +14,22 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { DiffPreview } from "@/components/compare/diff-preview";
+import {
+  buildRefGroups,
+  type RefInfo,
+  type RefOption,
+  VersionPanel,
+} from "@/components/compare/version-panel";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -51,234 +45,8 @@ const GOAL_SAMPLES = ["compare.goalSample1", "compare.goalSample2", "compare.goa
 
 type Preset = "worktree" | "vs-main" | "custom";
 
-const STATUS_STYLES: Record<DiffFileStatus, string> = {
-  A: "bg-positive/15 text-positive dark:text-positive",
-  M: "bg-warning/15 text-warning dark:text-warning",
-  D: "bg-danger/15 text-danger dark:text-danger",
-  R: "bg-info/15 text-info dark:text-info",
-  U: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
-};
-
-const STATUS_LABEL_KEYS: Record<DiffFileStatus, string> = {
-  A: "compare.statusAdded",
-  M: "compare.statusModified",
-  D: "compare.statusDeleted",
-  R: "compare.statusRenamed",
-  U: "compare.statusUntracked",
-};
-
-const KIND_LABEL_KEYS: Record<DiffFileEntry["kind"], string> = {
-  csv: "compare.kindCsv",
-  script: "compare.kindScript",
-  other: "compare.kindOther",
-};
-
 function shortHash(hash: string): string {
   return hash.slice(0, 7);
-}
-
-interface RefOption {
-  readonly value: string;
-  readonly label: string;
-}
-
-interface RefGroup {
-  readonly labelKey: string;
-  readonly options: readonly RefOption[];
-}
-
-interface RefGroups {
-  readonly head: RefOption | null;
-  readonly groups: readonly RefGroup[];
-}
-
-const KIND_GROUP_ORDER: readonly GitRefKind[] = ["branch", "remote", "tag"];
-
-const KIND_GROUP_LABEL_KEYS: Record<GitRefKind, string> = {
-  branch: "compare.refGroupBranch",
-  remote: "compare.refGroupRemote",
-  tag: "compare.refGroupTag",
-};
-
-/**
- * Group refs by kind (branch → remote → tag) so long ref lists stay scannable; HEAD is
- * hoisted above the groups. Refs keep their exact git names as values — no rewriting.
- */
-function buildRefGroups(refs: readonly GitRef[], head: GitHead | null, t: TFunction): RefGroups {
-  const groups: RefGroup[] = [];
-  for (const kind of KIND_GROUP_ORDER) {
-    const options = refs
-      .filter((ref) => ref.kind === kind)
-      .map((ref) => ({ value: ref.name, label: ref.name }));
-    if (options.length > 0) {
-      groups.push({ labelKey: KIND_GROUP_LABEL_KEYS[kind], options });
-    }
-  }
-  return {
-    head: head === null ? null : { value: "HEAD", label: t("compare.headOption") },
-    groups,
-  };
-}
-
-interface RefInfo {
-  readonly mono: string;
-  readonly text: string;
-}
-
-interface VersionPanelProps {
-  readonly label: string;
-  readonly value: string | null;
-  readonly onValueChange: (value: string) => void;
-  readonly leading: readonly RefOption[];
-  readonly refGroups: RefGroups;
-  readonly placeholder: string;
-  readonly disabled: boolean;
-  readonly info: RefInfo | null;
-}
-
-/** One side of the A/B picker: a grouped ref select plus the resolved commit info box. */
-function VersionPanel({
-  label,
-  value,
-  onValueChange,
-  leading,
-  refGroups,
-  placeholder,
-  disabled,
-  info,
-}: VersionPanelProps) {
-  const { t } = useTranslation();
-  const hasOptions = leading.length > 0 || refGroups.head !== null || refGroups.groups.length > 0;
-  return (
-    <div className="space-y-2">
-      <Label className="text-body">{label}</Label>
-      <Select value={value ?? ""} onValueChange={onValueChange} disabled={disabled || !hasOptions}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {leading.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-          {refGroups.head !== null && (
-            <SelectItem value={refGroups.head.value}>{refGroups.head.label}</SelectItem>
-          )}
-          {refGroups.groups.map((group) => (
-            <SelectGroup key={group.labelKey}>
-              <SelectLabel>{t(group.labelKey)}</SelectLabel>
-              {group.options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          ))}
-        </SelectContent>
-      </Select>
-      <div className="min-h-11 rounded-lg border border-border/60 bg-muted/40 p-3 text-meta text-muted-foreground">
-        {info === null ? (
-          t("compare.refEmpty")
-        ) : (
-          <>
-            <span className="font-mono text-meta">{info.mono}</span>
-            {info.text !== "" && <span> · {info.text}</span>}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { readonly status: DiffFileStatus }) {
-  const { t } = useTranslation();
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-micro font-medium",
-        STATUS_STYLES[status],
-      )}
-    >
-      {t(STATUS_LABEL_KEYS[status])}
-    </span>
-  );
-}
-
-interface DiffPreviewProps {
-  readonly files: readonly DiffFileEntry[];
-  readonly additions: number;
-  readonly deletions: number;
-  readonly untrackedFiles: number;
-  readonly scriptFiles: number;
-  readonly csvFiles: number;
-}
-
-const MAX_DIFF_ROWS = 100;
-
-/** Compact file list with status/kind badges and per-file line counts. */
-function DiffPreview({
-  files,
-  additions,
-  deletions,
-  untrackedFiles,
-  scriptFiles,
-  csvFiles,
-}: DiffPreviewProps) {
-  const { t } = useTranslation();
-  if (files.length === 0) {
-    return <p className="text-body text-muted-foreground">{t("compare.diffEmpty")}</p>;
-  }
-  const shown = files.slice(0, MAX_DIFF_ROWS);
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-meta">
-        <span className="tabular-nums text-positive dark:text-positive">+{additions}</span>
-        <span className="tabular-nums text-danger dark:text-danger">−{deletions}</span>
-        {untrackedFiles > 0 && (
-          <span className="text-muted-foreground">
-            {t("compare.diffUntracked", { count: untrackedFiles })}
-          </span>
-        )}
-        <span className="text-muted-foreground">
-          {t("compare.diffBreakdown", { scripts: scriptFiles, csv: csvFiles })}
-        </span>
-      </div>
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-border/60">
-        {shown.map((file) => (
-          <div
-            key={file.path}
-            className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-meta last:border-0"
-          >
-            <StatusBadge status={file.status} />
-            <Badge
-              variant="outline"
-              className="h-5 shrink-0 px-1.5 text-micro font-normal uppercase"
-            >
-              {t(KIND_LABEL_KEYS[file.kind])}
-            </Badge>
-            <span className="truncate font-mono text-meta" title={file.path}>
-              {file.oldPath !== null ? `${file.oldPath} → ${file.path}` : file.path}
-            </span>
-            <span className="ml-auto shrink-0 tabular-nums text-meta text-muted-foreground">
-              {file.additions !== null && (
-                <span className="text-positive dark:text-positive">+{file.additions}</span>
-              )}
-              {file.additions !== null && file.deletions !== null && " "}
-              {file.deletions !== null && (
-                <span className="text-danger dark:text-danger">−{file.deletions}</span>
-              )}
-            </span>
-          </div>
-        ))}
-      </div>
-      {files.length > shown.length && (
-        <p className="text-meta text-muted-foreground">
-          {t("compare.diffMore", { count: files.length - shown.length })}
-        </p>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -544,7 +312,7 @@ export function ComparePage() {
           {activeProjectId !== null && refsQuery.isPending && <Skeleton className="h-24" />}
 
           {!panelsDisabled && (
-            <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+            <div className="grid items-center gap-4 grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
               <VersionPanel
                 label={t("compare.baseLabel")}
                 value={baseRef}

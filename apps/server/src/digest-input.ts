@@ -1,7 +1,8 @@
 import type { LocalizationReport } from "@silentskip/contracts";
 import { AppError, type DigestBundle, ErrorCodes, WORKTREE_REF } from "@silentskip/contracts";
 import { buildDigest, buildLocalizationReport } from "@silentskip/engine";
-import { readFilesAtRef, readProjectFilesFromDisk, resolveCommit } from "./git";
+import { DigestCache, globalDigestCache } from "./digest-cache.js";
+import { readFilesAtRef, readProjectFilesFromDisk, resolveCommit } from "./git.js";
 
 interface ResolvedSources {
   readonly baseCommit: string;
@@ -31,7 +32,7 @@ async function loadSideSources(
   const [baseSources, currentSources] = await Promise.all([
     readFilesAtRef(rootPath, base),
     currentIsWorktree
-      ? Promise.resolve(readProjectFilesFromDisk(rootPath))
+      ? readProjectFilesFromDisk(rootPath)
       : readFilesAtRef(rootPath, current),
   ]);
   return { baseCommit, currentCommit, baseSources, currentSources };
@@ -41,9 +42,11 @@ async function loadSideSources(
  * Load the digest inputs for an A/B range (E3.3) - shared by the digest route and the review
  * manager so both paths resolve refs and read sources identically.
  *
- * `base` must be a real ref (WORKTREE is only meaningful as the current side); the worktree
- * side is read from disk, everything else via one `cat-file --batch` pass. The project profile
- * (pins, conventions, entity notes) is passed through as data - the digest stays deterministic.
+ * Performance optimization:
+ * - Checks the in-memory `DigestCache` by `(rootPath, baseCommit, currentCommit, profile)`.
+ * - On cache hit: returns the pre-compiled `DigestBundle` immediately (0ms), avoiding all
+ *   git file I/O, AST parsing, CSV parsing, and 13 deterministic check runs.
+ * - On cache miss: reads sources asynchronously, compiles the bundle, records in cache, and returns.
  */
 export async function loadDigest(
   rootPath: string,
@@ -51,16 +54,38 @@ export async function loadDigest(
   current: string,
   profile?: Parameters<typeof buildDigest>[0]["profile"],
 ): Promise<DigestBundle> {
-  const { baseCommit, currentCommit, baseSources, currentSources } = await loadSideSources(
-    rootPath,
-    base,
-    current,
-  );
-  return buildDigest({
+  if (base === WORKTREE_REF) {
+    throw new AppError(
+      ErrorCodes.badRequest,
+      "Bản gốc (A) phải là ref thật — không thể là bản đang làm",
+    );
+  }
+
+  const baseCommit = await resolveCommit(rootPath, base);
+  const currentIsWorktree = current === WORKTREE_REF;
+  const currentCommit = currentIsWorktree ? null : await resolveCommit(rootPath, current);
+
+  const cacheKey = DigestCache.computeKey(rootPath, baseCommit, currentCommit, profile);
+  const cached = globalDigestCache.get(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const [baseSources, currentSources] = await Promise.all([
+    readFilesAtRef(rootPath, base),
+    currentIsWorktree
+      ? readProjectFilesFromDisk(rootPath)
+      : readFilesAtRef(rootPath, current),
+  ]);
+
+  const digest = buildDigest({
     base: { ref: base, commitHash: baseCommit, sources: baseSources },
     current: { ref: current, commitHash: currentCommit, sources: currentSources },
     ...(profile === undefined ? {} : { profile }),
   });
+
+  globalDigestCache.set(cacheKey, digest, currentIsWorktree);
+  return digest;
 }
 
 /**

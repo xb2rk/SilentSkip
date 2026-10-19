@@ -76,7 +76,7 @@ function emptyToNull(raw: string | undefined): string | null {
   return raw.trim();
 }
 
-const DEFAULT_AI_TIMEOUT_MS = 180_000;
+const DEFAULT_AI_TIMEOUT_MS = 240_000;
 
 function parseTimeoutMs(raw: string | undefined): number {
   if (raw === undefined || raw === "") return DEFAULT_AI_TIMEOUT_MS;
@@ -92,10 +92,8 @@ const DEFAULT_AI_READ_CONCURRENCY = 1;
 const MAX_AI_READ_CONCURRENCY = 16;
 
 /**
- * Reading concurrency. Defaults to 1 because overlapping buys nothing on this endpoint: a real
- * 72-file run took 1070 s at K=1 and 1152 s (and more AI time) at K=3, and calls fired together cost
- * 2-8x their solo latency. The toy canary only shows the endpoint *accepts* concurrency, so raise
- * this only after measuring real payloads.
+ * Reading concurrency. Defaults to 1 because Insea's shared endpoint queues concurrent calls
+ * and multiplies latency up to 8x. Configurable via AI_READ_CONCURRENCY for endpoints with multi-worker pools.
  */
 function parseConcurrency(raw: string | undefined): number {
   if (raw === undefined || raw === "") return DEFAULT_AI_READ_CONCURRENCY;

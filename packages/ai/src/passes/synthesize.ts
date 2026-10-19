@@ -48,7 +48,7 @@ export async function runSynthesizePass(
     {
       uploadName: "findings.json",
       mimeType: "application/json",
-      content: JSON.stringify(structured, null, 2),
+      content: JSON.stringify(structured),
     },
     serializeThemesFile(themes),
     {

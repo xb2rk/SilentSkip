@@ -106,7 +106,7 @@ describe("git read layer", () => {
     await expect(diffSummary(repo, WORKTREE_REF, "feature")).rejects.toBeInstanceOf(AppError);
   });
 
-  it("reads tracked and untracked sources but skips ignored files", () => {
+  it("reads tracked and untracked sources but skips ignored files", async () => {
     const root = mkdtempSync(join(tmpdir(), "cqa-git-sources-"));
     try {
       git(root, ["init"]);
@@ -121,7 +121,7 @@ describe("git read layer", () => {
       writeFileSync(join(root, "Temp", "Ignored.csv"), "id\n3\n");
       writeFileSync(join(root, "log.log"), "noise");
 
-      const files = readProjectFilesFromDisk(root);
+      const files = await readProjectFilesFromDisk(root);
       expect(files.map((file) => file.path)).toEqual([
         "Assets/CSV/Kept.csv",
         "Assets/CSV/New.csv",

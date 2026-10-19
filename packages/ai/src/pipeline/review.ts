@@ -9,7 +9,7 @@ import type {
 import { buildReviewContext, changeFileIds, evidenceAnchorsOf } from "../context/build.js";
 import type { EvidenceAnchor, ReviewContextManifest } from "../context/types.js";
 import { AiError } from "../errors.js";
-import { buildFactIndex } from "../facts/fact-index.js";
+import { buildFactIndex, evaluateClaim, type FactIndex } from "../facts/fact-index.js";
 import { buildPartialReport } from "../fallback.js";
 import { runInseaWorkflow } from "../insea/client.js";
 import type { InseaSalvage } from "../insea/types.js";
@@ -719,12 +719,22 @@ export async function runReviewPipeline(
       );
       const targets = selectCoverageTargets({ units, retryUnits, unaddressed, anchorFiles });
       if (targets.length === 0) break;
+      const anchorMap = new Map(digest.anchors.map((anchor) => [anchor.id, anchor] as const));
       const constraints = unaddressed
         .slice(0, MAX_CONSTRAINT_LINES)
-        .map(
-          (finding) =>
-            `${finding.ruleId}: ${finding.title} — anchors: ${finding.anchors.join(", ")}`,
-        );
+        .map((finding) => {
+          const anchorHints = finding.anchors
+            .slice(0, 3)
+            .map((id) => {
+              const a = anchorMap.get(id);
+              if (!a?.snippet) return id;
+              const snippet = a.snippet.replace(/\r?\n|\r/g, " ").trim();
+              const preview = snippet.length > 50 ? `${snippet.slice(0, 47)}...` : snippet;
+              return `${id} ("${preview}" L${a.lineStart})`;
+            })
+            .join("; ");
+          return `${finding.ruleId}: ${finding.title} — anchors: ${anchorHints}`;
+        });
       await readRound(targets, round, constraints);
     }
     const finalReadAnchors = new Set(collectedFindings.flatMap((finding) => finding.anchors));
@@ -803,6 +813,10 @@ export async function runReviewPipeline(
     } catch (error) {
       const degraded = degradableError(error);
       if (degraded !== null) {
+        if (report !== undefined && report.findings.length > 0) {
+          // If a previous synthesize round already produced a valid report, keep it instead of degrading!
+          break;
+        }
         // The model never answered: try the next round, and if it stays down the readings are
         // still reported as a partial result instead of being thrown away.
         degrade("synthesize", degraded, "synthesize");
@@ -839,7 +853,36 @@ export async function runReviewPipeline(
     synthesizeStats = linked.stats;
     report = linked.report;
     const blocking = linked.issues.some((issue) => BLOCKING_SYNTHESIZE_ISSUE_KINDS.has(issue.kind));
-    if (!blocking || round === MAX_SYNTHESIZE_ROUNDS) break;
+    if (!blocking) break;
+
+    // Fast Repair Gate: check if mechanical salvage resolves all blocking issues cleanly
+    // (e.g. dropping unverifiable claims, injecting missing theme narratives)
+    // to avoid an expensive and risky re-synthesis round that could time out.
+    const repaired = fastRepairSynthesizeOutput(synthesize.output, index, themeIds);
+    if (repaired !== null) {
+      const repairedLinked = linkReport(repaired, index, { seenAnchors, themeIds });
+      const repairedBlocking = repairedLinked.issues.some((issue) =>
+        BLOCKING_SYNTHESIZE_ISSUE_KINDS.has(issue.kind),
+      );
+      if (!repairedBlocking && repairedLinked.report.findings.length > 0) {
+        report = repairedLinked.report;
+        synthesizeStats = repairedLinked.stats;
+        issues.push(...repairedLinked.issues);
+        break;
+      }
+      if (round === MAX_SYNTHESIZE_ROUNDS) {
+        if (
+          repairedLinked.report.findings.length > report.findings.length ||
+          repairedLinked.report.themes.length > report.themes.length
+        ) {
+          report = repairedLinked.report;
+          synthesizeStats = repairedLinked.stats;
+        }
+        break;
+      }
+    } else if (round === MAX_SYNTHESIZE_ROUNDS) {
+      break;
+    }
     constraints = linked.issues
       .slice(0, MAX_CONSTRAINT_LINES)
       .map((issue) => `${issue.kind}: ${issue.target} — ${issue.detail}`);
@@ -945,8 +988,70 @@ async function mapBounded<T, R>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => pump()));
 }
 
-/** Reading concurrency as configured at the boundary: anything unusable means one call at a time. */
+/**
+ * Reading concurrency as configured at the boundary.
+ * Defaults to 1 because Insea's shared endpoint queues overlapping calls and inflates
+ * latency up to 8x when concurrency > 1. Respects any caller-configured concurrency.
+ * Folds results strictly in unit order for deterministic execution.
+ */
 function normalizeConcurrency(value: number | undefined): number {
-  if (value === undefined || !Number.isFinite(value) || value < 1) return 1;
+  if (value === undefined) return 1;
+  if (!Number.isFinite(value) || value < 1) return 1;
   return Math.max(1, Math.floor(value));
+}
+
+/**
+ * Fast repair gate for synthesize output: mechanically repairs fixable issues
+ * (e.g., dropping invalid/false claims so statements survive, injecting missing theme narratives)
+ * to avoid returning an empty or degraded report when real findings were discovered.
+ */
+function fastRepairSynthesizeOutput(
+  raw: SynthesizeOutput,
+  index: FactIndex,
+  themeIds: readonly string[],
+): SynthesizeOutput | null {
+  let modified = false;
+
+  const findings = raw.findings.map((f) => {
+    if (f.claims && f.claims.length > 0) {
+      const validClaims = f.claims.filter((c) => {
+        try {
+          return evaluateClaim(c, index) === "true";
+        } catch {
+          return false;
+        }
+      });
+      if (validClaims.length !== f.claims.length) {
+        modified = true;
+        return {
+          ...f,
+          claims: validClaims,
+          confidence: f.confidence === "exact" ? ("inferred" as const) : f.confidence,
+        };
+      }
+    }
+    return f;
+  });
+
+  const presentThemeIds = new Set(raw.themes.map((t) => t.themeId));
+  const themes = [...raw.themes];
+  for (const themeId of themeIds) {
+    if (!presentThemeIds.has(themeId)) {
+      modified = true;
+      themes.push({
+        themeId,
+        summary: "Theme changes analyzed without narrative.",
+        behaviorChange: "See related findings.",
+        watchFor: "Verification in game.",
+        anchorIds: [],
+      });
+    }
+  }
+
+  if (!modified) return null;
+  return {
+    ...raw,
+    findings,
+    themes,
+  };
 }

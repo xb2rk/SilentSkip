@@ -1,5 +1,5 @@
-import { execFile, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { promises as fsPromises } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import {
@@ -139,6 +139,9 @@ interface ParsedStatus {
   readonly oldPath: string | null;
 }
 
+const DIFF_SUMMARY_CACHE_MAX = 50;
+const diffSummaryCache = new Map<string, DiffSummary>();
+
 /**
  * A/B file-level diff summary with per-file line counts — the preview designers see before
  * running an analysis. `currentRef = WORKTREE_REF` diffs against the files on disk
@@ -158,6 +161,19 @@ export async function diffSummary(
   const baseCommit = await resolveCommit(rootPath, baseRef);
   const currentIsWorktree = currentRef === WORKTREE_REF;
   const currentCommit = currentIsWorktree ? null : await resolveCommit(rootPath, currentRef);
+
+  const cacheKey = !currentIsWorktree ? `${rootPath}::${baseCommit}::${currentCommit}` : null;
+  if (cacheKey !== null) {
+    const cached = diffSummaryCache.get(cacheKey);
+    if (cached !== undefined) {
+      return {
+        ...cached,
+        baseRef,
+        currentRef,
+      };
+    }
+  }
+
   const revArgs = currentCommit === null ? [baseCommit] : [baseCommit, currentCommit];
 
   const [nameStatusRaw, numstatRaw, untrackedRaw] = await Promise.all([
@@ -210,7 +226,7 @@ export async function diffSummary(
     if (entry.kind === "script") scriptFiles += 1;
   }
 
-  return {
+  const result: DiffSummary = {
     baseRef,
     currentRef,
     baseCommit,
@@ -223,6 +239,16 @@ export async function diffSummary(
     scriptFiles,
     files: entries,
   };
+
+  if (cacheKey !== null) {
+    if (diffSummaryCache.size >= DIFF_SUMMARY_CACHE_MAX) {
+      const oldest = diffSummaryCache.keys().next().value;
+      if (oldest !== undefined) diffSummaryCache.delete(oldest);
+    }
+    diffSummaryCache.set(cacheKey, result);
+  }
+
+  return result;
 }
 
 /**
@@ -310,8 +336,68 @@ function canonicalSource(source: string): string {
 }
 
 /**
+ * Run `git cat-file --batch` asynchronously with piped stdin and buffered binary stdout.
+ * Non-blocking: frees the Node.js event loop while git processes batch blob queries.
+ */
+function runGitCatFileBatch(rootPath: string, input: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", ["-c", "core.quotepath=false", "-C", rootPath, "cat-file", "--batch"], {
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    const chunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill();
+        reject(
+          new AppError(ErrorCodes.gitFailed, "git cat-file timed out", {
+            details: `Exceeded ${GIT_TIMEOUT_MS}ms timeout`,
+          }),
+        );
+      }
+    }, GIT_TIMEOUT_MS);
+
+    child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+
+    child.on("error", (error) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        reject(new AppError(ErrorCodes.gitFailed, "git cat-file thất bại", { cause: error }));
+      }
+    });
+
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        if (code !== 0) {
+          const stderr = Buffer.concat(stderrChunks).toString("utf8").trim().slice(0, 2000);
+          reject(
+            new AppError(ErrorCodes.gitFailed, "git cat-file thất bại", {
+              details: stderr,
+            }),
+          );
+        } else {
+          resolve(Buffer.concat(chunks));
+        }
+      }
+    });
+
+    child.stdin.end(input, "utf8");
+  });
+}
+
+/**
  * Read every FC/CSV source file at a ref in one `cat-file --batch` pass.
  *
+ * Fully asynchronous and non-blocking:
  * Paths come from `ls-tree -r -z` (raw, unquoted); contents are decoded as UTF-8 text and
  * returned sorted by path for deterministic downstream bundles.
  */
@@ -324,20 +410,8 @@ export async function readFilesAtRef(rootPath: string, ref: string): Promise<Sou
   if (paths.length === 0) return [];
 
   const input = `${paths.map((path) => `${ref}:${path}`).join("\n")}\n`;
-  const result = spawnSync("git", ["-C", rootPath, "cat-file", "--batch"], {
-    input,
-    maxBuffer: GIT_MAX_BUFFER,
-    timeout: GIT_TIMEOUT_MS,
-    windowsHide: true,
-  });
-  if (result.error !== undefined || result.status !== 0) {
-    throw new AppError(ErrorCodes.gitFailed, "git cat-file thất bại", {
-      cause: result.error,
-      details: result.stderr.toString("utf8").trim().slice(0, 2000),
-    });
-  }
+  const buffer = await runGitCatFileBatch(rootPath, input);
 
-  const buffer = result.stdout;
   const files: SourceInput[] = [];
   let offset = 0;
   let index = 0;
@@ -369,38 +443,49 @@ export async function readFilesAtRef(rootPath: string, ref: string): Promise<Sou
 /**
  * Read every FC/CSV source file from disk — the worktree side of a comparison.
  *
+ * Fully asynchronous and non-blocking:
  * Git decides the file set: tracked files plus untracked files that are not ignored
- * (`git ls-files --cached --others --exclude-standard`). Build artifacts, logs and
- * engine caches that the project's own `.gitignore` excludes must not enter the digest.
+ * (`git ls-files --cached --others --exclude-standard`). Files are read asynchronously
+ * in bounded batches of 16 to maximize parallel I/O throughput while avoiding file
+ * descriptor starvation.
  * Paths are project-relative with forward slashes, sorted for deterministic bundles.
  */
-export function readProjectFilesFromDisk(rootPath: string): SourceInput[] {
-  const result = spawnSync(
-    "git",
-    ["-C", rootPath, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    { maxBuffer: GIT_MAX_BUFFER, timeout: GIT_TIMEOUT_MS, windowsHide: true },
-  );
-  if (result.error !== undefined || result.status !== 0) {
-    throw new AppError(ErrorCodes.gitFailed, "git ls-files thất bại", {
-      cause: result.error,
-      details: result.stderr.toString("utf8").trim().slice(0, 2000),
-    });
-  }
+export async function readProjectFilesFromDisk(rootPath: string): Promise<SourceInput[]> {
+  const listed = await runGit(rootPath, [
+    "ls-files",
+    "-z",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+  ]);
   const paths = [
     ...new Set(
-      result.stdout
-        .toString("utf8")
+      listed
         .split("\0")
         .filter((path) => path !== "" && SOURCE_EXTENSIONS.test(path)),
     ),
   ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
   const files: SourceInput[] = [];
-  for (const path of paths) {
-    try {
-      const absolute = join(rootPath, ...path.split("/"));
-      files.push({ path, source: canonicalSource(readFileSync(absolute, "utf8")) });
-    } catch {
-      // Deleted tracked files have no worktree content; the A/B delta reports the removal.
+  const BATCH_SIZE = 16;
+  for (let i = 0; i < paths.length; i += BATCH_SIZE) {
+    const batch = paths.slice(i, i + BATCH_SIZE);
+    const readResults = await Promise.all(
+      batch.map(async (path) => {
+        try {
+          const absolute = join(rootPath, ...path.split("/"));
+          const content = await fsPromises.readFile(absolute, "utf8");
+          return { path, source: canonicalSource(content) };
+        } catch {
+          // Deleted tracked files have no worktree content; the A/B delta reports the removal.
+          return null;
+        }
+      }),
+    );
+    for (const result of readResults) {
+      if (result !== null) {
+        files.push(result);
+      }
     }
   }
   return files;

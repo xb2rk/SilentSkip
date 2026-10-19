@@ -106,6 +106,45 @@ const ZERO_STATS: VerifyStats = {
 /** Cap of the run list endpoint — newest first; the History UI shows the latest slice. */
 const RUN_LIST_LIMIT = 100;
 
+/** How long completed SSE channels remain in memory for late replaying before eviction. */
+const CHANNEL_RETENTION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Explicit SQL column projection for RunSummary.
+ * Excludes heavy multi-megabyte `report_json` and `diff_summary_json` blobs.
+ */
+const RUN_SUMMARY_COLUMNS = {
+  id: runs.id,
+  projectId: runs.projectId,
+  baseRef: runs.baseRef,
+  currentRef: runs.currentRef,
+  goal: runs.goal,
+  lens: runs.lens,
+  status: runs.status,
+  verdict: runs.verdict,
+  qualityScore: runs.qualityScore,
+  error: runs.error,
+  durationMs: runs.durationMs,
+  createdAt: runs.createdAt,
+  completedAt: runs.completedAt,
+};
+
+type RunSummaryRow = {
+  id: string;
+  projectId: string;
+  baseRef: string;
+  currentRef: string;
+  goal: string | null;
+  lens: string | null;
+  status: (typeof runs.$inferSelect)["status"];
+  verdict: (typeof runs.$inferSelect)["verdict"];
+  qualityScore: number | null;
+  error: string | null;
+  durationMs: number | null;
+  createdAt: Date;
+  completedAt: Date | null;
+};
+
 /** Reason recorded on a mid-run checkpoint — also what a server restart leaves behind. */
 const CHECKPOINT_REASON =
   "Lượt chạy chưa tổng hợp xong — đây là phần AI đã đọc được trước khi dừng.";
@@ -183,7 +222,7 @@ export class ReviewManager {
 
   /** Run summaries, newest first — optionally narrowed to one project (History page). */
   listRuns(projectId?: string): RunSummary[] {
-    const base = this.deps.db.select().from(runs);
+    const base = this.deps.db.select(RUN_SUMMARY_COLUMNS).from(runs);
     const rows =
       projectId === undefined
         ? base.orderBy(desc(runs.createdAt)).limit(RUN_LIST_LIMIT).all()
@@ -225,6 +264,7 @@ export class ReviewManager {
       void channel.emit({ type: "failed", error: row.error ?? "run failed" });
     }
     this.channels.set(runId, channel);
+    this.scheduleChannelEviction(runId);
     return channel;
   }
 
@@ -293,6 +333,7 @@ export class ReviewManager {
         durationMs: Date.now() - startedAt,
       });
       this.persistManifests(runId, result);
+      this.scheduleChannelEviction(runId);
       await channel.emit({
         type: "completed",
         verdict: result.report.verdict,
@@ -340,6 +381,7 @@ export class ReviewManager {
         durationMs,
       });
       if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
+      this.scheduleChannelEviction(runId);
       await channel.emit({ type: "cancelled" });
       return;
     }
@@ -366,6 +408,7 @@ export class ReviewManager {
         durationMs,
       });
       if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
+      this.scheduleChannelEviction(runId);
       await channel.emit({
         type: "completed",
         verdict: persisted.report.verdict,
@@ -398,6 +441,7 @@ export class ReviewManager {
       durationMs,
     });
     if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
+    this.scheduleChannelEviction(runId);
     await channel.emit({ type: "failed", error: message });
   }
 
@@ -561,7 +605,7 @@ export class ReviewManager {
     return row;
   }
 
-  private summary(row: typeof runs.$inferSelect): RunSummary {
+  private summary(row: RunSummaryRow): RunSummary {
     return {
       id: row.id,
       projectId: row.projectId,
@@ -586,5 +630,15 @@ export class ReviewManager {
   private parseResult(reportJson: string | null): ReviewRunResult | null {
     if (reportJson === null) return null;
     return JSON.parse(reportJson) as ReviewRunResult;
+  }
+
+  /**
+   * Schedule channel deletion after TTL to prevent unbounded memory growth while
+   * allowing connected clients to finish receiving replay events.
+   */
+  private scheduleChannelEviction(runId: string): void {
+    setTimeout(() => {
+      this.channels.delete(runId);
+    }, CHANNEL_RETENTION_TTL_MS).unref?.();
   }
 }

@@ -6,6 +6,7 @@ import type {
 } from "@silentskip/contracts";
 import { WORKTREE_REF } from "@silentskip/contracts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { cn } from "cn";
 import { Languages, MessageCircleQuestion, RefreshCw, TriangleAlert } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useCopilot } from "@/contexts/copilot-context";
 import { useProject } from "@/contexts/project-context";
 import { useLocalization, useProjectRefs } from "@/lib/use-projects";
 
@@ -49,9 +50,9 @@ const SEVERITY_STYLES: Record<string, string> = {
 
 function Stat({ label, value }: { readonly label: string; readonly value: number }): ReactElement {
   return (
-    <div className="surface p-3">
-      <p className="text-micro text-muted-foreground">{label}</p>
-      <p className="text-body-lg font-semibold tabular-nums">{value}</p>
+    <div className="surface p-3.5 space-y-1 rounded-xl">
+      <p className="text-micro font-medium text-muted-foreground">{label}</p>
+      <p className="text-h3 font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -68,15 +69,21 @@ function CoverageBar({
   readonly percent: number;
 }): ReactElement {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5 p-2 rounded-lg bg-muted/30 border border-border/40">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-meta">{column}</span>
-        <span className="text-micro tabular-nums text-muted-foreground">
+        <span className="text-meta font-mono font-medium text-foreground">{column}</span>
+        <span className="text-micro tabular-nums text-muted-foreground font-medium">
           {filled}/{total} · {percent}%
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            percent === 100 ? "bg-positive" : percent >= 80 ? "bg-primary" : "bg-warning",
+          )}
+          style={{ width: `${percent}%` }}
+        />
       </div>
     </div>
   );
@@ -138,7 +145,7 @@ function TableCard({
 }): ReactElement {
   const { t } = useTranslation();
   return (
-    <Card>
+    <Card className="surface border-border/60 transition-all hover:border-border">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div className="space-y-1">
           <CardTitle className="font-mono text-body">{table.path}</CardTitle>
@@ -194,22 +201,18 @@ function TableCard({
 export function LocalizationPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { openCopilot } = useCopilot();
   const search = useSearch({ from: "/localization" });
   const { projects, activeProjectId, setActiveProjectId } = useProject();
 
-  const projectId = search.projectId ?? activeProjectId ?? null;
-  const baseRef = search.base ?? null;
-  const currentRef = search.current ?? null;
+  const projectId = search.projectId ?? activeProjectId ?? projects[0]?.id ?? null;
+  const targetRef = search.ref ?? search.current ?? WORKTREE_REF;
+  const currentRef = targetRef;
+  const baseRef = search.base ?? (targetRef === WORKTREE_REF ? "HEAD" : targetRef);
+
   const refsQuery = useProjectRefs(projectId);
   const reportQuery = useLocalization(projectId, baseRef, currentRef);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
-
-  const refOptions = useMemo(() => {
-    const refs = refsQuery.data;
-    if (refs === undefined) return [];
-    const names = refs.refs.map((ref) => ref.name);
-    return refs.head === null ? names : ["HEAD", ...names];
-  }, [refsQuery.data]);
 
   const anchorsById = useMemo(
     () =>
@@ -222,57 +225,55 @@ export function LocalizationPage(): ReactElement {
     [reportQuery.data],
   );
 
-  function changeScope(next: {
-    projectId?: string | null;
-    base?: string | null;
-    current?: string | null;
-  }): void {
-    const nextProject = next.projectId === undefined ? projectId : next.projectId;
-    const nextBase = next.base === undefined ? baseRef : next.base;
-    const nextCurrent = next.current === undefined ? currentRef : next.current;
+  function changeProject(nextProjectId: string): void {
+    setActiveProjectId(nextProjectId);
     void navigate({
       to: "/localization",
       replace: true,
       search: {
-        ...(nextProject === null ? {} : { projectId: nextProject }),
-        ...(nextBase === null ? {} : { base: nextBase }),
-        ...(nextCurrent === null ? {} : { current: nextCurrent }),
+        projectId: nextProjectId,
+        ref: targetRef,
+        current: targetRef,
+        base: targetRef === WORKTREE_REF ? "HEAD" : targetRef,
+      },
+    });
+  }
+
+  function changeTargetRef(newRef: string): void {
+    const nextBase = newRef === WORKTREE_REF ? "HEAD" : newRef;
+    void navigate({
+      to: "/localization",
+      replace: true,
+      search: {
+        ...(projectId === null ? {} : { projectId }),
+        ref: newRef,
+        current: newRef,
+        base: nextBase,
       },
     });
   }
 
   function askAbout(table: string): void {
-    if (projectId === null || baseRef === null || currentRef === null) return;
-    void navigate({
-      to: "/what-if",
-      search: {
-        projectId,
-        base: baseRef,
-        current: currentRef,
-        q: t("localization.askQuestion", { table }),
-      },
+    if (projectId === null) return;
+    openCopilot({
+      projectId,
+      baseRef,
+      currentRef,
+      initialQuestion: t("localization.askQuestion", { table }),
     });
   }
 
   const report = reportQuery.data;
-  const scopeReady = projectId !== null && baseRef !== null && currentRef !== null;
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("localization.title")} description={t("localization.description")} />
 
-      <Card>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
+      <Card className="surface border-border/60">
+        <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-meta">{t("compare.projectTitle")}</Label>
-            <Select
-              value={projectId ?? ""}
-              onValueChange={(value) => {
-                const next = value === "" ? null : value;
-                if (next !== null) setActiveProjectId(next);
-                changeScope({ projectId: next, base: null, current: null });
-              }}
-            >
+            <Select value={projectId ?? ""} onValueChange={changeProject}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("compare.projectPlaceholder")} />
               </SelectTrigger>
@@ -285,42 +286,27 @@ export function LocalizationPage(): ReactElement {
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-1.5">
-            <Label className="text-meta">{t("whatIf.scopeBase")}</Label>
-            <Select
-              value={baseRef ?? ""}
-              onValueChange={(value) => changeScope({ base: value === "" ? null : value })}
-              disabled={projectId === null || refOptions.length === 0}
-            >
+            <Label className="text-meta">Phiên bản / Nhánh kiểm tra</Label>
+            <Select value={targetRef} onValueChange={changeTargetRef} disabled={projectId === null}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("compare.refPlaceholder")} />
+                <SelectValue placeholder="Chọn phiên bản hoặc nhánh..." />
               </SelectTrigger>
               <SelectContent>
-                {refOptions.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-meta">{t("whatIf.scopeCurrent")}</Label>
-            <Select
-              value={currentRef ?? ""}
-              onValueChange={(value) => changeScope({ current: value === "" ? null : value })}
-              disabled={projectId === null || refOptions.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("compare.refPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={WORKTREE_REF}>{t("compare.worktreeOption")}</SelectItem>
-                {refOptions.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
+                <SelectItem value={WORKTREE_REF}>
+                  {t("compare.worktreeOption", { defaultValue: "Bản đang làm (chưa commit)" })}
+                </SelectItem>
+                {refsQuery.data?.head !== null && (
+                  <SelectItem value="HEAD">HEAD — commit mới nhất</SelectItem>
+                )}
+                {refsQuery.data?.refs
+                  .filter((r) => r.kind === "branch" && r.name !== "HEAD")
+                  .map((branch) => (
+                    <SelectItem key={branch.name} value={branch.name}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -356,10 +342,17 @@ export function LocalizationPage(): ReactElement {
             </Button>
           </CardContent>
         </Card>
-      ) : reportQuery.isPending || !scopeReady ? (
-        <div className="space-y-3">
-          <Skeleton className="h-20" />
-          <Skeleton className="h-40" />
+      ) : reportQuery.isPending ? (
+        <div className="surface p-8 text-center space-y-3 rounded-xl border border-border/60">
+          <div className="inline-flex items-center justify-center size-10 rounded-full bg-primary/10 text-primary animate-spin">
+            <RefreshCw className="size-5" />
+          </div>
+          <p className="text-body font-semibold text-foreground">
+            Đang phân tích các bảng localization (*key.csv)...
+          </p>
+          <p className="text-meta text-muted-foreground">
+            Kiểm tra coverage, trùng key, thiếu bản dịch và tính hợp lệ của placeholder.
+          </p>
         </div>
       ) : report === undefined ? null : report.tables.length === 0 ? (
         <Card>

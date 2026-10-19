@@ -33,7 +33,7 @@ import {
   sessions,
   turns,
 } from "@silentskip/db";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 import { loadDigest } from "./digest-input";
 import { loadProjectProfile } from "./profiles";
@@ -50,6 +50,9 @@ export interface WhatIfManagerDeps {
 
 /** How many recent completed turns ride along with every question. */
 const RECENT_TURN_LIMIT = 3;
+
+/** How long completed SSE channels remain in memory for late replaying before eviction. */
+const CHANNEL_RETENTION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * What-If chat over one A/B comparison (E6, decision #28 mechanisms).
@@ -73,13 +76,46 @@ export class WhatIfManager {
       filters.push(eq(sessions.currentRef, currentRef));
     }
     const rows = this.deps.db
-      .select()
+      .select({
+        id: sessions.id,
+        projectId: sessions.projectId,
+        baseRef: sessions.baseRef,
+        currentRef: sessions.currentRef,
+        title: sessions.title,
+        createdAt: sessions.createdAt,
+        updatedAt: sessions.updatedAt,
+      })
       .from(sessions)
       .where(and(...filters))
       .orderBy(desc(sessions.updatedAt))
       .limit(100)
       .all();
-    return rows.map((row) => this.summary(row));
+
+    if (rows.length === 0) return [];
+
+    // Batch query turn counts in a single GROUP BY query instead of N+1 individual queries
+    const sessionIds = rows.map((r) => r.id);
+    const countRows = this.deps.db
+      .select({
+        sessionId: turns.sessionId,
+        count: sql<number>`count(*)`,
+      })
+      .from(turns)
+      .where(inArray(turns.sessionId, sessionIds))
+      .groupBy(turns.sessionId)
+      .all();
+    const countMap = new Map(countRows.map((c) => [c.sessionId, c.count]));
+
+    return rows.map((row) => ({
+      id: row.id,
+      projectId: row.projectId,
+      baseRef: row.baseRef ?? "",
+      currentRef: row.currentRef ?? "",
+      title: row.title,
+      turnCount: countMap.get(row.id) ?? 0,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
   }
 
   /** Create a session bound to one A/B comparison. */
@@ -196,6 +232,7 @@ export class WhatIfManager {
       });
     }
     this.channels.set(turnId, channel);
+    this.scheduleChannelEviction(turnId);
     return channel;
   }
 
@@ -374,6 +411,7 @@ export class WhatIfManager {
         .where(eq(sessions.id, sessionId))
         .run();
 
+      this.scheduleChannelEviction(assistantTurnId);
       await channel.emit({ type: "answer", turnId: assistantTurnId, answer });
       this.deps.log.info(
         { sessionId, turnId: assistantTurnId, issues: linked.issues.length },
@@ -387,6 +425,7 @@ export class WhatIfManager {
           : "what-if turn failed";
       const data: AssistantTurnData = { answer: null, contextCounts: null, error: message };
       this.persistTurn(assistantTurnId, data, [], []);
+      this.scheduleChannelEviction(assistantTurnId);
       await channel.emit({ type: "failed", turnId: assistantTurnId, error: message });
       this.deps.log.warn({ err: error, sessionId }, "what-if turn failed");
     } finally {
@@ -631,5 +670,15 @@ export class WhatIfManager {
       note: row.note,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Schedule channel deletion after TTL to prevent unbounded memory growth while
+   * allowing connected clients to finish receiving replay events.
+   */
+  private scheduleChannelEviction(turnId: string): void {
+    setTimeout(() => {
+      this.channels.delete(turnId);
+    }, CHANNEL_RETENTION_TTL_MS).unref?.();
   }
 }

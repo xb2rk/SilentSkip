@@ -11,6 +11,7 @@ import {
   ProjectRefsResponseSchema,
   ProjectSummarySchema,
   SurfaceHistoryResponseSchema,
+  WORKTREE_REF,
 } from "@silentskip/contracts";
 import type { AppDatabase } from "@silentskip/db";
 import { Hono } from "hono";
@@ -98,8 +99,13 @@ export function createProjectsRoutes(deps: ProjectsRoutesDeps): Hono {
   /** Localization report (E9): deterministic LOC-01 for detected *key.csv tables. */
   app.get("/:id/localization", async (c) => {
     const project = getProject(deps.db, c.req.param("id"));
-    const base = c.req.query("base");
-    const current = c.req.query("current");
+    const ref = c.req.query("ref");
+    let base = c.req.query("base");
+    let current = c.req.query("current");
+    if (ref !== undefined && ref !== "") {
+      current = current ?? ref;
+      base = base ?? (current === WORKTREE_REF ? "HEAD" : current);
+    }
     if (base === undefined || base === "" || current === undefined || current === "") {
       throw new AppError(ErrorCodes.badRequest, "Thiếu tham số `base` hoặc `current`");
     }

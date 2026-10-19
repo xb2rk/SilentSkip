@@ -78,10 +78,11 @@ const localizationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/localization",
   validateSearch: (search: Record<string, unknown>) => {
-    const parsed: { projectId?: string; base?: string; current?: string } = {};
+    const parsed: { projectId?: string; base?: string; current?: string; ref?: string } = {};
     if (typeof search.projectId === "string") parsed.projectId = search.projectId;
     if (typeof search.base === "string") parsed.base = search.base;
     if (typeof search.current === "string") parsed.current = search.current;
+    if (typeof search.ref === "string") parsed.ref = search.ref;
     return parsed;
   },
   component: LocalizationPage,

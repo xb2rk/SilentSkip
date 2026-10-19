@@ -1,6 +1,6 @@
 import type { Anchor, SynthesizeOutput } from "@silentskip/contracts";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,17 @@ import { Button } from "@/components/ui/button";
 type ReportFinding = SynthesizeOutput["findings"][number];
 
 const SEVERITY_STYLES: Record<ReportFinding["severity"], string> = {
-  critical: "bg-danger/15 text-danger dark:text-danger",
-  major: "bg-warning/15 text-warning dark:text-warning",
-  minor: "bg-info/15 text-info dark:text-info",
-  info: "bg-neutral/15 text-neutral dark:text-neutral",
+  critical: "bg-danger/15 text-danger font-semibold",
+  major: "bg-warning/15 text-warning font-semibold",
+  minor: "bg-info/15 text-info font-semibold",
+  info: "bg-neutral/15 text-neutral font-semibold",
+};
+
+const SEVERITY_CLASSES: Record<ReportFinding["severity"], string> = {
+  critical: "finding-critical",
+  major: "finding-major",
+  minor: "finding-minor",
+  info: "finding-info",
 };
 
 const SEVERITY_LABEL_KEYS: Record<ReportFinding["severity"], string> = {
@@ -99,9 +106,7 @@ interface FindingCardProps {
 }
 
 /**
- * One verified finding: severity + confidence, the claim, and its citation chips.
- * Collapsed by default — the header plus the first lines of the claim stay readable,
- * consequence/recommendation/anchors open on demand.
+ * Modern verified finding card with severity accent, prominent title, and 1-click Copilot trigger
  */
 export function FindingCard({
   finding,
@@ -113,12 +118,18 @@ export function FindingCard({
 }: FindingCardProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
+
   return (
-    <div className="surface p-4">
+    <div
+      className={cn(
+        "surface p-4 transition-all hover:shadow-xs",
+        SEVERITY_CLASSES[finding.severity],
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "inline-flex h-6 items-center rounded-md px-2 text-micro font-medium",
+            "inline-flex h-6 items-center rounded-md px-2 text-micro uppercase tracking-wider",
             SEVERITY_STYLES[finding.severity],
           )}
         >
@@ -132,7 +143,24 @@ export function FindingCard({
             {t("run.needsVerification")}
           </span>
         )}
-        <h3 className="min-w-0 flex-1 text-body font-semibold">{finding.title}</h3>
+
+        <h3 className="min-w-0 flex-1 text-body-lg font-bold text-foreground">{finding.title}</h3>
+
+        {onAsk !== undefined && (
+          <Button
+            variant="outline"
+            size="xs"
+            className="h-6 gap-1 text-micro font-semibold border-primary/30 text-primary hover:bg-primary/10"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAsk(finding.title);
+            }}
+          >
+            <Sparkles className="size-3 text-primary" />
+            <span>Hỏi Copilot</span>
+          </Button>
+        )}
+
         <button
           type="button"
           aria-expanded={open}
@@ -143,47 +171,46 @@ export function FindingCard({
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
-      <p className={cn("mt-2 text-body leading-relaxed", !open && "line-clamp-2")}>
+
+      <p
+        className={cn("mt-2 text-body leading-relaxed text-foreground/90", !open && "line-clamp-2")}
+      >
         {finding.statement}
       </p>
+
       {open && (
-        <>
+        <div className="pt-2 border-t border-border/40 mt-3 space-y-2">
           {attribution !== undefined && <AttributionLine attribution={attribution} />}
           {finding.consequence !== undefined && finding.consequence !== "" && (
-            <p className="mt-2 text-meta leading-relaxed text-muted-foreground">
-              <span className="font-medium text-foreground/80">{t("run.consequenceLabel")}: </span>
-              {finding.consequence}
-            </p>
+            <div className="rounded-lg bg-muted/40 p-2.5 text-meta leading-relaxed">
+              <span className="font-semibold text-foreground">{t("run.consequenceLabel")}: </span>
+              <span className="text-muted-foreground">{finding.consequence}</span>
+            </div>
           )}
           {finding.recommendation !== undefined && finding.recommendation !== "" && (
-            <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
-              <span className="font-medium text-foreground/80">
-                {t("run.recommendationLabel")}:{" "}
-              </span>
-              {finding.recommendation}
-            </p>
+            <div className="rounded-lg bg-primary/[0.04] border border-primary/20 p-2.5 text-meta leading-relaxed">
+              <span className="font-semibold text-primary">{t("run.recommendationLabel")}: </span>
+              <span className="text-foreground/90">{finding.recommendation}</span>
+            </div>
           )}
           {finding.anchors.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {finding.anchors.map((anchorId) => (
-                <AnchorChip
-                  key={anchorId}
-                  anchorId={anchorId}
-                  anchorsById={anchorsById}
-                  onAnchorClick={onAnchorClick}
-                />
-              ))}
+            <div className="pt-1">
+              <p className="text-micro font-medium text-muted-foreground mb-1.5">
+                Dòng code liên quan:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {finding.anchors.map((anchorId) => (
+                  <AnchorChip
+                    key={anchorId}
+                    anchorId={anchorId}
+                    anchorsById={anchorsById}
+                    onAnchorClick={onAnchorClick}
+                  />
+                ))}
+              </div>
             </div>
           )}
-          {onAsk !== undefined && (
-            <div className="mt-3 flex justify-end">
-              <Button variant="ghost" size="sm" onClick={() => onAsk(finding.title)}>
-                <MessageCircleQuestion className="size-3.5" />
-                {t("run.askAboutThis")}
-              </Button>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

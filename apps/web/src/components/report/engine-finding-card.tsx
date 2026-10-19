@@ -1,6 +1,6 @@
 import type { Anchor, DigestFinding } from "@silentskip/contracts";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +14,17 @@ import { AnchorChip, AttributionLine, type ChangeAttribution } from "./finding-c
  */
 
 const SEVERITY_STYLES: Record<DigestFinding["severity"], string> = {
-  critical: "bg-danger/15 text-danger dark:text-danger",
-  major: "bg-warning/15 text-warning dark:text-warning",
-  minor: "bg-info/15 text-info dark:text-info",
-  info: "bg-neutral/15 text-neutral dark:text-neutral",
+  critical: "bg-danger/15 text-danger font-semibold",
+  major: "bg-warning/15 text-warning font-semibold",
+  minor: "bg-info/15 text-info font-semibold",
+  info: "bg-neutral/15 text-neutral font-semibold",
+};
+
+const SEVERITY_CLASSES: Record<DigestFinding["severity"], string> = {
+  critical: "finding-critical",
+  major: "finding-major",
+  minor: "finding-minor",
+  info: "finding-info",
 };
 
 const SEVERITY_LABEL_KEYS: Record<DigestFinding["severity"], string> = {
@@ -53,15 +60,21 @@ export function EngineFindingCard({
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   const [showDerivation, setShowDerivation] = useState(false);
+
   return (
-    <div className="surface p-4">
+    <div
+      className={cn(
+        "surface p-4 transition-all hover:shadow-xs",
+        SEVERITY_CLASSES[finding.severity],
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="font-mono text-micro">
+        <Badge variant="outline" className="font-mono text-micro font-semibold bg-background">
           {finding.ruleId}
         </Badge>
         <span
           className={cn(
-            "inline-flex h-6 items-center rounded-md px-2 text-micro",
+            "inline-flex h-6 items-center rounded-md px-2 text-micro uppercase tracking-wider",
             SEVERITY_STYLES[finding.severity],
           )}
         >
@@ -88,20 +101,41 @@ export function EngineFindingCard({
             )}
           </span>
         )}
-        <span className="ml-auto text-micro text-muted-foreground">
+
+        <Badge variant="secondary" className="text-micro font-normal text-muted-foreground">
           {t("run.engineDeterministic")}
-        </span>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={t("run.detailsToggle")}
-          onClick={() => setOpen((value) => !value)}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-        >
-          <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
-        </button>
+        </Badge>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {onAsk !== undefined && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-6 gap-1 text-micro font-semibold border-primary/30 text-primary hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAsk(finding.title);
+              }}
+            >
+              <Sparkles className="size-3 text-primary" />
+              <span>Hỏi Copilot</span>
+            </Button>
+          )}
+
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={t("run.detailsToggle")}
+            onClick={() => setOpen((value) => !value)}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+          >
+            <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+          </button>
+        </div>
       </div>
-      <h3 className="mt-2 text-body font-semibold leading-snug">{finding.title}</h3>
+
+      <h3 className="mt-2 text-body-lg font-bold text-foreground leading-snug">{finding.title}</h3>
+
       <p
         className={cn(
           "mt-1 text-body leading-relaxed text-muted-foreground",
@@ -110,47 +144,47 @@ export function EngineFindingCard({
       >
         {finding.message}
       </p>
+
       {open && (
-        <>
+        <div className="pt-2 border-t border-border/40 mt-3 space-y-2">
           {attribution !== undefined && <AttributionLine attribution={attribution} />}
           {finding.anchors.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {finding.anchors.map((anchorId) => (
-                <AnchorChip
-                  key={anchorId}
-                  anchorId={anchorId}
-                  anchorsById={anchorsById}
-                  onAnchorClick={onAnchorClick}
-                />
-              ))}
+            <div className="pt-1">
+              <p className="text-micro font-medium text-muted-foreground mb-1.5">
+                Dòng code liên quan:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {finding.anchors.map((anchorId) => (
+                  <AnchorChip
+                    key={anchorId}
+                    anchorId={anchorId}
+                    anchorsById={anchorsById}
+                    onAnchorClick={onAnchorClick}
+                  />
+                ))}
+              </div>
             </div>
           )}
+
           <button
             type="button"
             onClick={() => setShowDerivation((value) => !value)}
-            className="mt-2 flex items-center gap-1 text-meta text-muted-foreground hover:text-foreground"
+            className="mt-2 flex items-center gap-1 text-meta text-muted-foreground hover:text-foreground font-medium"
           >
             <ChevronRight
               className={cn("size-3.5 transition-transform", showDerivation && "rotate-90")}
             />
             {t("run.derivationTitle")}
           </button>
+
           {showDerivation && (
-            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-meta text-muted-foreground">
+            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-meta text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">
               {finding.derivation.map((step) => (
                 <li key={step}>{step}</li>
               ))}
             </ol>
           )}
-          {onAsk !== undefined && (
-            <div className="mt-3 flex justify-end">
-              <Button variant="ghost" size="sm" onClick={() => onAsk(finding.title)}>
-                <MessageCircleQuestion className="size-3.5" />
-                {t("run.askAboutThis")}
-              </Button>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
