@@ -21,13 +21,17 @@ export class SseChannel<TEvent extends { type: string }> {
 
   async emit(event: TEvent): Promise<void> {
     this.events.push(event);
-    for (const subscriber of [...this.subscribers]) {
-      try {
-        await subscriber(event);
-      } catch {
-        // Subscriber gone (client aborted) — the work must keep going.
-      }
-    }
+    const subscribers = [...this.subscribers];
+    // Fan out concurrently: a slow client must not delay the pipeline or the other listeners.
+    await Promise.all(
+      subscribers.map(async (subscriber) => {
+        try {
+          await subscriber(event);
+        } catch {
+          // Subscriber gone (client aborted) — the work must keep going.
+        }
+      }),
+    );
     if (event.type !== "stage") {
       this.terminal = true;
       this.subscribers.clear();
