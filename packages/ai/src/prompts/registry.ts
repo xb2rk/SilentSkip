@@ -17,7 +17,7 @@ export const PROMPT_VERSIONS = {
   read: "2.2.1",
   dig: "2.0.1",
   synthesize: "2.2.1",
-  whatif: "1.0.2",
+  whatif: "1.0.3",
 } as const;
 
 const SHARED_RULES = `Rules (non-negotiable):

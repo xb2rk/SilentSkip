@@ -105,7 +105,8 @@ describe("what-if pass", () => {
 
   it("sends the reconstructed context and records the transport facts", async () => {
     const scripted = scriptedRunner({ whatif: OUTPUT });
-    const result = await runWhatIfPass({ runner: scripted.runner, config: CONFIG }, build());
+    const context = build();
+    const result = await runWhatIfPass({ runner: scripted.runner, config: CONFIG }, context);
     expect(result.meta).toMatchObject({
       pass: "whatif",
       promptVersion: PROMPT_VERSIONS.whatif,
@@ -116,7 +117,17 @@ describe("what-if pass", () => {
     expect(result.output).toEqual(OUTPUT);
     const call = firstCall(scripted.calls);
     const names = call.attachments.map((item) => item.uploadName);
-    expect(names).toEqual(["task.json", "facts.json", "history.json", "pins.jsonl"]);
+    expect(names).toEqual([
+      "task.json",
+      "facts.json",
+      "anchors.jsonl",
+      "history.json",
+      "pins.jsonl",
+    ]);
+    const anchorsFile = attachmentOf(call, "anchors.jsonl");
+    const anchorLines = (anchorsFile?.content ?? "").split("\n").filter((line) => line !== "");
+    expect(anchorLines).toHaveLength(context.evidence.length);
+    expect(JSON.parse(anchorLines[0] ?? "{}")).toMatchObject({ id: context.evidence[0]?.id });
     const taskFile = attachmentOf(call, "task.json");
     expect(taskFile).toBeDefined();
     expect(JSON.parse(taskFile?.content ?? "{}")).toMatchObject({ mode: "whatif" });

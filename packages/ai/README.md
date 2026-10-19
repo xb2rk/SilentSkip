@@ -85,7 +85,7 @@ linker that gates every citation.
   call-arity drift and named treatments of the new special-enemy and stat-service systems;
   229 anchors verified, hallucinated ids stripped honestly.
 
-- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.2) answers one question per turn over
+- **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.3) answers one question per turn over
   the same machinery. Insea is stateless, so every call **reconstructs context**: task pack, the
   session ledger (mechanically composed from previous answers — no summarization call), recent raw
   turns, pins, and a 400-anchor evidence pack with **pinned anchors boosted to the front**, plus the

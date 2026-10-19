@@ -1,7 +1,7 @@
 # Prompt passes
 
 Prompts are code. They live in the versioned registry `packages/ai/src/prompts/registry.ts`
-(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.2 —
+(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.3 —
 snapshot-tested); passes reference them by version, and the version is persisted with every pass
 in `contextManifests`.
 
@@ -31,7 +31,7 @@ functions — explain behaviour first) and file-balanced snippet anchors (≤40/
 unit is read in chunks (`chunk C of K`). Citations are checked against the **full digest
 registry**, never against the budgeted evidence pack.
 
-The **What-If pass** (`whatif` 1.0.2) answers one question per turn: Insea is stateless, so every
+The **What-If pass** (`whatif` 1.0.3) answers one question per turn: Insea is stateless, so every
 call reconstructs context from the task pack, the session ledger, recent turns, pins (boosted to the
 front of the evidence pack) and the latest verified run report of the same comparison; `linkAnswer`
 then gates the answer like every other pass.
@@ -44,7 +44,7 @@ then gates the answer like every other pass.
 | `read` | One reading unit — or chunk when oversized — per call (every unit, every run); explain behaviour first from `bodies.jsonl`; findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
 | `dig` | One focused round: queries resolved deterministically against the full anchor registry (≤40 anchors) | `DigOutputSchema` |
 | `synthesize` | Final writer: verdict, score, per-theme structured narratives (`summary`/`behaviorChange`/`watchFor` + linker-validated `anchorIds`), findings carried forward unchanged — may not add anchors or claims. A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
-| `whatif` | One question per turn over: task pack + ledger + recent turns + pins + evidence pack (400 anchors, pins first); Vietnamese answers split evidence (anchored) / speculation / unknowns | `WhatIfOutputSchema` |
+| `whatif` | One question per turn over: task pack + ledger + recent turns + pins + evidence pack (200 anchors, pins first); Vietnamese answers split evidence (anchored) / speculation / unknowns | `WhatIfOutputSchema` |
 
 ## Guards around the passes (linker — `packages/ai/src/link/`)
 

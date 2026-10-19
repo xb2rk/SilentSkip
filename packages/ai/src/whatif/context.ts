@@ -291,6 +291,15 @@ export function serializeWhatIfHistoryFile(context: WhatIfContext): InseaAttachm
   );
 }
 
+/** `anchors.jsonl` — the evidence pack actually attached to this turn. */
+export function serializeWhatIfAnchorsJsonl(context: WhatIfContext): InseaAttachment {
+  return attachment(
+    "anchors.jsonl",
+    "application/x-ndjson",
+    context.evidence.map((anchor) => JSON.stringify(anchor)).join("\n"),
+  );
+}
+
 /** `pins.jsonl` — pinned anchors with their snippets when the registry has them. */
 export function serializePinsJsonl(
   pins: readonly WhatIfPinInput[],

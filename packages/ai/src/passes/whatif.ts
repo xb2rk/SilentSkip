@@ -3,6 +3,7 @@ import type { InseaAttachment } from "../insea/types.js";
 import { buildWhatIfPrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import {
   serializePinsJsonl,
+  serializeWhatIfAnchorsJsonl,
   serializeWhatIfFactsFile,
   serializeWhatIfHistoryFile,
   serializeWhatIfReportFile,
@@ -31,6 +32,7 @@ export async function runWhatIfPass(
   const attachments: InseaAttachment[] = [
     serializeWhatIfTaskFile(context),
     serializeWhatIfFactsFile(context),
+    serializeWhatIfAnchorsJsonl(context),
     serializeWhatIfHistoryFile(context),
     serializePinsJsonl(context.pins, context.anchorsById),
     ...(context.runSummary === null ? [] : [serializeWhatIfReportFile(context)]),
