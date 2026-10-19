@@ -115,8 +115,9 @@ export const MAX_SYNTHESIZE_ROUNDS = 2;
  * already recorded in the audit trail, so nothing is hidden by not rewriting.
  */
 export const BLOCKING_SYNTHESIZE_ISSUE_KINDS: ReadonlySet<LinkIssueKind> = new Set<LinkIssueKind>([
+  // A stray anchor the readings never cited is already stripped by the linker (recorded as
+  // `new-anchor`), so the report keeps its grounded anchors — rewriting it costs a full pass.
   "finding-unanchored",
-  "new-anchor",
   "claim-invalid",
   "claim-false",
   "theme-invalid",

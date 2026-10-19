@@ -277,7 +277,7 @@ describe("runReviewPipeline v2", () => {
         {
           title: "Invented",
           statement: "Something new",
-          anchors: [ANCHOR_A_ATK],
+          anchors: ["B:ghost:1:1:code"],
           severity: "minor",
           confidence: "exact",
           claims: [],
@@ -318,8 +318,44 @@ describe("runReviewPipeline v2", () => {
     );
     expect(synthesizeCalls).toHaveLength(2);
     expect(synthesizeCalls[1]?.prompt).toContain("Constraints from the previous round");
-    expect(result.verification.issues.some((issue) => issue.kind === "new-anchor")).toBe(true);
+    expect(result.verification.issues.some((issue) => issue.kind === "finding-unanchored")).toBe(
+      true,
+    );
     expect(result.report.verdict).toBe("needs_review");
+  });
+
+  it("keeps a stray anchor without a second synthesize round", async () => {
+    const stray = report(
+      [
+        {
+          title: "Script constant",
+          statement: "The constant changed",
+          anchors: [ANCHOR_B_MOD, ANCHOR_A_ATK],
+          severity: "major",
+          confidence: "exact",
+          claims: [],
+        },
+      ],
+      GOOD_REPORT.themes,
+    );
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: stray as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const synthesizeCalls = scripted.calls.filter(
+      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "synthesize",
+    );
+    expect(synthesizeCalls).toHaveLength(1);
+    expect(result.verification.issues.some((issue) => issue.kind === "new-anchor")).toBe(true);
+    expect(result.report.findings).toHaveLength(1);
   });
 
   it("salvages findings with failing claims via Fast Repair Gate on final synthesize round", async () => {
@@ -587,7 +623,6 @@ describe("runReviewPipeline v2", () => {
       "claim-false",
       "claim-invalid",
       "finding-unanchored",
-      "new-anchor",
       "theme-invalid",
     ]);
     const cosmetic: LinkIssueKind[] = [
