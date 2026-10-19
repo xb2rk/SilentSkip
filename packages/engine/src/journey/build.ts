@@ -23,7 +23,13 @@ import type {
   SymbolFact,
 } from "../facts/index.js";
 import type { Relation } from "../relations/index.js";
-import type { Journey, JourneyChain, JourneyInput, JourneyNode } from "./types.js";
+import type {
+  Journey,
+  JourneyChain,
+  JourneyInput,
+  JourneyNode,
+  JourneySymbolIndex,
+} from "./types.js";
 import { JOURNEY_SCHEMA_VERSION } from "./types.js";
 
 /** Maximum chains reported; hitting it sets `truncated`. */
@@ -101,7 +107,7 @@ export function buildJourney(input: JourneyInput): Journey {
 interface ExpandContext {
   readonly factsByFile: Map<string, FileFacts>;
   readonly relations: readonly Relation[];
-  readonly symbolIndex: Map<string, { file: string; symbol: SymbolFact }>;
+  readonly symbolIndex: JourneySymbolIndex;
 }
 
 /** Builds the level-0 node for the requested origin. */

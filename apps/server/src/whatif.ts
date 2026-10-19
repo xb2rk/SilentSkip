@@ -4,9 +4,7 @@ import {
   buildWhatIfContext,
   linkAnswer,
   type PassConfig,
-  parseWhatIfLedger,
   runWhatIfPass,
-  type WhatIfTurnInput,
   type WorkflowRunner,
 } from "@silentskip/ai";
 import {
@@ -21,24 +19,30 @@ import {
   type WhatIfSessionDetailResponse,
   type WhatIfSessionSummary,
   type WhatIfStreamEvent,
-  type WhatIfTurn,
   WORKTREE_REF,
 } from "@silentskip/contracts";
-import {
-  type AppDatabase,
-  contextManifests,
-  pins,
-  runs,
-  sessionLedgers,
-  sessions,
-  turns,
-} from "@silentskip/db";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { type AppDatabase, pins, sessions, turns } from "@silentskip/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Logger } from "pino";
+import { scheduleChannelEviction } from "./channel-retention";
 import { loadDigest } from "./digest-input";
 import { loadProjectProfile } from "./profiles";
 import { getProject } from "./projects";
 import { SseChannel } from "./sse-channel";
+import {
+  countTurns,
+  loadLatestRunReport,
+  loadLedger,
+  loadRecentTurns,
+  persistLedger,
+  persistManifest,
+  persistTurn,
+  projectPin,
+  projectSessionSummary,
+  projectTurn,
+  readSessionRow,
+  readTurnRow,
+} from "./whatif-persistence";
 
 /** Dependencies of the What-If manager (mirrors ReviewManager: injectable runner + config). */
 export interface WhatIfManagerDeps {
@@ -47,12 +51,6 @@ export interface WhatIfManagerDeps {
   readonly runner: WorkflowRunner;
   readonly config: PassConfig;
 }
-
-/** How many recent completed turns ride along with every question. */
-const RECENT_TURN_LIMIT = 3;
-
-/** How long completed SSE channels remain in memory for late replaying before eviction. */
-const CHANNEL_RETENTION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * What-If chat over one A/B comparison (E6, decision #28 mechanisms).
@@ -134,21 +132,21 @@ export class WhatIfManager {
       updatedAt: now,
     };
     this.deps.db.insert(sessions).values(row).run();
-    return { session: this.summary(row, 0), turns: [] };
+    return { session: projectSessionSummary(row, 0), turns: [] };
   }
 
   /** Session detail with its turns in order. */
   getSession(sessionId: string): WhatIfSessionDetailResponse {
-    const row = this.sessionRow(sessionId);
+    const row = readSessionRow(this.deps.db, sessionId);
     const turnRows = this.deps.db
       .select()
       .from(turns)
       .where(eq(turns.sessionId, sessionId))
-      .orderBy(asc(turns.turnIndex))
+      .orderBy(turns.turnIndex)
       .all();
     return {
-      session: this.summary(row, turnRows.length),
-      turns: turnRows.map((turn) => this.projectTurn(turn)),
+      session: projectSessionSummary(row, turnRows.length),
+      turns: turnRows.map((turn) => projectTurn(turn)),
     };
   }
 
@@ -157,7 +155,7 @@ export class WhatIfManager {
    * background answer. The returned id is the assistant turn whose stream the UI watches.
    */
   ask(sessionId: string, question: string): string {
-    const session = this.sessionRow(sessionId);
+    const session = readSessionRow(this.deps.db, sessionId);
     const baseRef = session.baseRef;
     const currentRef = session.currentRef;
     if (baseRef === null || currentRef === null) {
@@ -166,7 +164,7 @@ export class WhatIfManager {
         "Phiên trò chuyện này không gắn với cặp so sánh A/B",
       );
     }
-    const turnIndex = this.turnCount(sessionId);
+    const turnIndex = countTurns(this.deps.db, sessionId);
     const now = new Date();
     this.deps.db
       .insert(turns)
@@ -221,8 +219,8 @@ export class WhatIfManager {
     const existing = this.channels.get(turnId);
     if (existing !== undefined) return existing;
     const channel = new SseChannel<WhatIfStreamEvent>();
-    const row = this.turnRow(turnId);
-    const data = this.parseTurnData(row.content);
+    const row = readTurnRow(this.deps.db, turnId);
+    const data = projectTurn(row);
     if (data.answer !== null) {
       void channel.emit({ type: "answer", turnId, answer: data.answer });
     } else if (data.error !== null) {
@@ -235,7 +233,7 @@ export class WhatIfManager {
       });
     }
     this.channels.set(turnId, channel);
-    this.scheduleChannelEviction(turnId);
+    scheduleChannelEviction(this.channels, turnId);
     return channel;
   }
 
@@ -253,7 +251,7 @@ export class WhatIfManager {
       )
       .orderBy(desc(pins.createdAt))
       .all();
-    return rows.map((row) => this.projectPin(row));
+    return rows.map((row) => projectPin(row));
   }
 
   /**
@@ -275,7 +273,7 @@ export class WhatIfManager {
         ),
       )
       .get();
-    if (existing !== undefined) return this.projectPin(existing);
+    if (existing !== undefined) return projectPin(existing);
 
     const digest = await loadDigest(
       project.rootPath,
@@ -299,7 +297,7 @@ export class WhatIfManager {
       createdAt: new Date(),
     };
     this.deps.db.insert(pins).values(row).run();
-    return this.projectPin(row);
+    return projectPin(row);
   }
 
   /** Remove one pin. */
@@ -320,7 +318,7 @@ export class WhatIfManager {
   ): Promise<void> {
     const channel = this.channels.get(assistantTurnId);
     if (channel === undefined) return;
-    const session = this.sessionRow(sessionId);
+    const session = readSessionRow(this.deps.db, sessionId);
     const project = getProject(this.deps.db, session.projectId);
     const emitStage = async (
       stage: "context" | "ai" | "verify",
@@ -344,12 +342,7 @@ export class WhatIfManager {
         currentRef,
         loadProjectProfile(this.deps.db, project.id),
       );
-      const ledgerRow = this.deps.db
-        .select()
-        .from(sessionLedgers)
-        .where(eq(sessionLedgers.sessionId, sessionId))
-        .get();
-      const ledger = parseWhatIfLedger(ledgerRow?.ledgerJson ?? null);
+      const ledger = loadLedger(this.deps.db, sessionId);
       const pinRows = this.deps.db
         .select()
         .from(pins)
@@ -361,8 +354,8 @@ export class WhatIfManager {
           ),
         )
         .all();
-      const recentTurns = this.recentTurns(sessionId, assistantTurnId);
-      const runSummary = this.latestRunReport(session.projectId, baseRef, currentRef);
+      const recentTurns = loadRecentTurns(this.deps.db, sessionId, assistantTurnId);
+      const runSummary = loadLatestRunReport(this.deps.db, session.projectId, baseRef, currentRef);
       const context = buildWhatIfContext({
         digest,
         runSummary,
@@ -397,16 +390,17 @@ export class WhatIfManager {
         turns: recentTurns.length,
       };
       const data: AssistantTurnData = { answer, contextCounts, error: null };
-      this.persistTurn(assistantTurnId, data, usedAnchors, answer.pinsUsed);
-      this.persistManifest(assistantTurnId, result.meta, context.manifest, linked.stats);
-      this.persistLedger(
+      persistTurn(this.deps.db, assistantTurnId, data, usedAnchors, answer.pinsUsed);
+      persistManifest(this.deps.db, assistantTurnId, result.meta, context.manifest, linked.stats);
+      persistLedger(
+        this.deps.db,
         sessionId,
         addTurnToLedger(ledger, {
           statement: answer.evidence.map((item) => item.statement),
           unknowns: answer.unknowns,
           anchors: usedAnchors,
         }),
-        this.turnCount(sessionId) - 1,
+        countTurns(this.deps.db, sessionId) - 1,
       );
       this.deps.db
         .update(sessions)
@@ -414,7 +408,7 @@ export class WhatIfManager {
         .where(eq(sessions.id, sessionId))
         .run();
 
-      this.scheduleChannelEviction(assistantTurnId);
+      scheduleChannelEviction(this.channels, assistantTurnId);
       await channel.emit({ type: "answer", turnId: assistantTurnId, answer });
       this.deps.log.info(
         { sessionId, turnId: assistantTurnId, issues: linked.issues.length },
@@ -427,142 +421,13 @@ export class WhatIfManager {
           ? error.message
           : "what-if turn failed";
       const data: AssistantTurnData = { answer: null, contextCounts: null, error: message };
-      this.persistTurn(assistantTurnId, data, [], []);
-      this.scheduleChannelEviction(assistantTurnId);
+      persistTurn(this.deps.db, assistantTurnId, data, [], []);
+      scheduleChannelEviction(this.channels, assistantTurnId);
       await channel.emit({ type: "failed", turnId: assistantTurnId, error: message });
       this.deps.log.warn({ err: error, sessionId }, "what-if turn failed");
     } finally {
       this.controllers.delete(assistantTurnId);
     }
-  }
-
-  /** Last completed (question, answer) pairs — reconstruction material for the next call. */
-  private recentTurns(sessionId: string, excludeTurnId: string): WhatIfTurnInput[] {
-    const rows = this.deps.db
-      .select()
-      .from(turns)
-      .where(eq(turns.sessionId, sessionId))
-      .orderBy(desc(turns.turnIndex))
-      .limit(RECENT_TURN_LIMIT * 2 + 1)
-      .all()
-      .reverse()
-      .filter((row) => row.id !== excludeTurnId);
-    // A window that starts mid-pair has no question for that answer — skip it instead of
-    // producing a question-less memory item.
-    if (rows[0]?.role === "assistant") rows.shift();
-    const completed: WhatIfTurnInput[] = [];
-    let pendingQuestion: string | undefined;
-    for (const row of rows) {
-      if (row.id === excludeTurnId) continue;
-      if (row.role === "user") {
-        pendingQuestion = row.content;
-        continue;
-      }
-      const data = this.parseTurnData(row.content);
-      if (data.answer === null) continue;
-      completed.push({
-        question: pendingQuestion ?? "",
-        answer: data.answer.answer,
-        anchors: data.answer.evidence.flatMap((item) => item.anchors),
-      });
-      pendingQuestion = undefined;
-    }
-    return completed.slice(-RECENT_TURN_LIMIT);
-  }
-
-  /** Latest completed review of this comparison, when one exists. */
-  private latestRunReport(
-    projectId: string,
-    baseRef: string,
-    currentRef: string,
-  ): { verdict: string; qualityScore: number; report: unknown } | null {
-    const row = this.deps.db
-      .select()
-      .from(runs)
-      .where(
-        and(
-          eq(runs.projectId, projectId),
-          eq(runs.baseRef, baseRef),
-          eq(runs.currentRef, currentRef),
-          eq(runs.status, "completed"),
-        ),
-      )
-      .orderBy(desc(runs.createdAt))
-      .limit(1)
-      .get();
-    if (row === undefined || row.reportJson === null) return null;
-    try {
-      const parsed = JSON.parse(row.reportJson) as { report?: unknown };
-      return {
-        verdict: row.verdict ?? "insufficient_evidence",
-        qualityScore: row.qualityScore ?? 0,
-        report: parsed.report ?? null,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  private persistTurn(
-    turnId: string,
-    data: AssistantTurnData,
-    anchors: readonly string[],
-    pinsUsed: readonly string[],
-  ): void {
-    this.deps.db
-      .update(turns)
-      .set({
-        content: JSON.stringify(data),
-        anchorsJson: JSON.stringify(anchors),
-        pinsJson: JSON.stringify(pinsUsed),
-      })
-      .where(eq(turns.id, turnId))
-      .run();
-  }
-
-  private persistManifest(
-    turnId: string,
-    meta: { promptVersion: string; latencyMs: number; salvage: string },
-    manifest: unknown,
-    stats: unknown,
-  ): void {
-    const sectionsJson = JSON.stringify(manifest);
-    this.deps.db
-      .insert(contextManifests)
-      .values({
-        id: randomUUID(),
-        runId: null,
-        turnId,
-        promptVersion: meta.promptVersion,
-        passId: "whatif",
-        sectionsJson,
-        totalBytes: Buffer.byteLength(sectionsJson, "utf8"),
-        aiCallJson: JSON.stringify({ latencyMs: meta.latencyMs, salvage: meta.salvage }),
-        verifiedStatsJson: JSON.stringify(stats),
-        createdAt: new Date(),
-      })
-      .run();
-  }
-
-  private persistLedger(
-    sessionId: string,
-    ledger: ReturnType<typeof addTurnToLedger>,
-    uptoTurn: number,
-  ): void {
-    const now = new Date();
-    this.deps.db
-      .insert(sessionLedgers)
-      .values({
-        sessionId,
-        uptoTurn,
-        ledgerJson: JSON.stringify(ledger),
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: sessionLedgers.sessionId,
-        set: { uptoTurn, ledgerJson: JSON.stringify(ledger), updatedAt: now },
-      })
-      .run();
   }
 
   private assertRealBase(baseRef: string): void {
@@ -572,122 +437,5 @@ export class WhatIfManager {
         "Bản gốc (A) phải là ref thật — không thể là bản đang làm",
       );
     }
-  }
-
-  private sessionRow(sessionId: string): typeof sessions.$inferSelect {
-    const row = this.deps.db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (row === undefined) {
-      throw new AppError(ErrorCodes.notFound, "Phiên trò chuyện không tồn tại");
-    }
-    return row;
-  }
-
-  private turnRow(turnId: string): typeof turns.$inferSelect {
-    const row = this.deps.db.select().from(turns).where(eq(turns.id, turnId)).get();
-    if (row === undefined) {
-      throw new AppError(ErrorCodes.notFound, "Lượt hỏi không tồn tại");
-    }
-    return row;
-  }
-
-  private summary(row: typeof sessions.$inferSelect, turnCount: number): WhatIfSessionSummary {
-    return {
-      id: row.id,
-      projectId: row.projectId,
-      baseRef: row.baseRef ?? "",
-      currentRef: row.currentRef ?? "",
-      title: row.title,
-      turnCount,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
-  }
-
-  private turnCount(sessionId: string): number {
-    const row = this.deps.db
-      .select({ value: sql<number>`count(*)` })
-      .from(turns)
-      .where(eq(turns.sessionId, sessionId))
-      .get();
-    return row?.value ?? 0;
-  }
-
-  private projectTurn(row: typeof turns.$inferSelect): WhatIfTurn {
-    const anchors = this.parseStringArray(row.anchorsJson);
-    const pinsUsed = this.parseStringArray(row.pinsJson);
-    if (row.role === "user") {
-      return {
-        id: row.id,
-        turnIndex: row.turnIndex,
-        role: "user",
-        content: row.content,
-        answer: null,
-        contextCounts: null,
-        error: null,
-        anchors,
-        pinsUsed,
-        createdAt: row.createdAt.toISOString(),
-      };
-    }
-    const data = this.parseTurnData(row.content);
-    return {
-      id: row.id,
-      turnIndex: row.turnIndex,
-      role: "assistant",
-      content: data.answer?.answer ?? data.error ?? "",
-      answer: data.answer,
-      contextCounts: data.contextCounts,
-      error: data.error,
-      anchors,
-      pinsUsed,
-      createdAt: row.createdAt.toISOString(),
-    };
-  }
-
-  private parseTurnData(raw: string): AssistantTurnData {
-    try {
-      const parsed = JSON.parse(raw) as Partial<AssistantTurnData>;
-      return {
-        answer: parsed.answer ?? null,
-        contextCounts: parsed.contextCounts ?? null,
-        error: typeof parsed.error === "string" ? parsed.error : null,
-      };
-    } catch {
-      return { answer: null, contextCounts: null, error: null };
-    }
-  }
-
-  private parseStringArray(raw: string | null): string[] {
-    if (raw === null) return [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed)
-        ? parsed.filter((item): item is string => typeof item === "string")
-        : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private projectPin(row: typeof pins.$inferSelect): Pin {
-    return {
-      id: row.id,
-      projectId: row.projectId,
-      baseRef: row.baseRef,
-      currentRef: row.currentRef,
-      anchorId: row.anchorId,
-      note: row.note,
-      createdAt: row.createdAt.toISOString(),
-    };
-  }
-
-  /**
-   * Schedule channel deletion after TTL to prevent unbounded memory growth while
-   * allowing connected clients to finish receiving replay events.
-   */
-  private scheduleChannelEviction(turnId: string): void {
-    setTimeout(() => {
-      this.channels.delete(turnId);
-    }, CHANNEL_RETENTION_TTL_MS).unref?.();
   }
 }
