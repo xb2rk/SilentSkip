@@ -1,4 +1,5 @@
 import type { ReadFinding, TypedClaim } from "@silentskip/contracts";
+import { compareStrings } from "../text/compare.js";
 
 /**
  * The deterministic merge step between reading and writing (E7.2).
@@ -36,7 +37,7 @@ export function mergeStructured(input: {
   findings.sort(
     (a, b) =>
       SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-      normalizeStatement(a.statement).localeCompare(normalizeStatement(b.statement)),
+      compareStrings(normalizeStatement(a.statement), normalizeStatement(b.statement)),
   );
   return {
     findings,

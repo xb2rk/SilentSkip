@@ -213,6 +213,15 @@ describe("buildFactBundle — robustness", () => {
     expect(forward).toEqual(backward);
   });
 
+  it("sorts paths by code unit, not locale collation", () => {
+    const bundle = buildFactBundle([
+      { path: "a/b.fcg", source: FCG_SOURCE },
+      { path: "a/B.fcc", source: FCC_SOURCE },
+    ]);
+    // Code-unit order puts "B" (0x42) before "b" (0x62); locale collation would flip these.
+    expect(bundle.files.map((f) => f.path)).toEqual(["a/B.fcc", "a/b.fcg"]);
+  });
+
   it("rejects unsupported extensions", () => {
     expect(() => buildFactBundle([{ path: "notes.txt", source: "" }])).toThrow(
       /Unsupported FC source extension/,

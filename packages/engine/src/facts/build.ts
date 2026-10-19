@@ -39,7 +39,7 @@ import {
  * inputs are the sources themselves. Unknown extensions throw — the caller must filter.
  */
 export function buildFactBundle(sources: readonly SourceInput[]): FactBundle {
-  const ordered = [...sources].sort((a, b) => a.path.localeCompare(b.path, "en"));
+  const ordered = [...sources].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return { schemaVersion: FACT_SCHEMA_VERSION, files: ordered.map(buildFileFacts) };
 }
 

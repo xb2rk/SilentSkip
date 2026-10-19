@@ -262,6 +262,35 @@ describe("mergeStructured", () => {
     expect(merged.findings.map((finding) => finding.title)).toEqual(["C", "A"]);
     expect(merged.unknowns).toEqual(["u1", "u2"]);
   });
+
+  it("orders equal-severity findings by code unit, not locale collation", () => {
+    const merged = mergeStructured({
+      findings: [
+        {
+          title: "accented",
+          statement: "É-change",
+          anchors: [ANCHOR_B_ATK],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
+        },
+        {
+          title: "plain",
+          statement: "z-change",
+          anchors: [ANCHOR_B_ATK],
+          severity: "minor",
+          confidence: "exact",
+          claims: [],
+        },
+      ],
+      unknowns: [],
+      negativeResults: [],
+      answers: [],
+    });
+    // Code-unit order puts "z" (0x7a) before "é" (0xe9); English collation sorts "é" first
+    // because the accent is a tertiary difference — that is the environment dependence this fixes.
+    expect(merged.findings.map((finding) => finding.title)).toEqual(["plain", "accented"]);
+  });
 });
 
 describe("synthesize pass", () => {
