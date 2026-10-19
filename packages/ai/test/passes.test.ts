@@ -106,6 +106,12 @@ describe("normalizeThemes", () => {
     ]);
   });
 
+  it("rejects blank theme names instead of producing an unreadable report", () => {
+    expect(normalizeThemes({ themes: [{ name: "   ", files: ["f1", "f2"] }] }, ID_MAP)).toEqual({
+      error: 'theme "   " has a blank name; give every theme a short label',
+    });
+  });
+
   it("rejects unknown ids, duplicates and missing coverage", () => {
     expect(normalizeThemes({ themes: [{ name: "x", files: ["f9"] }] }, ID_MAP)).toEqual({
       error: 'theme "x" references an unknown file id: f9 (ids are like f1…f2)',

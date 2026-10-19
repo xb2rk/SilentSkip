@@ -57,7 +57,11 @@ export function normalizeThemes(
       seen.add(path);
       files.push(path);
     }
-    resolved.push({ name: theme.name.trim(), files: files.sort(compareStrings) });
+    const name = theme.name.trim();
+    if (name === "") {
+      return { error: `theme "${theme.name}" has a blank name; give every theme a short label` };
+    }
+    resolved.push({ name, files: files.sort(compareStrings) });
   }
   for (const [id, path] of idToPath) {
     if (!seen.has(path)) {
