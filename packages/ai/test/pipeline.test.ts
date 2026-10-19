@@ -984,8 +984,9 @@ describe("runReviewPipeline v2", () => {
 
   it("re-reads a unit when only one of its chunks failed", async () => {
     // One unit, two files, material big enough to split into two read calls at any sane budget. The
-    // chunk holding the big file dies (degradable), the other answers — so the unit is half read and
-    // the coverage loop has to queue it again. A partially read unit is not a covered unit.
+    // chunk holding the big file dies once (transient timeout), the other answers — so the unit is
+    // half read and the coverage loop has to queue it again. The retry re-reads ONLY the chunk that
+    // failed: the chunk that answered is never paid for twice.
     const digest = makeDigest();
     const [unit] = digest.plan.units;
     if (unit === undefined) throw new Error("fixture has no reading unit");
@@ -1000,13 +1001,17 @@ describe("runReviewPipeline v2", () => {
       synthesize: GOOD_REPORT as unknown as ScriptValue,
     });
     let readCalls = 0;
+    let scriptReads = 0;
     const runner: WorkflowRunner = async (request) => {
       if (stageOf(request) !== "read") return scripted.runner(request);
       readCalls += 1;
       const unitFile = attachmentOf(request, "unit.json");
       const files =
         (JSON.parse(unitFile?.content ?? "{}") as { files?: readonly string[] }).files ?? [];
-      if (files.includes(SCRIPT_PATH)) throw new AiError("timeout", "timed out");
+      if (files.includes(SCRIPT_PATH)) {
+        scriptReads += 1;
+        if (scriptReads === 1) throw new AiError("timeout", "timed out");
+      }
       return {
         output: reading([ANCHOR_B_ATK]) as unknown as Record<string, unknown>,
         rawResult: "{}",
@@ -1016,8 +1021,8 @@ describe("runReviewPipeline v2", () => {
     };
 
     const result = await runReviewPipeline({ runner, config: CONFIG }, { digest });
-    // Round 1 read both chunks of the unit (one failed) plus the second unit; round 2 retried the
-    // unit that was left half read. Nothing re-reads the unit that answered in full.
+    // Round 1 read both chunks of the unit (one failed) plus the second unit; round 2 retried only
+    // the failed chunk (round 2, chunk 1). The chunk that answered was not read a second time.
     expect(
       result.passes
         .filter((meta) => meta.pass === "read")
@@ -1025,9 +1030,9 @@ describe("runReviewPipeline v2", () => {
     ).toEqual([
       [1, 1, 2],
       [2, 1, 1],
-      [1, 2, 2],
+      [1, 2, 1],
     ]);
-    expect(readCalls).toBe(5);
-    expect(result.degradedReason).toContain("timeout");
+    expect(readCalls).toBe(4);
+    expect(result.degradedReason).toBeNull();
   });
 });

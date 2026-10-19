@@ -56,7 +56,7 @@ linker that gates every citation.
   (lossless units from `plan/`, ~60 KB
   each) with `facts.json` giving each unit its fact-store slice; units are read through a **bounded pool** (`AI_READ_CONCURRENCY`, default 1 —
   this endpoint queues overlapping calls instead of speeding them up) folded in unit order, so pool size cannot change
-  the report; **L1** re-reads only units
+  the report; **L1** re-reads only the chunks
   whose call never answered (≤2 rounds) — engine findings go straight to `synthesize` as
   `engine-findings.jsonl`, so no AI round is spent re-citing them; `dig` remains one focused round; **L3** re-runs `synthesize` with
   linker issues as constraints (≤2 rounds); a schema-invalid reply is a repairable round too

@@ -80,10 +80,11 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
 2. The manager loads the digest (shared `digest-input.ts`), then runs `runReviewPipeline` (v2,
    decision #28): `map` (file-id partition) → `read` × N reading units → **L1** coverage re-reads
    → one `dig` round → `synthesize` → **L3** verify→revise, with the linker on every boundary and
-   repair rounds for schema drift (map/read/dig/synthesize). **L1 re-reads only units whose call
+   repair rounds for schema drift (map/read/dig/synthesize). **L1 re-reads only the chunks whose call
    never answered**; engine findings are deterministic facts, so they travel straight to `synthesize`
    as `engine-findings.jsonl` instead of spending an AI round re-citing them, and their anchors count
-   as seen. A unit that merely answered with nothing to report is not re-read.
+   as seen. A chunk that merely answered with nothing to report is not re-read, and a half-read unit
+   pays only for the chunks that failed.
    **Reading units are read through a bounded pool** (`AI_READ_CONCURRENCY`, default 1: this endpoint
    queues overlapping calls, and a real 72-file run was no faster at 3 than at 1, so the pool is built
    for an endpoint that does overlap rather than because this one does). Each call returns what it

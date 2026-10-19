@@ -506,7 +506,7 @@ export async function runReviewPipeline(
     }
     await notifyCheckpoint();
 
-    const retryUnits = new Set<number>();
+    const retryChunks = new Map<number, Set<number>>();
     const evidenceIds = new Set(context.evidence.map((anchor) => anchor.id));
     const bodyBytesByFile = new Map<string, number>();
     for (const body of digest.bodies) {
@@ -614,6 +614,7 @@ export async function runReviewPipeline(
       batch: readonly (typeof units)[number][],
       round: number,
       constraints: readonly string[],
+      retryOnly?: ReadonlyMap<number, ReadonlySet<number>>,
     ): Promise<void> => {
       const planned = batch.map((unit) => {
         const fileSet = new Set(unit.files);
@@ -629,18 +630,19 @@ export async function runReviewPipeline(
               1,
           );
         }
-        return {
+        const allChunks = chunkReadingUnit(
           unit,
-          chunks: chunkReadingUnit(
-            unit,
-            bodyBytesByFile,
-            READ_CHUNK_BUDGET_BYTES,
-            anchorBytesByFile,
-          ),
-        };
+          bodyBytesByFile,
+          READ_CHUNK_BUDGET_BYTES,
+          anchorBytesByFile,
+        );
+        const only = retryOnly?.get(unit.index);
+        const chunks =
+          only === undefined ? allChunks : allChunks.filter((chunk) => only.has(chunk.index));
+        return { unit, chunks, chunksTotal: allChunks.length };
       });
-      const tasks = planned.flatMap(({ unit, chunks }) =>
-        chunks.map((chunk) => ({ unit, chunk, chunks: chunks.length })),
+      const tasks = planned.flatMap(({ unit, chunks, chunksTotal }) =>
+        chunks.map((chunk) => ({ unit, chunk, chunks: chunksTotal })),
       );
       const outcomes: (ReadCallOutcome | undefined)[] = new Array(tasks.length);
       let failure: { readonly error: unknown } | null = null;
@@ -654,18 +656,24 @@ export async function runReviewPipeline(
 
       // Fold in unit order. Tasks are unit-major and chunk-minor, so each bucket is already in the
       // order a sequential run would have produced.
-      const buckets = new Map<number, ReadCallOutcome[]>();
+      const buckets = new Map<
+        number,
+        { readonly chunkIndex: number; readonly outcome: ReadCallOutcome }[]
+      >();
       for (const { unit } of planned) buckets.set(unit.index, []);
       tasks.forEach((task, taskIndex) => {
         const outcome = outcomes[taskIndex];
-        if (outcome !== undefined) buckets.get(task.unit.index)?.push(outcome);
+        if (outcome !== undefined) {
+          buckets.get(task.unit.index)?.push({ chunkIndex: task.chunk.index, outcome });
+        }
       });
-      for (const { unit, chunks } of planned) {
-        let signalSeen = false;
+      for (const { unit } of planned) {
         let failedChunks = 0;
-        for (const outcome of buckets.get(unit.index) ?? []) {
+        const failedChunkIndexes: number[] = [];
+        for (const { chunkIndex, outcome } of buckets.get(unit.index) ?? []) {
           if (!outcome.ok) {
             failedChunks += 1;
+            failedChunkIndexes.push(chunkIndex);
             if (outcome.kind === "degraded") {
               degrade("read", outcome.error, outcome.target, `unit-${unit.index}`);
             } else {
@@ -687,16 +695,14 @@ export async function runReviewPipeline(
           for (const query of outcome.queries) {
             if (queries.length < 3 && !queries.includes(query)) queries.push(query);
           }
-          if (outcome.signal) signalSeen = true;
         }
         // Coverage, not tidiness: a chunk that failed contributed no readings, so the files it owned
-        // were never read at all. Re-read the unit when any chunk failed (`failedChunks ===
-        // chunks.length` used to mean a partially failed unit was silently left half-read). A unit
-        // that answered in full is never queued: only `retryUnits` or `selectCoverageTargets` qualify.
-        if (chunks.length > 0 && failedChunks > 0) {
-          retryUnits.add(unit.index);
-        } else if (signalSeen) {
-          retryUnits.delete(unit.index);
+        // were never read at all. Re-read only the chunks that failed — a half-read unit no longer
+        // pays for a full second pass.
+        if (failedChunks > 0) {
+          retryChunks.set(unit.index, new Set(failedChunkIndexes));
+        } else {
+          retryChunks.delete(unit.index);
         }
         // A fully answered unit clears the degradation left by an earlier failed attempt.
         if (failedChunks === 0) degradations.delete(`read:unit-${unit.index}`);
@@ -708,13 +714,13 @@ export async function runReviewPipeline(
 
     await readRound(units, 1, []);
 
-    // L1 coverage loop: only units whose reading never arrived are re-read. Engine findings are
+    // L1 coverage loop: only the chunks whose reading never arrived are re-read. Engine findings are
     // deterministic facts that travel to synthesize directly (engine-findings.jsonl) — chasing a
     // model citation for them cost a whole extra reading round and changed nothing.
     for (let round = 2; round <= MAX_COVERAGE_ROUNDS; round++) {
-      const targets = selectCoverageTargets({ units, retryUnits });
+      const targets = selectCoverageTargets({ units, retryUnits: new Set(retryChunks.keys()) });
       if (targets.length === 0) break;
-      await readRound(targets, round, []);
+      await readRound(targets, round, [], retryChunks);
     }
   }
 
