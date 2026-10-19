@@ -21,15 +21,15 @@ linker that gates every citation.
   with real payloads 3 overlapping reads took as long as 3 sequential ones and each call inflated up
   to 8x, so `AI_READ_CONCURRENCY` defaults to 1. Last verified against Insea project 25537: ok,
   ~1.8s, salvage `clean` (2026-10-17).
-- **Pass library + review pipeline (E4.2)** — versioned prompt registry (`digest_read` / `dig` /
-  `synthesize` at 1.0.0, shared anti-hallucination rules, snapshot-tested); context assembly
+- **Pass library + review pipeline (E4.2)** — versioned prompt registry (`map` / `read` / `dig` /
+  `synthesize` / `whatif`, shared anti-hallucination rules, snapshot-tested); context assembly
   (`task.json`, `changes.json`, `journeys.json`, `context.json` + `anchors.jsonl`) under a hard
   evidence budget (600 anchors / 1.8 MB) with tiered priority (changed values → row structure →
   removals → additions → journeys), per-file spread and an honest dropped-count note; strict output
   schemas
   (model drift → `AiError` `invalid-output`, never silent); `dig` resolves `needMore` queries
-  deterministically (substring match against the full anchor registry → ≤40 focused anchors,
-  exactly one round); `mergeReadOutputs`
+  deterministically (keyword tokens scored against the full anchor registry → ≤40 focused anchors,
+  exactly one round; zero matches skip the AI call and become honest unknowns); `mergeStructured`
   dedupes and ranks by severity; `runReviewPipeline` wires it all together. Real run (sample
   project): 3 passes, 28s, salvage `clean`, verdict `needs_review` 88/100, 4 findings /
   7 unknowns / 3 answers — and the dig pass honestly reported its 3 unanswered queries.
@@ -88,7 +88,8 @@ linker that gates every citation.
 - **What-If chat (E6, decision #28)** — the `whatif` pass (1.0.3) answers one question per turn over
   the same machinery. Insea is stateless, so every call **reconstructs context**: task pack, the
   session ledger (mechanically composed from previous answers — no summarization call), recent raw
-  turns, pins, and a 400-anchor evidence pack with **pinned anchors boosted to the front**, plus the
+  turns, pins, and a 200-anchor evidence pack (`anchors.jsonl`) with **pinned anchors boosted to
+  the front**, plus the
   latest verified run report of the same comparison when one exists. `linkAnswer` gates the answer
   like every other pass: evidence statements must cite registry anchors (unanchored → demoted to
   speculation, never dropped silently), numbers only via `{{f:<factId>}}` placeholders, free digits

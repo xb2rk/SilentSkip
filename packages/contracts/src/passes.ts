@@ -53,7 +53,7 @@ export const ReadFindingSchema = z.object({
 export const MapThemeSchema = z.object({
   /** Presentation name (free text) for this part of the change. */
   name: z.string().min(1),
-  /** Changed file paths — every changed file exactly once across all themes. */
+  /** Engine file ids (`f1`…`fN` from skeleton.json) — every changed file exactly once. */
   files: z.array(z.string().min(1)).min(1),
 });
 

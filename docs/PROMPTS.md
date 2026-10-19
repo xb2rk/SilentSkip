@@ -19,7 +19,7 @@ in `contextManifests`.
 6. Engine findings carry `confidence` (the observation) and optional `effectConfidence` (the
    runtime consequence). An inferred/unknown effect must be phrased as a possibility, never a
    fact; the model's own finding confidence follows suit. Silent-skip surfaces never enter prompts.
-6. Strict JSON only — no prose around the object.
+7. Strict JSON only — no prose around the object.
 
 ## The v2 flow
 
