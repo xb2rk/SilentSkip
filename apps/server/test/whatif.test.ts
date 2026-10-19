@@ -3,7 +3,12 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
-import { AiError, type InseaRunRequest, type WorkflowRunner } from "@silentskip/ai";
+import {
+  AiError,
+  type InseaRunRequest,
+  PROMPT_VERSIONS,
+  type WorkflowRunner,
+} from "@silentskip/ai";
 import {
   ErrorEnvelopeSchema,
   PinListResponseSchema,
@@ -235,7 +240,7 @@ describe("what-if sessions", () => {
     const turnManifests = manifests.filter((row) => row.turnId === turnId);
     expect(turnManifests.length).toBe(1);
     expect(turnManifests[0]?.passId).toBe("whatif");
-    expect(turnManifests[0]?.promptVersion).toBe("1.0.2");
+    expect(turnManifests[0]?.promptVersion).toBe(PROMPT_VERSIONS.whatif);
   });
 
   it("carries recent turns into the next question", async () => {
