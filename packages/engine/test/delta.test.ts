@@ -153,6 +153,17 @@ describe("buildDeltaBundle — CSV tables", () => {
     expect(table.rowsChanged).toEqual([]);
   });
 
+  it("treats .tsv tables as tables instead of crashing on the extension", () => {
+    const bundle = buildDeltaBundle({
+      before: [{ path: "Assets/CSV/UnitData.tsv", source: "id\tatk\nscout\t100\n" }],
+      after: [{ path: "Assets/CSV/UnitData.tsv", source: "id\tatk\nscout\t120\n" }],
+    });
+    expect(bundle.scripts).toEqual([]);
+    const table = onlyTable(bundle);
+    expect(table.status).toBe("changed");
+    expect(table.rowsChanged.map((r) => r.key)).toEqual(["scout"]);
+  });
+
   it("falls back to row-index keys for empty or duplicate first columns", () => {
     const table = onlyTable(
       buildDeltaBundle({

@@ -21,7 +21,13 @@ import type {
   ProjectProfile,
 } from "@silentskip/contracts";
 import { type CheckSide, runChecks } from "../checks/index.js";
-import { type CsvCell, type CsvRow, type CsvTable, parseCsv } from "../csv/index.js";
+import {
+  type CsvCell,
+  type CsvRow,
+  type CsvTable,
+  delimiterForPath,
+  parseCsv,
+} from "../csv/index.js";
 import {
   buildDeltaBundle,
   type CsvRowRef,
@@ -180,7 +186,8 @@ function buildSide(sources: readonly SourceInput[]): DigestSide {
   const bundle = buildFactBundle(scripts);
   const factsByPath = new Map(bundle.files.map((file) => [file.path, file]));
   const tableMap = new Map<string, CsvTable>();
-  for (const table of tables) tableMap.set(table.path, parseCsv(table.source));
+  for (const table of tables)
+    tableMap.set(table.path, parseCsv(table.source, delimiterForPath(table.path)));
   return { sources: sourceMap, bundle, factsByPath, tables: tableMap };
 }
 

@@ -94,7 +94,7 @@ export interface CsvRowChange {
   readonly columnsChanged: readonly number[];
 }
 
-/** Per-table delta for one `.csv` file. */
+/** Per-table delta for one CSV/TSV file. */
 export interface CsvTableDelta {
   readonly path: string;
   readonly status: "added" | "removed" | "changed";

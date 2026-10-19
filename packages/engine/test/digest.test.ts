@@ -104,6 +104,25 @@ describe("buildDigest", () => {
     expect(digest.stats.rowsChanged).toBe(1);
   });
 
+  it("accepts a changed .tsv table end-to-end", () => {
+    const digest = buildDigest({
+      base: {
+        ref: "main",
+        commitHash: "b".repeat(40),
+        sources: [{ path: "Assets/CSV/UnitData.tsv", source: "id\tatk\nscout\t100\n" }],
+      },
+      current: {
+        ref: "WORKTREE",
+        commitHash: null,
+        sources: [{ path: "Assets/CSV/UnitData.tsv", source: "id\tatk\nscout\t120\n" }],
+      },
+    });
+    expect(DigestBundleSchema.parse(digest)).toEqual(digest);
+    expect(
+      digest.changeFacts.some((fact) => fact.kind === "table" && fact.status === "changed"),
+    ).toBe(true);
+  });
+
   it("anchors every item in raw-faithful spans with a git blob sha", () => {
     const digest = buildDigest(input());
     const baseSources = new Map(input().base.sources.map((source) => [source.path, source.source]));

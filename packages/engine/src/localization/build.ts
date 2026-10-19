@@ -9,7 +9,7 @@ import {
   type LocalizationTableStatus,
 } from "@silentskip/contracts";
 import type { CsvRow, CsvTable } from "../csv/index.js";
-import { cellSpan, isBlankRow, parseCsv, rowSpan } from "../csv/index.js";
+import { cellSpan, delimiterForPath, isBlankRow, parseCsv, rowSpan } from "../csv/index.js";
 import { gitBlobSha } from "../digest/build.js";
 import type { FactSpan, SourceInput } from "../facts/index.js";
 
@@ -533,7 +533,10 @@ function parseTables(
   const tables = new Map<string, { source: string; table: CsvTable }>();
   for (const input of sources) {
     if (!TABLE_EXTENSION.test(input.path)) continue;
-    tables.set(input.path, { source: input.source, table: parseCsv(input.source) });
+    tables.set(input.path, {
+      source: input.source,
+      table: parseCsv(input.source, delimiterForPath(input.path)),
+    });
   }
   return tables;
 }

@@ -9,7 +9,7 @@
  */
 
 import type { CsvRow, CsvTable } from "../csv/index.js";
-import { parseCsv } from "../csv/index.js";
+import { delimiterForPath, parseCsv } from "../csv/index.js";
 import type { FileFacts, ImportFact, SourceInput, SymbolFact } from "../facts/index.js";
 import { buildFactBundle } from "../facts/index.js";
 import type {
@@ -32,7 +32,7 @@ const ROW_PREVIEW_LIMIT = 160;
 /**
  * Builds the A/B delta for the given sources.
  *
- * @param input - Raw sources of both refs; `.fcc`/`.fcg`/`.csv` only.
+ * @param input - Raw sources of both refs; `.fcc`/`.fcg`/`.csv`/`.tsv` only.
  * @throws Error on unsupported extensions or duplicate paths (caller bug —
  * both are silently catastrophic for matching, so they fail loudly).
  */
@@ -95,7 +95,7 @@ function splitSources(sources: readonly SourceInput[]): {
     const lower = path.toLowerCase();
     if (lower.endsWith(".fcc") || lower.endsWith(".fcg")) {
       scripts.set(path, source);
-    } else if (lower.endsWith(".csv")) {
+    } else if (lower.endsWith(".csv") || lower.endsWith(".tsv")) {
       tables.set(path, source);
     } else {
       throw new Error(`Unsupported delta source extension: ${path}`);
@@ -287,7 +287,7 @@ function diffImports(
 
 /** Delta for a table that exists only in ref B. */
 function addedTable(path: string, afterSource: string): CsvTableDelta {
-  const table = parseCsv(afterSource);
+  const table = parseCsv(afterSource, delimiterForPath(path));
   const counts = firstColumnCounts(table);
   return {
     path,
@@ -301,7 +301,7 @@ function addedTable(path: string, afterSource: string): CsvTableDelta {
 
 /** Delta for a table that exists only in ref A. */
 function removedTable(path: string, beforeSource: string): CsvTableDelta {
-  const table = parseCsv(beforeSource);
+  const table = parseCsv(beforeSource, delimiterForPath(path));
   const counts = firstColumnCounts(table);
   return {
     path,
@@ -319,8 +319,8 @@ function changedTable(
   beforeSource: string,
   afterSource: string,
 ): CsvTableDelta | undefined {
-  const before = parseCsv(beforeSource);
-  const after = parseCsv(afterSource);
+  const before = parseCsv(beforeSource, delimiterForPath(path));
+  const after = parseCsv(afterSource, delimiterForPath(path));
   const headerChanged = (before.rows[0]?.raw ?? "") !== (after.rows[0]?.raw ?? "");
 
   const beforeCounts = firstColumnCounts(before);

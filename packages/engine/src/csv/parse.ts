@@ -1,12 +1,12 @@
 import type { CsvAnomaly, CsvLineEnding, CsvRow, CsvTable } from "./types.js";
 
-/** FC config CSV is comma-separated by contract; no delimiter sniffing (that would be guessing). */
-const DELIMITER = ",";
+/** Default delimiter for FC config CSV; `.tsv` callers pass a tab explicitly (no sniffing). */
+const DEFAULT_DELIMITER = ",";
 const QUOTE = '"';
 const BOM = "\uFEFF";
 
 /**
- * Parse a comma-separated CSV source into rows and cells with exact source coordinates.
+ * Parse a delimited CSV/TSV source into rows and cells with exact source coordinates.
  *
  * Raw-faithful by design — the parser never drops or reshapes data:
  * - Every record becomes a row, including ragged rows, empty lines and the header.
@@ -20,7 +20,7 @@ const BOM = "\uFEFF";
  *
  * Deterministic: a pure function of `source` — no clocks, no randomness.
  */
-export function parseCsv(source: string): CsvTable {
+export function parseCsv(source: string, delimiter: string = DEFAULT_DELIMITER): CsvTable {
   const rows: CsvRow[] = [];
   const anomalies: CsvAnomaly[] = [];
   const endings = new Set<"lf" | "crlf" | "cr">();
@@ -64,7 +64,7 @@ export function parseCsv(source: string): CsvTable {
         if (!closed) anomalies.push({ kind: "unterminated-quote", line: cellLine });
         while (i < source.length) {
           const ch = source.charAt(i);
-          if (ch === DELIMITER || ch === "\n" || ch === "\r") break;
+          if (ch === delimiter || ch === "\n" || ch === "\r") break;
           text += ch;
           i += 1;
         }
@@ -74,7 +74,7 @@ export function parseCsv(source: string): CsvTable {
         let i = pos;
         while (i < source.length) {
           const ch = source.charAt(i);
-          if (ch === DELIMITER || ch === "\n" || ch === "\r") break;
+          if (ch === delimiter || ch === "\n" || ch === "\r") break;
           i += 1;
         }
         raw = source.slice(pos, i);
@@ -91,7 +91,7 @@ export function parseCsv(source: string): CsvTable {
         line: cellLine,
       });
 
-      if (source.charAt(pos) === DELIMITER) {
+      if (source.charAt(pos) === delimiter) {
         pos += 1;
         continue;
       }
@@ -140,6 +140,11 @@ export function parseCsv(source: string): CsvTable {
   }
 
   return { rows, lineEnding: resolveLineEnding(endings), hasBom, anomalies };
+}
+
+/** Table delimiter by extension: `.tsv` is tab-separated; every other table is comma-separated. */
+export function delimiterForPath(path: string): string {
+  return path.toLowerCase().endsWith(".tsv") ? "\t" : DEFAULT_DELIMITER;
 }
 
 /** Collapse the observed terminator set into the table-level classification. */

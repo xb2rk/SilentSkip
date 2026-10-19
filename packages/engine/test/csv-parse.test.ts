@@ -25,6 +25,13 @@ describe("parseCsv", () => {
     expect(table.rows[0]?.cells.map((c) => c.text)).toEqual(["a", "b"]);
   });
 
+  it("parses a tab-delimited table when the caller passes a tab", () => {
+    const source = "id\tatk\nscout\t100\n";
+    const table = parseCsv(source, "\t");
+    expect(table.rows[1]?.cells.map((c) => c.text)).toEqual(["scout", "100"]);
+    expectRawFaithful(source, table);
+  });
+
   it("handles BOM, CRLF, embedded commas and escaped quotes", () => {
     const source = '\uFEFFh1,h2\r\n"a, b","c""d"\r\n';
     const table = parseCsv(source);
