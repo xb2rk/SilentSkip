@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { AppError, ErrorCodes, type ProjectSummary } from "@silentskip/contracts";
 import { type AppDatabase, projects } from "@silentskip/db";
 import { desc, eq } from "drizzle-orm";
+import { globalDigestCache } from "./digest-cache.js";
 import { assertAddableProjectPath, samePath } from "./paths";
 
 /**
@@ -52,10 +53,16 @@ export function getProject(db: AppDatabase, id: string): ProjectSummary {
 
 /** Remove a project (and, via cascades, everything derived from it). */
 export function removeProject(db: AppDatabase, id: string): void {
+  const row = db
+    .select({ rootPath: projects.rootPath })
+    .from(projects)
+    .where(eq(projects.id, id))
+    .get();
   const result = db.delete(projects).where(eq(projects.id, id)).run();
   if (result.changes === 0) {
     throw new AppError(ErrorCodes.notFound, "Dự án không tồn tại");
   }
+  if (row !== undefined) globalDigestCache.invalidateProject(row.rootPath);
 }
 
 function toSummary(row: {

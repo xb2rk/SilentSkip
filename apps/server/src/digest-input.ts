@@ -64,24 +64,22 @@ export async function loadDigest(
   const currentCommit = currentIsWorktree ? null : await resolveCommit(rootPath, current);
 
   const cacheKey = DigestCache.computeKey(rootPath, baseCommit, currentCommit, profile);
-  const cached = globalDigestCache.get(cacheKey);
-  if (cached !== null) {
-    return cached;
-  }
+  return globalDigestCache.getOrCompute(
+    cacheKey,
+    async () => {
+      const [baseSources, currentSources] = await Promise.all([
+        readFilesAtRef(rootPath, base),
+        currentIsWorktree ? readProjectFilesFromDisk(rootPath) : readFilesAtRef(rootPath, current),
+      ]);
 
-  const [baseSources, currentSources] = await Promise.all([
-    readFilesAtRef(rootPath, base),
-    currentIsWorktree ? readProjectFilesFromDisk(rootPath) : readFilesAtRef(rootPath, current),
-  ]);
-
-  const digest = buildDigest({
-    base: { ref: base, commitHash: baseCommit, sources: baseSources },
-    current: { ref: current, commitHash: currentCommit, sources: currentSources },
-    ...(profile === undefined ? {} : { profile }),
-  });
-
-  globalDigestCache.set(cacheKey, digest, currentIsWorktree);
-  return digest;
+      return buildDigest({
+        base: { ref: base, commitHash: baseCommit, sources: baseSources },
+        current: { ref: current, commitHash: currentCommit, sources: currentSources },
+        ...(profile === undefined ? {} : { profile }),
+      });
+    },
+    currentIsWorktree,
+  );
 }
 
 /**

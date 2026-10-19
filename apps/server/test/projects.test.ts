@@ -14,6 +14,7 @@ import type { Hono } from "hono";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
+import { globalDigestCache } from "../src/digest-cache";
 
 /**
  * HTTP-level tests for E1 project registration + git preview.
@@ -159,8 +160,11 @@ describe("E1 project + git routes", () => {
   it("removes a project", async () => {
     const list = ProjectListResponseSchema.parse(await (await app.request("/api/projects")).json());
     const id = list.projects.find((candidate) => candidate.name === "FakeGame")?.id ?? "";
+    const cacheKey = `${fakeGame}::c1::c2::h`;
+    globalDigestCache.set(cacheKey, {} as Parameters<typeof globalDigestCache.set>[1], false);
     const res = await app.request(`/api/projects/${id}`, { method: "DELETE" });
     expect(res.status).toBe(204);
+    expect(globalDigestCache.get(cacheKey)).toBeNull();
     const after = ProjectListResponseSchema.parse(
       await (await app.request("/api/projects")).json(),
     );

@@ -36,6 +36,8 @@ export class DigestCache {
   private readonly maxEntries: number;
   private readonly worktreeTtlMs: number;
   private readonly entries = new Map<string, CacheEntry>();
+  private readonly pending = new Map<string, Promise<DigestBundle>>();
+  private generation = 0;
 
   constructor(options: DigestCacheOptions = {}) {
     this.maxEntries = options.maxEntries ?? 10;
@@ -100,9 +102,39 @@ export class DigestCache {
   }
 
   /**
+   * Returns the cached digest, joins an in-flight build for the same key, or runs `load` once.
+   * Concurrent callers (digest route + review manager + what-if turn) share one build; a load
+   * that finishes after `invalidateProject`/`clear` is returned to its caller but not cached.
+   */
+  async getOrCompute(
+    key: string,
+    load: () => Promise<DigestBundle>,
+    isWorktree: boolean,
+  ): Promise<DigestBundle> {
+    const cached = this.get(key);
+    if (cached !== null) return cached;
+
+    const pendingKey = `${this.generation}:${key}`;
+    const inFlight = this.pending.get(pendingKey);
+    if (inFlight !== undefined) return inFlight;
+
+    const generation = this.generation;
+    const promise = (async () => {
+      const digest = await load();
+      if (this.generation === generation) this.set(key, digest, isWorktree);
+      return digest;
+    })().finally(() => {
+      this.pending.delete(pendingKey);
+    });
+    this.pending.set(pendingKey, promise);
+    return promise;
+  }
+
+  /**
    * Evicts all entries belonging to a specific repository path.
    */
   invalidateProject(rootPath: string): void {
+    this.generation += 1;
     for (const key of this.entries.keys()) {
       if (key.startsWith(`${rootPath}::`)) {
         this.entries.delete(key);
@@ -114,6 +146,7 @@ export class DigestCache {
    * Clears the entire cache.
    */
   clear(): void {
+    this.generation += 1;
     this.entries.clear();
   }
 

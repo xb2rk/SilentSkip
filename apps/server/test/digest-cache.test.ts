@@ -81,4 +81,46 @@ describe("DigestCache", () => {
     expect(cache.get("/repo1::c1::c2::h1")).toBeNull();
     expect(cache.get("/repo2::c1::c2::h3")).not.toBeNull();
   });
+
+  it("deduplicates concurrent loads for the same key", async () => {
+    const cache = new DigestCache();
+    const digest = createDummyDigest("d1");
+    let loads = 0;
+    let release: (value: DigestBundle) => void = () => undefined;
+    const load = () => {
+      loads += 1;
+      return new Promise<DigestBundle>((resolve) => {
+        release = resolve;
+      });
+    };
+
+    const first = cache.getOrCompute("k", load, false);
+    const second = cache.getOrCompute("k", load, false);
+    release(digest);
+
+    await expect(first).resolves.toBe(digest);
+    await expect(second).resolves.toBe(digest);
+    expect(loads).toBe(1);
+    expect(cache.get("k")).toBe(digest);
+  });
+
+  it("does not cache a build that finishes after invalidation", async () => {
+    const cache = new DigestCache();
+    const digest = createDummyDigest("d1");
+    let release: (value: DigestBundle) => void = () => undefined;
+    const pending = cache.getOrCompute(
+      "/repo1::c1::c2::h",
+      () =>
+        new Promise<DigestBundle>((resolve) => {
+          release = resolve;
+        }),
+      false,
+    );
+
+    cache.invalidateProject("/repo1");
+    release(digest);
+
+    await expect(pending).resolves.toBe(digest);
+    expect(cache.get("/repo1::c1::c2::h")).toBeNull();
+  });
 });
