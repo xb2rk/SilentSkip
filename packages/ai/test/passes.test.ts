@@ -6,6 +6,7 @@ import {
   mergeStructured,
   normalizeThemes,
   payloadAccounting,
+  resolveNeedMore,
   runDigPass,
   runMapPass,
   runReadPass,
@@ -208,6 +209,20 @@ describe("dig pass", () => {
       "queries.json",
       "focus.jsonl",
     ]);
+  });
+});
+
+describe("resolveNeedMore", () => {
+  it("resolves natural-language queries by tokens instead of the whole string", () => {
+    const focused = resolveNeedMore(CONTEXT, ["Show the scout row in UnitData"]);
+    expect(focused.anchors.length).toBeGreaterThan(0);
+    expect(focused.matched[0]?.anchorIds.length).toBeGreaterThan(0);
+  });
+
+  it("reports zero anchors when no token matches any span", () => {
+    const focused = resolveNeedMore(CONTEXT, ["zzznope nothing-here xyzzy"]);
+    expect(focused.anchors).toEqual([]);
+    expect(focused.matched).toEqual([{ query: "zzznope nothing-here xyzzy", anchorIds: [] }]);
   });
 });
 

@@ -415,6 +415,26 @@ describe("runReviewPipeline v2", () => {
     expect(result.structuredFindings.answers).toEqual(["Row changed"]);
   });
 
+  it("records unresolved reading queries without paying for a dig call", async () => {
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD], ["zzznope nothing-here xyzzy"])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: GOOD_REPORT as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const stages = scripted.calls.map((call) => JSON.parse(call.manifestJson).stage as string);
+    expect(stages).not.toContain("dig");
+    expect(
+      result.structuredFindings.unknowns.some((item) => item.includes("no matching evidence span")),
+    ).toBe(true);
+  });
+
   it("skips map/read/dig when nothing changed", async () => {
     const digest = makeDigest();
     digest.changeFacts = [];

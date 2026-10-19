@@ -3,6 +3,7 @@ import { collectAnchorPriorities, evidenceAnchorsOf, selectEvidence } from "../c
 import type { EvidenceAnchor, ReviewContextManifest, TaskPack } from "../context/types.js";
 import { buildFactIndex, type FactIndex } from "../facts/fact-index.js";
 import type { InseaAttachment } from "../insea/types.js";
+import { extractKeywords } from "../text/keywords.js";
 
 /** Evidence budget of one What-If call (attention economy; the digest registry stays authority). */
 export const WHATIF_EVIDENCE_BUDGET = 200;
@@ -10,67 +11,9 @@ export const WHATIF_EVIDENCE_BUDGET = 200;
 export const LEDGER_CLAIM_LIMIT = 30;
 export const LEDGER_ANCHOR_LIMIT = 20;
 
-/**
- * Extract semantic search tokens from a question (length >= 3, excluding stopwords).
- */
+/** Extract semantic search tokens from a question (length >= 3, excluding stopwords). */
 export function extractQuestionKeywords(question: string): string[] {
-  const STOPWORDS = new Set([
-    "the",
-    "and",
-    "for",
-    "with",
-    "from",
-    "that",
-    "this",
-    "what",
-    "which",
-    "when",
-    "where",
-    "why",
-    "how",
-    "did",
-    "does",
-    "done",
-    "have",
-    "has",
-    "had",
-    "are",
-    "were",
-    "was",
-    "been",
-    "being",
-    "into",
-    "over",
-    "about",
-    "tại",
-    "sao",
-    "cho",
-    "của",
-    "trong",
-    "với",
-    "được",
-    "không",
-    "những",
-    "nào",
-    "thế",
-    "này",
-    "đang",
-    "thay",
-    "đổi",
-    "biến",
-    "động",
-    "kiểm",
-    "tra",
-  ]);
-  return [
-    ...new Set(
-      question
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}_./-]+/gu, " ")
-        .split(/\s+/)
-        .filter((token) => token.length >= 3 && !STOPWORDS.has(token)),
-    ),
-  ];
+  return extractKeywords(question);
 }
 
 /**

@@ -22,7 +22,7 @@ import {
   linkFindings,
   linkReport,
 } from "../link/index.js";
-import { type DigPassResult, runDigPass } from "../passes/dig.js";
+import { type DigPassResult, resolveNeedMore, runDigPass } from "../passes/dig.js";
 import { mergeStructured, type StructuredFindings } from "../passes/digest-step.js";
 import { type NormalizedTheme, normalizeThemes, runMapPass } from "../passes/map.js";
 import { type ReadPassResult, runReadPass } from "../passes/read.js";
@@ -748,43 +748,54 @@ export async function runReviewPipeline(
   }
 
   // dig — one focused round over at most three queries, deterministic server-side resolution.
+  // Queries that resolve to zero spans are recorded as unknowns instead of paying for a call
+  // whose only attachment would be an empty focus.jsonl (real runs: 0/14 queries resolved).
   if (queries.length > 0) {
-    await notify({ stage: "dig", state: "started" });
-    let dig: DigPassResult | undefined;
-    try {
-      dig = await runDigPass(deps, context, queries, input.signal, authoritativeAnchors);
-    } catch (error) {
-      const degraded = degradableError(error);
-      if (degraded !== null) {
-        degrade("dig", degraded, "dig");
-      } else {
-        if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
-        issues.push({
-          kind: "dig-invalid",
-          pass: "dig",
-          target: "dig",
-          detail: `dig output failed schema validation: ${error.details ?? error.message}`,
-        });
-      }
-    }
-    if (dig === undefined) {
+    const focused = resolveNeedMore(context, queries, authoritativeAnchors);
+    if (focused.anchors.length === 0) {
       collectedUnknowns.push(
-        "Dig output was unusable; the reading flow's queries stay unanswered.",
+        ...focused.queries.map(
+          (query) => `Reading query had no matching evidence span; cannot answer: "${query}".`,
+        ),
       );
     } else {
-      await notify({
-        stage: "dig",
-        state: "completed",
-        latencyMs: dig.meta.latencyMs,
-        salvage: dig.meta.salvage,
-      });
-      passes.push(dig.meta);
-      const linked = linkFindings(dig.output.findings, index, { pass: "dig" });
-      digStats = linked.stats;
-      issues.push(...linked.issues);
-      collectedFindings.push(...linked.findings);
-      collectedUnknowns.push(...dig.output.unknowns);
-      collectedAnswers.push(...dig.output.answers);
+      await notify({ stage: "dig", state: "started" });
+      let dig: DigPassResult | undefined;
+      try {
+        dig = await runDigPass(deps, context, queries, input.signal, authoritativeAnchors);
+      } catch (error) {
+        const degraded = degradableError(error);
+        if (degraded !== null) {
+          degrade("dig", degraded, "dig");
+        } else {
+          if (!(error instanceof AiError) || error.code !== "invalid-output") throw error;
+          issues.push({
+            kind: "dig-invalid",
+            pass: "dig",
+            target: "dig",
+            detail: `dig output failed schema validation: ${error.details ?? error.message}`,
+          });
+        }
+      }
+      if (dig === undefined) {
+        collectedUnknowns.push(
+          "Dig output was unusable; the reading flow's queries stay unanswered.",
+        );
+      } else {
+        await notify({
+          stage: "dig",
+          state: "completed",
+          latencyMs: dig.meta.latencyMs,
+          salvage: dig.meta.salvage,
+        });
+        passes.push(dig.meta);
+        const linked = linkFindings(dig.output.findings, index, { pass: "dig" });
+        digStats = linked.stats;
+        issues.push(...linked.issues);
+        collectedFindings.push(...linked.findings);
+        collectedUnknowns.push(...dig.output.unknowns);
+        collectedAnswers.push(...dig.output.answers);
+      }
     }
   }
   await notifyCheckpoint();
