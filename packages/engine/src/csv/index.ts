@@ -6,5 +6,6 @@
  */
 
 export * from "./analysis.js";
+export * from "./fk-pins.js";
 export * from "./parse.js";
 export * from "./types.js";

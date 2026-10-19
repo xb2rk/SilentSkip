@@ -63,6 +63,12 @@ export function detectTypeRow(table: CsvTable): CsvRow | undefined {
   return nonEmpty > 0 ? row : undefined;
 }
 
+/** Data rows of a table: header and type row removed, blank rows dropped. */
+export function dataRows(table: CsvTable): CsvRow[] {
+  const typeRow = detectTypeRow(table);
+  return table.rows.filter((row) => row.index !== 0 && row !== typeRow && !isBlankRow(row));
+}
+
 /** Header label of a column, or `#index` when the header is missing/empty. */
 export function columnLabel(table: CsvTable, index: number): string {
   const header = table.rows[0];

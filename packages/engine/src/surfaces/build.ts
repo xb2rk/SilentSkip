@@ -25,15 +25,17 @@ import type {
   SilentSkipSide,
   SilentSkipSurface,
 } from "@silentskip/contracts";
-import { dataRows, fkPins, normalize } from "../checks/references.js";
 import type { CheckInput, CheckSide } from "../checks/types.js";
 import type { CsvRow } from "../csv/index.js";
 import {
   cellSpan,
   columnLabel,
+  dataRows,
   detectTypeRow,
   failsDeclaredType,
+  fkPins,
   isBlankRow,
+  normalizeCastValue,
   resolveRowKey,
   rowKeyDisplay,
   rowKeyIsEmpty,
@@ -334,7 +336,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
     for (const row of dataRows(targetTable)) {
       const raw = rowKeyValue(row, targetKey.columns);
       if (rowKeyIsEmpty(raw)) continue;
-      const normalized = normalize(raw, pin.cast);
+      const normalized = normalizeCastValue(raw, pin.cast);
       if (normalized !== undefined) targetKeys.add(normalized);
     }
     const sourceResolution = resolveRowKey(sourceTable, pin.sourcePath, input.profile);
@@ -342,7 +344,7 @@ function collectSide(input: CheckInput, ref: "A" | "B"): SilentSkipSide {
     for (const row of dataRows(sourceTable)) {
       const raw = row.cells[sourceColumn]?.text.trim() ?? "";
       if (raw === "") continue;
-      const normalized = normalize(raw, pin.cast);
+      const normalized = normalizeCastValue(raw, pin.cast);
       if (normalized !== undefined && targetKeys.has(normalized)) continue;
       const rowKey =
         sourceResolution?.kind === "resolved"
