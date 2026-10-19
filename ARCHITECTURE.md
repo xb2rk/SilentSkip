@@ -93,7 +93,9 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
    **L3 re-runs `synthesize` only when an
    issue makes the report substantively wrong** (`BLOCKING_SYNTHESIZE_ISSUE_KINDS`: a finding that
    lost its evidence, a claim the engine proved false, a narrative for a theme that does not
-   exist); cosmetic strips are accepted as-is because the audit trail already records them.
+   exist); a stray anchor the readings never cited is already stripped by the linker (`new-anchor`)
+   and does not force a rewrite, and cosmetic strips are accepted as-is because the audit trail
+   already records them.
    Progress relays as SSE events through the run's channel (replay buffer + live subscribers;
    `unit`/`units`/`round` on stage events; the channel closes after the terminal event).
 3. Result, verification stats and per-pass manifests persist to `runs` + `contextManifests`.
