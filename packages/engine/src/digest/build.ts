@@ -840,6 +840,25 @@ function planInput(
  * new systems could only be described generically. Deterministic order (delta script order,
  * added before changed), byte-budgeted, truncation never silent (`truncated` flag + manifest).
  */
+/**
+ * Longest prefix of `text` whose UTF-8 encoding fits `maxBytes` — byte budgets are real bytes,
+ * not UTF-16 code units (Vietnamese/CJK bodies are 2–3 bytes per unit). Never splits a surrogate
+ * pair.
+ */
+function truncateToUtf8Bytes(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(text.slice(0, mid), "utf8") <= maxBytes) low = mid;
+    else high = mid - 1;
+  }
+  const last = low > 0 ? text.charCodeAt(low - 1) : 0;
+  const end = last >= 0xd800 && last <= 0xdbff ? low - 1 : low;
+  return text.slice(0, end);
+}
+
 function collectBodies(
   delta: DeltaBundle,
   current: DigestSide,
@@ -859,13 +878,15 @@ function collectBodies(
   ): void => {
     if (source === undefined) return;
     const raw = source.slice(span.offset, span.offset + span.length);
-    const isTruncated = raw.length > DEFAULT_BODY_BYTES_PER_FUNCTION;
-    const text = isTruncated ? raw.slice(0, DEFAULT_BODY_BYTES_PER_FUNCTION) : raw;
-    if (bytes + text.length > bodyBudgetBytes) {
+    const rawBytes = Buffer.byteLength(raw, "utf8");
+    const isTruncated = rawBytes > DEFAULT_BODY_BYTES_PER_FUNCTION;
+    const text = isTruncated ? truncateToUtf8Bytes(raw, DEFAULT_BODY_BYTES_PER_FUNCTION) : raw;
+    const textBytes = Buffer.byteLength(text, "utf8");
+    if (bytes + textBytes > bodyBudgetBytes) {
       dropped += 1;
       return;
     }
-    bytes += text.length;
+    bytes += textBytes;
     if (isTruncated) truncated += 1;
     bodies.push({
       file,

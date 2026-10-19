@@ -104,6 +104,27 @@ describe("buildDigest", () => {
     expect(digest.stats.rowsChanged).toBe(1);
   });
 
+  it("budgets function bodies by UTF-8 bytes", () => {
+    const body = `// ${"ế".repeat(3000)}\n    return 2`;
+    const source = FCG_AFTER.replace("return 2", body);
+    const digest = buildDigest({
+      base: {
+        ref: "main",
+        commitHash: "a".repeat(40),
+        sources: [{ path: SCRIPT_PATH, source: FCG_BEFORE }],
+      },
+      current: {
+        ref: "WORKTREE",
+        commitHash: null,
+        sources: [{ path: SCRIPT_PATH, source }],
+      },
+    });
+    const added = digest.bodies.find((entry) => entry.name === "Added");
+    expect(added).toBeDefined();
+    expect(added?.truncated).toBe(true);
+    expect(Buffer.byteLength(added?.text ?? "", "utf8")).toBeLessThanOrEqual(4096);
+  });
+
   it("accepts a changed .tsv table end-to-end", () => {
     const digest = buildDigest({
       base: {

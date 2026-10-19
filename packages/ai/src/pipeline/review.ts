@@ -179,7 +179,7 @@ interface ReadChunk {
  * order; a single oversized file goes into a chunk alone. The material stays lossless: chunks are
  * sequential read calls, not a sampling of the unit.
  */
-function chunkReadingUnit(
+export function chunkReadingUnit(
   unit: DigestUnit,
   bodyBytesByFile: ReadonlyMap<string, number>,
   budget: number,
@@ -201,7 +201,8 @@ function chunkReadingUnit(
     return [{ index: 0, files: [...unit.files], payload: unit.payload }];
   }
   const weightOf = (path: string): number =>
-    JSON.stringify(byPath.get(path) ?? []).length + (bodyBytesByFile.get(path) ?? 0);
+    Buffer.byteLength(JSON.stringify(byPath.get(path) ?? []), "utf8") +
+    (bodyBytesByFile.get(path) ?? 0);
   const serialize = (files: readonly string[]): string =>
     JSON.stringify(files.flatMap((file) => byPath.get(file) ?? []));
   const chunks: ReadChunk[] = [];

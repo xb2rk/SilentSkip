@@ -12,6 +12,7 @@ import type {
 import {
   AiError,
   BLOCKING_SYNTHESIZE_ISSUE_KINDS,
+  chunkReadingUnit,
   runReviewPipeline,
   withPassCache,
 } from "../src/index";
@@ -162,6 +163,18 @@ describe("runReviewPipeline v2", () => {
     expect(result.report.themes).toHaveLength(2);
     expect(result.themes.map((theme) => theme.id)).toEqual(["theme-1", "theme-2"]);
     expect(result.contextManifest.counts.evidence).toBe(4);
+  });
+
+  it("weights chunk material by UTF-8 bytes instead of UTF-16 length", () => {
+    const payload = JSON.stringify([
+      { path: "a.csv", text: "ế".repeat(20) },
+      { path: "b.csv", text: "ế".repeat(20) },
+    ]);
+    const unit = { index: 0, files: ["a.csv", "b.csv"], payload } as Parameters<
+      typeof chunkReadingUnit
+    >[0];
+    // 92 UTF-16 units (would fit) vs 172 UTF-8 bytes (must split).
+    expect(chunkReadingUnit(unit, new Map(), 120)).toHaveLength(2);
   });
 
   it("re-runs map with repair constraints when the partition is invalid", async () => {
