@@ -21,7 +21,7 @@ pinned reader profile removes the ambiguity; a finding can therefore be `exact` 
 |---|---|---|---|
 | `STRUCT-01` | A data row whose cell count differs from the header (length-guard skip). | `major` | `exact` |
 | `STRUCT-02` | Duplicate or empty row keys in a changed table. | `major` | `exact` with a `pin-row-key`; `inferred` on the first-column fallback |
-| `STRUCT-03` | Header hygiene: duplicate, empty, whitespace-padded or non-ASCII header cells. | `info` | `exact` |
+| `STRUCT-03` | Header hygiene: duplicate, empty, whitespace-padded or invisible-character (zero-width/control) header cells. | `info` | `exact` |
 | `TYPE-01` | A data cell that fails the declared type row (`int`, `float`, `bool`, …). | `major` | `exact` |
 | `DRIFT-01` | A/B header change at stable column count (rename or reorder). Positional readers may then read the wrong field without throwing. | `critical`; `info` for a reorder covered by a pinned name binding, `major` for a rename outside the pin | `exact` observation |
 | `BIND-03` | A changed table whose header cells exactly name the members of one current enum (candidate index binding). | `info` | `inferred`; `exact` with a matching `pin-binding` |

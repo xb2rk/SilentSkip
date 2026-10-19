@@ -50,8 +50,8 @@ eventually findings.
   deterministic findings that run over the full scope, never sampled. `STRUCT-01` row width vs
   header (raw structure); `STRUCT-02` duplicate/empty row keys — the key column comes from a
   `pin-binding` profile override (`exact`) or falls back to the first column (`inferred`; the
-  message says what to pin); `STRUCT-03` header hygiene (empty/duplicate/whitespace/unicode,
-  info); `TYPE-01` declared type row vs real values (mismatch → minor `defaulted`, leading zeros
+  message says what to pin); `STRUCT-03` header hygiene (empty/duplicate/whitespace/invisible
+  characters — accented letters are not flagged, info); `TYPE-01` declared type row vs real values (mismatch → minor `defaulted`, leading zeros
   → info); `BIND-03` channel ② candidate — an enum covering every header column (inferred;
   pin-matched → `exact`, stale pin → its own finding); `BIND-04` channel ③ — a changed table no
   code references (the absence is exact, the use stays unknown); `DANGLING-REF` removed symbol
