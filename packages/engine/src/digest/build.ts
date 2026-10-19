@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
 import type {
   Anchor,
   AnchorLoc,
-  DigestBody,
   DigestBundle,
   DigestCellChange,
   DigestContextItem,
@@ -10,39 +8,23 @@ import type {
   DigestJourneyChain,
   DigestJourneyNode,
   DigestLinked,
-  DigestQuantity,
   DigestRowChange,
   DigestRowRef,
   DigestScriptChange,
   DigestSymbolChange,
   DigestSymbolRef,
   DigestTableChange,
-  DigestWidthEntry,
   ProjectProfile,
 } from "@silentskip/contracts";
 import { type CheckSide, runChecks } from "../checks/index.js";
-import {
-  type CsvCell,
-  type CsvRow,
-  type CsvTable,
-  delimiterForPath,
-  parseCsv,
-} from "../csv/index.js";
+import { type CsvTable, delimiterForPath, parseCsv } from "../csv/index.js";
 import {
   buildDeltaFromParsed,
   type CsvRowRef,
   type CsvTableDelta,
-  type DeltaBundle,
   type ScriptFileDelta,
 } from "../delta/index.js";
-import {
-  buildFactBundle,
-  type FactBundle,
-  type FactSpan,
-  type FileFacts,
-  type SourceInput,
-  type SymbolKind,
-} from "../facts/index.js";
+import { buildFactBundle, type SourceInput, type SymbolKind } from "../facts/index.js";
 import {
   buildJourney,
   buildSymbolIndex,
@@ -57,124 +39,31 @@ import {
 } from "../plan/index.js";
 import { buildRelations, type RelationSet } from "../relations/index.js";
 import { runSurfaces } from "../surfaces/index.js";
+import { collectBodies } from "./bodies.js";
+import { collectQuantities } from "./quantities.js";
+import {
+  AnchorRegistry,
+  cellSpan,
+  compareStrings,
+  type DigestSide,
+  rowSpan,
+  SCRIPT_EXTENSION,
+  sumBy,
+  TABLE_EXTENSION,
+  valueMap,
+  widthSummary,
+} from "./shared.js";
 import {
   DEFAULT_BODY_BUDGET_BYTES,
-  DEFAULT_BODY_BYTES_PER_FUNCTION,
   DEFAULT_MAX_ANCHORS,
   DEFAULT_MAX_JOURNEYS,
   DIGEST_SCHEMA_VERSION,
   type DigestInput,
 } from "./types.js";
 
-const SCRIPT_EXTENSION = /\.(fcc|fcg)$/iu;
-const TABLE_EXTENSION = /\.(csv|tsv)$/iu;
-
-/** Git blob hash - `sha1("blob <byteLength>\0" + content)`, byte-identical to what git stores. */
-export function gitBlobSha(content: string): string {
-  const header = `blob ${Buffer.byteLength(content, "utf8")}\0`;
-  return createHash("sha1").update(header, "utf8").update(content, "utf8").digest("hex");
-}
-
-/** Deterministic code-unit string order — independent of any locale. */
-function compareStrings(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-function rowSpan(row: CsvRow): FactSpan {
-  return { offset: row.offset, length: row.length, line: row.line, endLine: row.endLine };
-}
-
-/** Maps symbol id → raw literal initializer text for one file's facts. */
-function valueMap(file: FileFacts | undefined): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const value of file?.values ?? []) map.set(value.symbolId, value.rawText);
-  return map;
-}
-
-/** Distinct data-row widths with row counts — raw CSV structure, nothing inferred. */
-function widthSummary(table: CsvTable | undefined): DigestWidthEntry[] {
-  if (table === undefined) return [];
-  const counts = new Map<number, number>();
-  for (const row of table.rows) {
-    if (row.index === 0) continue;
-    counts.set(row.cells.length, (counts.get(row.cells.length) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([width, rows]) => ({ width, rows }))
-    .sort((a, b) => a.width - b.width);
-}
-
-function cellSpan(cell: CsvCell): FactSpan {
-  return { offset: cell.offset, length: cell.length, line: cell.line, endLine: cell.line };
-}
-
-function sumBy<T>(items: readonly T[], select: (item: T) => number): number {
-  let total = 0;
-  for (const item of items) total += select(item);
-  return total;
-}
-
-/**
- * Content-stable anchor registry. The same ref + file + lines + kind + loc always yields
- * the same id, so pins and citations survive re-runs. Anchors are never dropped once
- * referenced — the budget is recorded, not enforced by breaking references.
- */
-class AnchorRegistry {
-  private readonly anchors = new Map<string, Anchor>();
-  private readonly blobShas = new Map<string, string>();
-
-  private blobShaFor(ref: "A" | "B", file: string, source: string): string {
-    const key = `${ref}:${file}`;
-    const cached = this.blobShas.get(key);
-    if (cached !== undefined) return cached;
-    const sha = gitBlobSha(source);
-    this.blobShas.set(key, sha);
-    return sha;
-  }
-
-  /** Registers the anchor for a span and returns its id (idempotent per id). */
-  add(
-    ref: "A" | "B",
-    file: string,
-    source: string,
-    span: FactSpan,
-    kind: Anchor["kind"],
-    loc?: AnchorLoc,
-  ): string {
-    const parts = [ref, file, String(span.line), String(span.endLine), kind];
-    if (loc?.rowKey !== undefined) parts.push(`r:${loc.rowKey}`);
-    if (loc?.column !== undefined) parts.push(`c:${String(loc.column)}`);
-    const id = parts.join(":");
-    if (!this.anchors.has(id)) {
-      const base: Anchor = {
-        id,
-        ref,
-        file,
-        blobSha: this.blobShaFor(ref, file, source),
-        lineStart: span.line,
-        lineEnd: span.endLine,
-        snippet: source.slice(span.offset, span.offset + span.length),
-        kind,
-      };
-      this.anchors.set(id, loc === undefined ? base : { ...base, loc });
-    }
-    return id;
-  }
-
-  /** All registered anchors, sorted by id. */
-  list(): Anchor[] {
-    return [...this.anchors.values()].sort((a, b) => compareStrings(a.id, b.id));
-  }
-}
+export { gitBlobSha } from "./shared.js";
 
 /** One parsed side of the comparison: sources, facts and tables, all keyed by path. */
-interface DigestSide {
-  sources: ReadonlyMap<string, string>;
-  bundle: FactBundle;
-  factsByPath: ReadonlyMap<string, FileFacts>;
-  tables: ReadonlyMap<string, CsvTable>;
-}
-
 function buildSide(sources: readonly SourceInput[]): DigestSide {
   const scripts: SourceInput[] = [];
   const tables: SourceInput[] = [];
@@ -648,129 +537,6 @@ function checkSideOf(side: DigestSide, ref: "A" | "B"): CheckSide {
   return { ref, sources: side.sources, factsByPath: side.factsByPath, tables: side.tables };
 }
 
-/** Named quantities (fact-id store, decision #28) — per-file counts and changed values. */
-function collectQuantities(
-  changeFacts: readonly (DigestScriptChange | DigestTableChange)[],
-  base: DigestSide,
-  current: DigestSide,
-  registry: AnchorRegistry,
-): DigestQuantity[] {
-  const byId = new Map<string, DigestQuantity>();
-  const add = (quantity: DigestQuantity): void => {
-    if (!byId.has(quantity.id)) byId.set(quantity.id, quantity);
-  };
-  for (const fact of changeFacts) {
-    if (fact.kind === "script") {
-      add({
-        id: `q:symbol-count|B|${fact.path}|added`,
-        kind: "symbol-count",
-        subject: `${fact.path} symbols added`,
-        value: String(fact.symbolsAdded.length),
-        ref: "B",
-        anchorId: null,
-        file: fact.path,
-      });
-      add({
-        id: `q:symbol-count|A|${fact.path}|removed`,
-        kind: "symbol-count",
-        subject: `${fact.path} symbols removed`,
-        value: String(fact.symbolsRemoved.length),
-        ref: "A",
-        anchorId: null,
-        file: fact.path,
-      });
-      add({
-        id: `q:symbol-count|${fact.path}|changed`,
-        kind: "symbol-count",
-        subject: `${fact.path} symbols changed`,
-        value: String(fact.symbolsChanged.length),
-        ref: null,
-        anchorId: null,
-        file: fact.path,
-      });
-      for (const change of fact.symbolsChanged) {
-        if (change.beforeValue !== undefined) {
-          add({
-            id: `q:value|A|${fact.path}|${change.name}`,
-            kind: "value",
-            subject: `${fact.path} ${change.name} (before)`,
-            value: change.beforeValue,
-            ref: "A",
-            anchorId: change.beforeAnchorId,
-            file: fact.path,
-          });
-        }
-        if (change.afterValue !== undefined) {
-          add({
-            id: `q:value|B|${fact.path}|${change.name}`,
-            kind: "value",
-            subject: `${fact.path} ${change.name} (after)`,
-            value: change.afterValue,
-            ref: "B",
-            anchorId: change.afterAnchorId,
-            file: fact.path,
-          });
-        }
-      }
-      continue;
-    }
-    const beforeHeader = base.tables.get(fact.path)?.rows[0];
-    const afterHeader = current.tables.get(fact.path)?.rows[0];
-    const beforeSource = base.sources.get(fact.path);
-    const afterSource = current.sources.get(fact.path);
-    if (fact.columns.before !== null && beforeHeader !== undefined && beforeSource !== undefined) {
-      add({
-        id: `q:column-count|A|${fact.path}`,
-        kind: "column-count",
-        subject: `${fact.path} columns (before)`,
-        value: String(fact.columns.before),
-        ref: "A",
-        anchorId: registry.add("A", fact.path, beforeSource, rowSpan(beforeHeader), "csv"),
-        file: fact.path,
-      });
-    }
-    if (fact.columns.after !== null && afterHeader !== undefined && afterSource !== undefined) {
-      add({
-        id: `q:column-count|B|${fact.path}`,
-        kind: "column-count",
-        subject: `${fact.path} columns (after)`,
-        value: String(fact.columns.after),
-        ref: "B",
-        anchorId: registry.add("B", fact.path, afterSource, rowSpan(afterHeader), "csv"),
-        file: fact.path,
-      });
-    }
-    add({
-      id: `q:row-count|B|${fact.path}|added`,
-      kind: "row-count",
-      subject: `${fact.path} rows added`,
-      value: String(fact.rowsAdded.length),
-      ref: "B",
-      anchorId: null,
-      file: fact.path,
-    });
-    add({
-      id: `q:row-count|A|${fact.path}|removed`,
-      kind: "row-count",
-      subject: `${fact.path} rows removed`,
-      value: String(fact.rowsRemoved.length),
-      ref: "A",
-      anchorId: null,
-      file: fact.path,
-    });
-    add({
-      id: `q:row-count|${fact.path}|changed`,
-      kind: "row-count",
-      subject: `${fact.path} rows changed`,
-      value: String(fact.rowsChanged.length),
-      ref: null,
-      anchorId: null,
-      file: fact.path,
-    });
-  }
-  return [...byId.values()].sort((a, b) => compareStrings(a.id, b.id));
-}
-
 /** Maps digest change facts + import edges into the reading-plan input. */
 function planInput(
   changeFacts: readonly (DigestScriptChange | DigestTableChange)[],
@@ -841,101 +607,6 @@ function planInput(
   };
 }
 
-/**
- * Collects function-body reading material (E7.5): bodies of functions added in B and of changed
- * functions (current side). Before this, added symbols reached the AI as name-only anchors, so
- * new systems could only be described generically. Deterministic order (delta script order,
- * added before changed), byte-budgeted, truncation never silent (`truncated` flag + manifest).
- */
-/**
- * Longest prefix of `text` whose UTF-8 encoding fits `maxBytes` — byte budgets are real bytes,
- * not UTF-16 code units (Vietnamese/CJK bodies are 2–3 bytes per unit). Never splits a surrogate
- * pair.
- */
-function truncateToUtf8Bytes(text: string, maxBytes: number): string {
-  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
-  let low = 0;
-  let high = text.length;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    if (Buffer.byteLength(text.slice(0, mid), "utf8") <= maxBytes) low = mid;
-    else high = mid - 1;
-  }
-  const last = low > 0 ? text.charCodeAt(low - 1) : 0;
-  const end = last >= 0xd800 && last <= 0xdbff ? low - 1 : low;
-  return text.slice(0, end);
-}
-
-function collectBodies(
-  delta: DeltaBundle,
-  current: DigestSide,
-  bodyBudgetBytes: number,
-): { bodies: DigestBody[]; truncated: number; dropped: number } {
-  const bodies: DigestBody[] = [];
-  let truncated = 0;
-  let dropped = 0;
-  let bytes = 0;
-  const push = (
-    file: string,
-    symbolId: string,
-    name: string,
-    kind: string,
-    span: FactSpan,
-    source: string | undefined,
-  ): void => {
-    if (source === undefined) return;
-    const raw = source.slice(span.offset, span.offset + span.length);
-    const rawBytes = Buffer.byteLength(raw, "utf8");
-    const isTruncated = rawBytes > DEFAULT_BODY_BYTES_PER_FUNCTION;
-    const text = isTruncated ? truncateToUtf8Bytes(raw, DEFAULT_BODY_BYTES_PER_FUNCTION) : raw;
-    const textBytes = Buffer.byteLength(text, "utf8");
-    if (bytes + textBytes > bodyBudgetBytes) {
-      dropped += 1;
-      return;
-    }
-    bytes += textBytes;
-    if (isTruncated) truncated += 1;
-    bodies.push({
-      file,
-      symbolId,
-      name,
-      kind,
-      side: "B",
-      lineStart: span.line,
-      lineEnd: span.endLine,
-      truncated: isTruncated,
-      text,
-    });
-  };
-  for (const script of delta.scripts) {
-    if (script.status === "removed") continue;
-    const source = current.sources.get(script.path);
-    for (const symbol of script.symbolsAdded) {
-      if (symbol.kind !== "function" && symbol.kind !== "event") continue;
-      push(script.path, symbol.id, symbol.name, symbol.kind, symbol.span, source);
-    }
-  }
-  for (const script of delta.scripts) {
-    if (script.status === "removed") continue;
-    const source = current.sources.get(script.path);
-    for (const change of script.symbolsChanged) {
-      if (change.kind !== "function" && change.kind !== "event") continue;
-      const symbolId = `${script.path}#${change.name}@${change.afterSpan.offset}`;
-      push(script.path, symbolId, change.name, change.kind, change.afterSpan, source);
-    }
-  }
-  return { bodies, truncated, dropped };
-}
-
-/**
- * Builds the deterministic digest fact sheet for one A/B comparison (spec §4.6, E7.1 v2).
- *
- * Layer 1 = change facts (delta, exact, anchored, with literal values), layer 2 = journeys for
- * the selected changed origins (budgeted, current side), layer 3 = deterministic engine findings
- * (full-scope checks — never sampled), layer 4 = doc comments of changed symbols and pinned
- * profile material. On top: the fact-id store (`quantities`) and the reading plan built from the
- * whole change set. The manifest records budgets, counts and what was not walked — never silently.
- */
 export function buildDigest(input: DigestInput): DigestBundle {
   const maxJourneys = input.budgets?.maxJourneys ?? DEFAULT_MAX_JOURNEYS;
   const maxAnchors = input.budgets?.maxAnchors ?? DEFAULT_MAX_ANCHORS;
