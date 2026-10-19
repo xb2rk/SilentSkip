@@ -32,14 +32,6 @@ import type { PassConfig, PassMeta, WorkflowRunner } from "../passes/types.js";
 /** Coverage loop bound: after this many reading rounds the rest is reported, not chased. */
 export const MAX_COVERAGE_ROUNDS = 2;
 
-/**
- * L1 re-read bound (Phase 7): units that own an uninterpreted engine finding get at most this many
- * extra readings per round. Units whose calls never answered are exempt (see
- * `selectCoverageTargets`), because skipping one would leave it with no reading at all. Findings
- * left uninterpreted past the cap are not lost — they are reported as unknowns.
- */
-export const MAX_COVERAGE_UNITS = 2;
-
 /** The slice of a reading unit that coverage targeting needs. */
 export interface CoverageUnit {
   /** Zero-based position in the reading plan; also the order the units are read in. */
@@ -52,53 +44,25 @@ export interface CoverageTargetInput<T extends CoverageUnit> {
   readonly units: readonly T[];
   /** Units whose calls never answered: timeout, dead transport, or output that failed to parse. */
   readonly retryUnits: ReadonlySet<number>;
-  /** Engine findings no reading has cited yet; `anchors` are digest anchor ids. */
-  readonly unaddressed: readonly { readonly anchors: readonly string[] }[];
-  /** Anchor id → owning file, the digest's authoritative mapping. */
-  readonly anchorFiles: ReadonlyMap<string, string>;
 }
 
 /**
- * Picks the units worth a second reading pass in the L1 coverage round, in unit order.
+ * Picks the units worth a second reading pass in the L1 coverage round, in unit order: only units
+ * whose reading never arrived (timeout, dead transport, unparsable output) qualify — a unit with no
+ * reading at all is worse than an expensive one.
  *
- * Two sources qualify:
- * 1. `retryUnits` — the reading never arrived, so the unit is read again whatever the budget says;
- *    a unit with no reading at all is worse than an expensive one.
- * 2. Units owning an unaddressed engine finding — the engine has already proven a defect there and
- *    only the model can explain it. Capped to `MAX_COVERAGE_UNITS`, worst case first (most
- *    unaddressed findings, then lowest index), because L1 is the most expensive stretch of a run
- *    and whatever is left still surfaces honestly as an unknown.
- *
- * A unit that answered with nothing to report is deliberately not a target: it saw the same payload
- * and had nothing to say, so an identical second pass is the least likely of all to pay off.
+ * Engine findings are NOT a re-read trigger any more: they are deterministic facts the engine has
+ * already proven, they travel straight to `synthesize` as `engine-findings.jsonl`, and linkReport
+ * accepts their anchors as seen. Spending a whole extra reading round so the model repeats a
+ * finding the engine already reports (real run: two units, ~3.5 minutes of call time) bought
+ * nothing the report did not already have.
  */
 export function selectCoverageTargets<T extends CoverageUnit>(
   input: CoverageTargetInput<T>,
 ): readonly T[] {
-  const retries = input.units.filter((unit) => input.retryUnits.has(unit.index));
-  const retried = new Set(retries.map((unit) => unit.index));
-  const owning = input.units
-    .map((unit) => ({
-      unit,
-      owned: countOwnedFindings(unit, input.unaddressed, input.anchorFiles),
-    }))
-    .filter((entry) => entry.owned > 0 && !retried.has(entry.unit.index))
-    .sort((left, right) => right.owned - left.owned || left.unit.index - right.unit.index)
-    .slice(0, MAX_COVERAGE_UNITS)
-    .map((entry) => entry.unit);
-  return [...retries, ...owning].sort((left, right) => left.index - right.index);
-}
-
-/** Counts the unaddressed engine findings whose anchors live in this unit's files. */
-function countOwnedFindings(
-  unit: CoverageUnit,
-  unaddressed: readonly { readonly anchors: readonly string[] }[],
-  anchorFiles: ReadonlyMap<string, string>,
-): number {
-  const files = new Set(unit.files);
-  return unaddressed.filter((finding) =>
-    finding.anchors.some((anchorId) => files.has(anchorFiles.get(anchorId) ?? "")),
-  ).length;
+  return input.units
+    .filter((unit) => input.retryUnits.has(unit.index))
+    .sort((left, right) => left.index - right.index);
 }
 
 /** Map loop bound: map re-runs with repair constraints; then the engine partition takes over. */
@@ -718,40 +682,13 @@ export async function runReviewPipeline(
 
     await readRound(units, 1, []);
 
-    // L1 coverage loop: engine findings must be interpreted (their anchors cited) or land in unknowns.
+    // L1 coverage loop: only units whose reading never arrived are re-read. Engine findings are
+    // deterministic facts that travel to synthesize directly (engine-findings.jsonl) — chasing a
+    // model citation for them cost a whole extra reading round and changed nothing.
     for (let round = 2; round <= MAX_COVERAGE_ROUNDS; round++) {
-      const readAnchors = new Set(collectedFindings.flatMap((finding) => finding.anchors));
-      const unaddressed = digest.findings.filter(
-        (finding) =>
-          finding.anchors.length > 0 &&
-          finding.anchors.every((anchorId) => !readAnchors.has(anchorId)),
-      );
-      const targets = selectCoverageTargets({ units, retryUnits, unaddressed, anchorFiles });
+      const targets = selectCoverageTargets({ units, retryUnits });
       if (targets.length === 0) break;
-      const anchorMap = new Map(digest.anchors.map((anchor) => [anchor.id, anchor] as const));
-      const constraints = unaddressed.slice(0, MAX_CONSTRAINT_LINES).map((finding) => {
-        const anchorHints = finding.anchors
-          .slice(0, 3)
-          .map((id) => {
-            const a = anchorMap.get(id);
-            if (!a?.snippet) return id;
-            const snippet = a.snippet.replace(/\r?\n|\r/g, " ").trim();
-            const preview = snippet.length > 50 ? `${snippet.slice(0, 47)}...` : snippet;
-            return `${id} ("${preview}" L${a.lineStart})`;
-          })
-          .join("; ");
-        return `${finding.ruleId}: ${finding.title} — anchors: ${anchorHints}`;
-      });
-      await readRound(targets, round, constraints);
-    }
-    const finalReadAnchors = new Set(collectedFindings.flatMap((finding) => finding.anchors));
-    for (const finding of digest.findings) {
-      if (finding.anchors.length === 0) continue;
-      if (finding.anchors.every((anchorId) => !finalReadAnchors.has(anchorId))) {
-        collectedUnknowns.push(
-          `Engine finding not interpreted during reading: ${finding.ruleId} — ${finding.title} (${finding.id}).`,
-        );
-      }
+      await readRound(targets, round, []);
     }
   }
 
@@ -811,7 +748,12 @@ export async function runReviewPipeline(
   // L2 — claims were evaluated at the link boundary (only true claims survive); the merge
   // dedupes by statement + anchors + claim key, so remaining findings cannot contradict.
   const structured = snapshotStructured();
-  const seenAnchors = new Set(structured.findings.flatMap((finding) => finding.anchors));
+  // Engine finding anchors are authoritative: the engine proved them, so a narrative may cite them
+  // even though no reading round saw them (they ride along in engine-findings.jsonl).
+  const seenAnchors = new Set([
+    ...structured.findings.flatMap((finding) => finding.anchors),
+    ...digest.findings.flatMap((finding) => finding.anchors),
+  ]);
   const themeIds = themes.map((theme) => theme.id);
 
   // L3 verify→revise loop: synthesize, link, feed issues back as constraints (≤2 rounds).

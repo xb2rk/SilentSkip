@@ -290,6 +290,7 @@ describe("synthesize pass", () => {
       "task.json",
       "findings.json",
       "themes.json",
+      "engine-findings.jsonl",
       "anchors.jsonl",
     ]);
   });

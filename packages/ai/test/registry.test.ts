@@ -73,7 +73,7 @@ describe("prompt registry v2", () => {
       map: "2.1.1",
       read: "2.2.1",
       dig: "2.0.1",
-      synthesize: "2.2.1",
+      synthesize: "2.3.0",
       whatif: "1.0.3",
     });
   });

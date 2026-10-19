@@ -1,7 +1,7 @@
 # Prompt passes
 
 Prompts are code. They live in the versioned registry `packages/ai/src/prompts/registry.ts`
-(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.3 —
+(`PROMPT_VERSIONS` per pass — map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.3.0, whatif 1.0.3 —
 snapshot-tested); passes reference them by version, and the version is persisted with every pass
 in `contextManifests`.
 
@@ -43,7 +43,7 @@ then gates the answer like every other pass.
 | `map` | Refine the engine partition into themes by choosing **file ids** (`f1…fN`); every changed file exactly once (set equality enforced); invalid output re-runs ≤2 rounds with repair constraints, else the engine partition falls back | `MapOutputSchema` |
 | `read` | One reading unit — or chunk when oversized — per call (every unit, every run); explain behaviour first from `bodies.jsonl`; findings with typed claims; ≤3 `needMore` queries | `ReadOutputSchema` |
 | `dig` | One focused round: queries resolved deterministically against the full anchor registry (≤40 anchors) | `DigOutputSchema` |
-| `synthesize` | Final writer: verdict, score, per-theme structured narratives (`summary`/`behaviorChange`/`watchFor` + linker-validated `anchorIds`), findings carried forward unchanged — may not add anchors or claims. A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
+| `synthesize` | Final writer: verdict, score, per-theme structured narratives (`summary`/`behaviorChange`/`watchFor` + linker-validated `anchorIds`), findings carried forward unchanged — may not add anchors or claims. Receives `engine-findings.jsonl` (deterministic findings whose anchors are valid citations). A schema-invalid reply re-runs as a repair round (`synthesize-invalid`) | `SynthesizeOutputSchema` |
 | `whatif` | One question per turn over: task pack + ledger + recent turns + pins + evidence pack (200 anchors, pins first); Vietnamese answers split evidence (anchored) / speculation / unknowns | `WhatIfOutputSchema` |
 
 ## Guards around the passes (linker — `packages/ai/src/link/`)

@@ -57,8 +57,8 @@ linker that gates every citation.
   each) with `facts.json` giving each unit its fact-store slice; units are read through a **bounded pool** (`AI_READ_CONCURRENCY`, default 1 —
   this endpoint queues overlapping calls instead of speeding them up) folded in unit order, so pool size cannot change
   the report; **L1** re-reads only units
-  whose call never answered, plus units owning an engine finding no reading has cited (≤2 rounds), and whatever stays
-  unread lands in `unknowns`; `dig` remains one focused round; **L3** re-runs `synthesize` with
+  whose call never answered (≤2 rounds) — engine findings go straight to `synthesize` as
+  `engine-findings.jsonl`, so no AI round is spent re-citing them; `dig` remains one focused round; **L3** re-runs `synthesize` with
   linker issues as constraints (≤2 rounds); a schema-invalid reply is a repairable round too
   (`synthesize-invalid`), so one bad writer reply cannot kill the run. The **fact index + linker**
   (`src/facts/fact-index.ts`, `src/link/`) replaced the verifier: numbers travel only as
@@ -103,7 +103,7 @@ linker that gates every citation.
 - **Honest engine effects (E8.2d)** — engine findings carry `effectConfidence` next to
   `confidence` (observation vs runtime consequence). Shared prompt rules now require inferred or
   unknown effects to be phrased as possibilities, never facts; all pass versions bumped by one
-  patch (map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.2.1, whatif 1.0.1).
+  patch (map 2.1.1, read 2.2.1, dig 2.0.1, synthesize 2.3.0, whatif 1.0.3).
 
 ## Planned scope
 

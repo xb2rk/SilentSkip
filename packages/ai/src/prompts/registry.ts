@@ -16,7 +16,7 @@ export const PROMPT_VERSIONS = {
   map: "2.1.1",
   read: "2.2.1",
   dig: "2.0.1",
-  synthesize: "2.2.1",
+  synthesize: "2.3.0",
   whatif: "1.0.3",
 } as const;
 
@@ -156,7 +156,7 @@ export function buildSynthesizePrompt(
   constraints: readonly string[],
 ): string {
   const themeIds = themes.map((theme) => theme.id).join(", ");
-  return `You are pass "synthesize" — the final writer of an A/B review. findings.json carries findings already machine-linked (anchors verified, placeholders resolvable, claims evaluated true). themes.json lists the engine themes. Write the report; you may merge duplicate findings and add consequence/recommendation text, but you may NOT add anchors, change claims, or state anything the linked findings do not support.
+  return `You are pass "synthesize" — the final writer of an A/B review. findings.json carries findings already machine-linked (anchors verified, placeholders resolvable, claims evaluated true). themes.json lists the engine themes. engine-findings.jsonl carries the engine's own deterministic findings, already verified. Write the report; you may merge duplicate findings and add consequence/recommendation text, but you may NOT add anchors, change claims, or state anything the linked findings do not support.
 
 ${SHARED_RULES}
 
@@ -174,7 +174,8 @@ Strict JSON with exactly these keys:
 {"verdict":"...","qualityScore":0,"executiveSummary":"...","topConcerns":["..."],"themes":[{"themeId":"...","summary":"...","behaviorChange":"...","watchFor":"...","anchorIds":["<anchor id>"]}],"findings":[{"title":"...","statement":"...","anchors":["<anchor id>"],"severity":"...","confidence":"...","claims":[{"subject":"<factId>","relation":"equals|differs","object":"<factId>"}],"consequence":"...","recommendation":"..."}],"recommendedTests":["..."],"unknowns":["..."]}
 
 - themes: one narrative per themeId — exactly these ids, each exactly once: ${themeIds}
-  Three short registers per theme: "summary" (what this part of the change is), "behaviorChange" (what now happens differently — state it directly; no hedging filler), "watchFor" (what to verify). "anchorIds" lists the anchor ids from anchors.jsonl that back the narrative — at least one per theme.
+  Three short registers per theme: "summary" (what this part of the change is), "behaviorChange" (what now happens differently — state it directly; no hedging filler), "watchFor" (what to verify). "anchorIds" lists the anchor ids from anchors.jsonl (or the engine findings' own anchors) that back the narrative — at least one per theme.
+- engine-findings.jsonl: deterministic findings the engine already proved. Reflect them in the narrative where they matter (summary/topConcerns/themes) instead of re-checking them; their anchor ids are valid citations.
 - findings: carry the linked findings forward with their anchors and claims unchanged.
 - recommendedTests: concrete in-game checks a designer can run to confirm behavior.
 - topConcerns: at most 5, ordered by risk.
@@ -189,6 +190,7 @@ linked findings: ${findingCount}, unknowns: ${unknownCount}
 - task.json — refs, stats, goal and lens
 - findings.json — the linked findings to carry forward
 - themes.json — the engine theme partition (ids, names, files)
+- engine-findings.jsonl — the engine's deterministic findings (already verified)
 - anchors.jsonl — the full evidence pack`;
 }
 

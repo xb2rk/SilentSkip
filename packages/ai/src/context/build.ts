@@ -227,6 +227,16 @@ export function serializeFactsFile(
 }
 
 /**
+ * Serialize the engine findings as `engine-findings.jsonl` — deterministic, already-verified facts
+ * (rule id, severity, anchors, message). The writer interprets them; the engine never needs the
+ * model to re-discover them, so they travel straight to `synthesize`.
+ */
+export function serializeEngineFindingsFile(context: ReviewContext): InseaAttachment {
+  const lines = context.engineFindings.map((finding) => JSON.stringify(finding));
+  return attachment("engine-findings.jsonl", "application/x-ndjson", lines.join("\n"));
+}
+
+/**
  * Serialize function bodies of the given files as `bodies.jsonl` (E7.5) — the material that
  * lets `read` explain what added/changed code does now instead of only naming symbols.
  */

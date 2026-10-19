@@ -18,6 +18,7 @@ import {
 } from "../src/index";
 import {
   ANCHOR_A_ATK,
+  ANCHOR_A_MOD,
   ANCHOR_B_ATK,
   ANCHOR_B_MOD,
   makeDigest,
@@ -229,13 +230,12 @@ describe("runReviewPipeline v2", () => {
     expect(result.report.verdict).toBe("needs_review");
   });
 
-  it("L1 re-reads units with engine findings left uninterpreted", async () => {
+  it("does not spend a second reading round chasing engine findings", async () => {
     const scripted = scriptedRunner({
       map: MAP_OUTPUT as unknown as ScriptValue,
       read: ((_request: unknown, callIndex: number) => {
         if (callIndex === 0) return reading([ANCHOR_B_MOD]) as unknown as Record<string, unknown>;
-        if (callIndex === 1) return reading([]) as unknown as Record<string, unknown>;
-        return reading([ANCHOR_A_ATK, ANCHOR_B_ATK]) as unknown as Record<string, unknown>;
+        return reading([]) as unknown as Record<string, unknown>;
       }) as ScriptValue,
       synthesize: GOOD_REPORT as unknown as ScriptValue,
     });
@@ -243,37 +243,32 @@ describe("runReviewPipeline v2", () => {
       { runner: scripted.runner, config: CONFIG },
       { digest: makeDigest() },
     );
-    const readCalls = scripted.calls.filter(
-      (call) => (JSON.parse(call.manifestJson) as { stage: string }).stage === "read",
-    );
-    expect(readCalls).toHaveLength(3);
-    expect(readCalls[2]?.prompt).toContain("Constraints from the previous round");
-    expect(readCalls[2]?.prompt).toContain("STRUCT-01");
+    const readCalls = scripted.calls.filter((call) => stageOf(call) === "read");
+    // One call per unit, no L1 round: the engine findings ride into synthesize instead.
+    expect(readCalls).toHaveLength(2);
     expect(
-      result.structuredFindings.unknowns.some((unknown) =>
-        unknown.includes("Engine finding not interpreted"),
-      ),
+      readCalls.some((call) => call.prompt.includes("Constraints from the previous round")),
     ).toBe(false);
+    expect(result.report.verdict).toBe("needs_review");
   });
 
-  it("reports engine findings as unknowns when reading never cites them", async () => {
+  it("sends the engine findings to synthesize", async () => {
     const scripted = scriptedRunner({
       map: MAP_OUTPUT as unknown as ScriptValue,
       read: ((_request: unknown, callIndex: number) =>
-        callIndex === 0
-          ? (reading([ANCHOR_B_MOD]) as unknown as Record<string, unknown>)
-          : (reading([]) as unknown as Record<string, unknown>)) as ScriptValue,
+        (callIndex === 0 ? reading([ANCHOR_B_MOD]) : reading([])) as unknown as Record<
+          string,
+          unknown
+        >) as ScriptValue,
       synthesize: GOOD_REPORT as unknown as ScriptValue,
     });
-    const result = await runReviewPipeline(
-      { runner: scripted.runner, config: CONFIG },
-      { digest: makeDigest() },
-    );
-    expect(
-      result.structuredFindings.unknowns.some((unknown) =>
-        unknown.includes("Engine finding not interpreted"),
-      ),
-    ).toBe(true);
+    await runReviewPipeline({ runner: scripted.runner, config: CONFIG }, { digest: makeDigest() });
+    const synthesizeCall = scripted.calls.find((call) => stageOf(call) === "synthesize");
+    expect(synthesizeCall).toBeDefined();
+    const attachment = attachmentOf(synthesizeCall as never, "engine-findings.jsonl");
+    const lineCount = (attachment.content.match(/\n/gu)?.length ?? 0) + 1;
+    expect(attachment.content.length).toBeGreaterThan(0);
+    expect(lineCount).toBe(makeDigest().findings.length);
   });
 
   it("L3 re-runs synthesize with linker constraints", async () => {
@@ -343,7 +338,7 @@ describe("runReviewPipeline v2", () => {
         {
           title: "Script constant",
           statement: "The constant changed",
-          anchors: [ANCHOR_B_MOD, ANCHOR_A_ATK],
+          anchors: [ANCHOR_B_MOD, ANCHOR_A_MOD],
           severity: "major",
           confidence: "exact",
           claims: [],

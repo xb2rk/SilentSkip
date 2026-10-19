@@ -2,6 +2,7 @@ import { type SynthesizeOutput, SynthesizeOutputSchema } from "@silentskip/contr
 import {
   buildPassManifestJson,
   serializeAnchorsJsonl,
+  serializeEngineFindingsFile,
   serializeTaskFile,
   serializeThemesFile,
 } from "../context/build.js";
@@ -51,6 +52,7 @@ export async function runSynthesizePass(
       content: JSON.stringify(structured),
     },
     serializeThemesFile(themes),
+    serializeEngineFindingsFile(context),
     {
       uploadName: "anchors.jsonl",
       mimeType: "application/x-ndjson",
