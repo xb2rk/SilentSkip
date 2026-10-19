@@ -221,6 +221,45 @@ describe("linkAnswer", () => {
     expect(result.answer.answer).toContain("số liệu chưa truy được về fact nguồn");
   });
 
+  it("renders fact placeholders in speculation and unknowns", () => {
+    const result = linkAnswer(
+      {
+        answer: "Không đổi.",
+        evidence: [],
+        speculation: [`Có thể là ${PLACEHOLDER}.`],
+        unknowns: [`Chưa rõ ${PLACEHOLDER}.`],
+      },
+      index,
+    );
+    expect(result.answer.speculation[0]).toContain("999983");
+    expect(result.answer.unknowns[0]).toContain("999983");
+    expect(result.answer.speculation[0]).not.toContain("{{f:");
+    expect(result.answer.unknowns[0]).not.toContain("{{f:");
+    expect(result.issues).toEqual([]);
+  });
+
+  it("marks unknown fact placeholders in prose instead of leaking raw ids", () => {
+    const result = linkAnswer(
+      {
+        answer: "Giá trị là {{f:q:missing}}.",
+        evidence: [],
+        speculation: ["Có lẽ {{f:q:missing}}."],
+        unknowns: ["Chưa rõ {{f:q:missing}}."],
+      },
+      index,
+    );
+    const rendered = [
+      result.answer.answer,
+      ...result.answer.speculation,
+      ...result.answer.unknowns,
+    ];
+    for (const text of rendered) {
+      expect(text).not.toContain("{{f:");
+      expect(text).toContain("không tồn tại");
+    }
+    expect(result.issues.filter((issue) => issue.kind === "unknown-fact")).toHaveLength(3);
+  });
+
   it("is deterministic", () => {
     const output = {
       answer: `Giá trị mới là ${PLACEHOLDER}.`,

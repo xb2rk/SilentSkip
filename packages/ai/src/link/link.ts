@@ -532,9 +532,9 @@ export function linkAnswer(output: WhatIfOutput, index: FactIndex): LinkAnswerRe
     numbersUnverified += answerFreeNumbers.length;
   }
   const answerHasViolations = answerRendered.unknownIds.length > 0 || answerFreeNumbers.length > 0;
-  const answerText = answerHasViolations
-    ? `${answerRendered.text}${UNVERIFIED_SUFFIX}`
-    : answerRendered.text;
+  const answerText = sanitizeUnknownFacts(
+    answerHasViolations ? `${answerRendered.text}${UNVERIFIED_SUFFIX}` : answerRendered.text,
+  );
 
   const demoted: string[] = [];
   const evidence: WhatIfEvidence[] = [];
@@ -589,10 +589,20 @@ export function linkAnswer(output: WhatIfOutput, index: FactIndex): LinkAnswerRe
     else demoted.push(rendered.text);
   }
 
-  const speculation = [...output.speculation, ...demoted].map((item) =>
-    withUnverifiedSuffix(item, index, issues),
-  );
-  const unknowns = output.unknowns.map((item) => withUnverifiedSuffix(item, index, issues));
+  const speculation: string[] = [];
+  for (const item of output.speculation) {
+    const linked = linkProse(item, "speculation", index, issues);
+    numbersChecked += linked.factCount;
+    speculation.push(linked.text);
+  }
+  for (const item of demoted) speculation.push(withUnverifiedSuffix(item, index, issues));
+
+  const unknowns: string[] = [];
+  for (const item of output.unknowns) {
+    const linked = linkProse(item, "unknowns", index, issues);
+    numbersChecked += linked.factCount;
+    unknowns.push(linked.text);
+  }
 
   const citedAnchors = [...new Set(evidence.flatMap((item) => item.anchors))];
   const quoteViolations = collectQuoteViolations(answerRendered.text, citedAnchors, index);
@@ -625,8 +635,13 @@ export function linkAnswer(output: WhatIfOutput, index: FactIndex): LinkAnswerRe
 }
 
 /** Non-fact prose keeps free numbers but gains an explicit note + an issue (never silent). */
-function withUnverifiedSuffix(text: string, index: FactIndex, issues: LinkIssue[]): string {
-  const freeNumbers = findFreeNumbers(text, index);
+function withUnverifiedSuffix(
+  text: string,
+  index: FactIndex,
+  issues: LinkIssue[],
+  source: string = text,
+): string {
+  const freeNumbers = findFreeNumbers(source, index);
   if (freeNumbers.length === 0) return text;
   issues.push({
     kind: "free-number",
@@ -635,4 +650,35 @@ function withUnverifiedSuffix(text: string, index: FactIndex, issues: LinkIssue[
     detail: `number(s) without a fact source: ${freeNumbers.slice(0, 5).join(", ")}`,
   });
   return `${text}${UNVERIFIED_SUFFIX}`;
+}
+
+const LEFTOVER_PLACEHOLDER = /\{\{f:[^}]+\}\}/gu;
+
+/** Unknown fact placeholders are kept raw for diagnosis; persisted prose gets a readable mark. */
+function sanitizeUnknownFacts(text: string): string {
+  return text.replace(LEFTOVER_PLACEHOLDER, "(fact không tồn tại)");
+}
+
+/**
+ * Links free prose (speculation/unknowns): placeholders render like findings do, unknown ids are
+ * reported, and any free number keeps its explicit note. Numbers are checked on the raw source so
+ * engine-filled values are never mistaken for model-invented numbers.
+ */
+function linkProse(
+  text: string,
+  target: string,
+  index: FactIndex,
+  issues: LinkIssue[],
+): { readonly text: string; readonly factCount: number } {
+  const rendered = renderStatement(text, index);
+  if (rendered.unknownIds.length > 0) {
+    issues.push({
+      kind: "unknown-fact",
+      pass: "whatif",
+      target,
+      detail: `cites unknown fact id(s): ${rendered.unknownIds.slice(0, 5).join(", ")}`,
+    });
+  }
+  const linked = withUnverifiedSuffix(rendered.text, index, issues, text);
+  return { text: sanitizeUnknownFacts(linked), factCount: rendered.factIds.length };
 }
