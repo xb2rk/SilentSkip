@@ -819,7 +819,12 @@ export async function runReviewPipeline(
     // Fast Repair Gate: check if mechanical salvage resolves all blocking issues cleanly
     // (e.g. dropping unverifiable claims, injecting missing theme narratives)
     // to avoid an expensive and risky re-synthesis round that could time out.
-    const repaired = fastRepairSynthesizeOutput(synthesize.output, index, themeIds);
+    const repaired = fastRepairSynthesizeOutput(
+      synthesize.output,
+      index,
+      themes,
+      round === MAX_SYNTHESIZE_ROUNDS,
+    );
     if (repaired !== null) {
       const repairedLinked = linkReport(repaired, index, { seenAnchors, themeIds });
       const repairedBlocking = repairedLinked.issues.some((issue) =>
@@ -964,13 +969,16 @@ function normalizeConcurrency(value: number | undefined): number {
 
 /**
  * Fast repair gate for synthesize output: mechanically repairs fixable issues
- * (e.g., dropping invalid/false claims so statements survive, injecting missing theme narratives)
- * to avoid returning an empty or degraded report when real findings were discovered.
+ * (e.g., dropping invalid/false claims so statements survive) to avoid an expensive re-synthesis
+ * round that could time out. Missing theme narratives are only filled on the final round, and the
+ * filler says plainly that no narrative was written — never a generic sentence that reads like an
+ * analysis the model never produced.
  */
 function fastRepairSynthesizeOutput(
   raw: SynthesizeOutput,
   index: FactIndex,
-  themeIds: readonly string[],
+  normalizedThemes: readonly NormalizedTheme[],
+  fillMissingThemes: boolean,
 ): SynthesizeOutput | null {
   let modified = false;
 
@@ -995,16 +1003,17 @@ function fastRepairSynthesizeOutput(
     return f;
   });
 
-  const presentThemeIds = new Set(raw.themes.map((t) => t.themeId));
   const themes = [...raw.themes];
-  for (const themeId of themeIds) {
-    if (!presentThemeIds.has(themeId)) {
+  if (fillMissingThemes) {
+    const presentThemeIds = new Set(raw.themes.map((theme) => theme.themeId));
+    for (const theme of normalizedThemes) {
+      if (presentThemeIds.has(theme.id)) continue;
       modified = true;
       themes.push({
-        themeId,
-        summary: "Theme changes analyzed without narrative.",
-        behaviorChange: "See related findings.",
-        watchFor: "Verification in game.",
+        themeId: theme.id,
+        summary: `No narrative was written for theme "${theme.name}" — see its carried findings.`,
+        behaviorChange: "Not stated by the model; the anchored findings describe what changed.",
+        watchFor: "Read this theme's files and verify the change in game.",
         anchorIds: [],
       });
     }

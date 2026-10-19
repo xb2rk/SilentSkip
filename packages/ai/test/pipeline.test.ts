@@ -400,6 +400,36 @@ describe("runReviewPipeline v2", () => {
     expect(result.report.findings[0]?.claims).toHaveLength(0);
   });
 
+  it("retries a missing theme narrative, then writes an honest placeholder on the final round", async () => {
+    const partial = report(GOOD_REPORT.findings, GOOD_REPORT.themes.slice(0, 1));
+    const scripted = scriptedRunner({
+      map: MAP_OUTPUT as unknown as ScriptValue,
+      read: ((request: unknown) =>
+        (unitFilesOf(request as never) === SCRIPT_PATH
+          ? reading([ANCHOR_B_MOD])
+          : reading([ANCHOR_B_ATK])) as unknown as Record<string, unknown>) as ScriptValue,
+      synthesize: partial as unknown as ScriptValue,
+    });
+    const result = await runReviewPipeline(
+      { runner: scripted.runner, config: CONFIG },
+      { digest: makeDigest() },
+    );
+    const synthesizeCalls = scripted.calls.filter((call) => stageOf(call) === "synthesize");
+    // Round 1 asks again for the missing narrative; only the final round fills it in.
+    expect(synthesizeCalls).toHaveLength(2);
+    expect(synthesizeCalls[1]?.prompt).toContain("theme-invalid");
+    expect(result.report.themes).toHaveLength(2);
+    const placeholder = result.report.themes.find((theme) =>
+      theme.summary.includes("No narrative was written"),
+    );
+    expect(placeholder?.themeId).toBe("theme-2");
+    expect(placeholder?.behaviorChange).toBe(
+      "Not stated by the model; the anchored findings describe what changed.",
+    );
+    expect(placeholder?.anchorIds).toEqual([]);
+    expect(result.report.findings).toHaveLength(2);
+  });
+
   it("answers reading queries through one dig round", async () => {
     const scripted = scriptedRunner({
       map: MAP_OUTPUT as unknown as ScriptValue,
