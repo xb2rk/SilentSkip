@@ -13,6 +13,7 @@ import {
   AiError,
   BLOCKING_SYNTHESIZE_ISSUE_KINDS,
   chunkReadingUnit,
+  READ_CHUNK_BUDGET_BYTES,
   runReviewPipeline,
   withPassCache,
 } from "../src/index";
@@ -983,16 +984,20 @@ describe("runReviewPipeline v2", () => {
   });
 
   it("re-reads a unit when only one of its chunks failed", async () => {
-    // One unit, two files, material big enough to split into two read calls at any sane budget. The
-    // chunk holding the big file dies once (transient timeout), the other answers — so the unit is
-    // half read and the coverage loop has to queue it again. The retry re-reads ONLY the chunk that
-    // failed: the chunk that answered is never paid for twice.
+    // One unit, two files, material bigger than the read-chunk budget so it always splits into two
+    // read calls. The chunk holding the big file dies once (transient timeout), the other answers —
+    // so the unit is half read and the coverage loop has to queue it again. The retry re-reads ONLY
+    // the chunk that failed: the chunk that answered is never paid for twice.
     const digest = makeDigest();
     const [unit] = digest.plan.units;
     if (unit === undefined) throw new Error("fixture has no reading unit");
     unit.files = [SCRIPT_PATH, TABLE_PATH];
     unit.payload = JSON.stringify([
-      { path: SCRIPT_PATH, status: "changed", filler: "x".repeat(300_000) },
+      {
+        path: SCRIPT_PATH,
+        status: "changed",
+        filler: "x".repeat(READ_CHUNK_BUDGET_BYTES + 100_000),
+      },
       { path: TABLE_PATH, status: "changed" },
     ]);
 
