@@ -15,8 +15,12 @@ linker that gates every citation.
   `cancelled`, `network`) and a short body preview.
 - **Canary probe (E4.1)** — `canaryProbe(config)`: one tiny round-trip that exercises multipart,
   auth, unwrap and salvage; `ok: true` only when the model honours the JSON contract. Run it for
-  real with `pnpm --filter @silentskip/ai canary` (reads the repo-root `.env`). Last verified
-  against Insea project 25537: ok, ~1.8s, salvage `clean` (2026-10-17).
+  real with `pnpm --filter @silentskip/ai canary` (reads the repo-root `.env`); `canaryParallelProbe`
+  (`--parallel <n>`) fires n calls at once and reports per-slot outcomes plus the batch wall time.
+  The ~200-byte canary payload only proves the endpoint **accepts** concurrency, not that it pays:
+  with real payloads 3 overlapping reads took as long as 3 sequential ones and each call inflated up
+  to 8x, so `AI_READ_CONCURRENCY` defaults to 1. Last verified against Insea project 25537: ok,
+  ~1.8s, salvage `clean` (2026-10-17).
 - **Pass library + review pipeline (E4.2)** — versioned prompt registry (`digest_read` / `dig` /
   `synthesize` at 1.0.0, shared anti-hallucination rules, snapshot-tested); context assembly
   (`task.json`, `changes.json`, `journeys.json`, `context.json` + `anchors.jsonl`) under a hard
@@ -50,8 +54,10 @@ linker that gates every citation.
   rounds, and the engine base partition as last-resort fallback (`map-invalid` issue + honest
   unknown) so one bad map can never kill a run; `read` runs **once per reading unit, every run**
   (lossless units from `plan/`, ~60 KB
-  each) with `facts.json` giving each unit its fact-store slice; **L1** re-reads units that
-  produced no signal or whose engine findings were never cited (≤2 rounds), and whatever stays
+  each) with `facts.json` giving each unit its fact-store slice; units are read through a **bounded pool** (`AI_READ_CONCURRENCY`, default 1 —
+  this endpoint queues overlapping calls instead of speeding them up) folded in unit order, so pool size cannot change
+  the report; **L1** re-reads only units
+  whose call never answered, plus units owning an engine finding no reading has cited (≤2 rounds), and whatever stays
   unread lands in `unknowns`; `dig` remains one focused round; **L3** re-runs `synthesize` with
   linker issues as constraints (≤2 rounds); a schema-invalid reply is a repairable round too
   (`synthesize-invalid`), so one bad writer reply cannot kill the run. The **fact index + linker**
@@ -120,5 +126,8 @@ linker that gates every citation.
 ```sh
 pnpm --filter @silentskip/ai test      # offline: fetch is mocked
 pnpm --filter @silentskip/ai canary    # real round-trip against the configured workflow
+pnpm --filter @silentskip/ai payload:probe <projectId> <base> <current>
+                                       # captures a production read payload, then re-sends it and
+                                       # ablations live: bytes → latency per variant
 pnpm --filter @silentskip/ai review:once <projectId> <base> <current>  # real pipeline (dev server must be up)
 ```

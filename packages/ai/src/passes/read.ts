@@ -11,7 +11,7 @@ import {
 import type { EvidenceAnchor, ReviewContext } from "../context/types.js";
 import { buildReadPrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import { parsePassOutput } from "./parse-output.js";
-import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
+import { type PassDeps, type PassMeta, runPassCall } from "./types.js";
 
 /**
  * The `read` pass (E7.2) — one call per reading unit, for every unit on every run.
@@ -70,33 +70,31 @@ export async function runReadPass(
     },
     serializeSkeletonFile(context),
   ];
-  const result = await deps.runner(
-    buildRunRequest(
-      deps,
-      buildReadPrompt(
-        context,
-        unit.index + 1,
-        context.plan.units.length,
-        options.round,
-        options.constraints,
-        options.chunks > 1 ? `chunk ${options.chunk} of ${options.chunks}` : undefined,
-      ),
-      buildPassManifestJson("read", context, attachments),
-      attachments,
-      signal,
-    ),
+  const prompt = buildReadPrompt(
+    context,
+    unit.index + 1,
+    context.plan.units.length,
+    options.round,
+    options.constraints,
+    options.chunks > 1 ? `chunk ${options.chunk} of ${options.chunks}` : undefined,
   );
+  const { result, meta } = await runPassCall(deps, {
+    prompt,
+    manifestJson: buildPassManifestJson("read", context, attachments),
+    attachments,
+    signal,
+  });
   return {
     output: parsePassOutput(ReadOutputSchema, result, "read"),
     meta: {
       pass: "read",
       promptVersion: PROMPT_VERSIONS.read,
-      latencyMs: result.latencyMs,
       salvage: result.salvage,
       unit: unit.index + 1,
       chunk: options.chunk,
       chunks: options.chunks,
       round: options.round,
+      ...meta,
     },
   };
 }

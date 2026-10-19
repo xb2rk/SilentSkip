@@ -1,4 +1,10 @@
-import { type PassConfig, runInseaWorkflow, type WorkflowRunner } from "@silentskip/ai";
+import {
+  type PassCache,
+  type PassConfig,
+  runInseaWorkflow,
+  type WorkflowRunner,
+  withPassCache,
+} from "@silentskip/ai";
 import {
   API_VERSION,
   AppError,
@@ -30,6 +36,12 @@ export interface AppDependencies {
   readonly ai?: {
     readonly runner?: WorkflowRunner;
     readonly config?: PassConfig;
+    /**
+     * Optional result cache for workflow calls. Production passes the SQLite-backed one
+     * (`AI_PASS_CACHE`), so re-running the same comparison replays the passes it already paid
+     * for; tests leave it out and always reach their scripted runner.
+     */
+    readonly cache?: PassCache;
   };
 }
 
@@ -76,10 +88,20 @@ export function createApp(deps: AppDependencies): Hono {
   app.route("/api/projects", createProjectsRoutes({ db: deps.db }));
   app.route("/api/fs", createFsRoutes());
 
+  const baseRunner = deps.ai?.runner ?? runInseaWorkflow;
+  // One cached transport for both managers: the cache is content-addressed per call, so sharing
+  // it is safe, and a repeated What-If question replays instead of paying again.
+  const runner =
+    deps.ai?.cache === undefined
+      ? baseRunner
+      : withPassCache(baseRunner, deps.ai.cache, {
+          onError: (error, phase) => deps.log.warn({ err: error, phase }, "pass cache unavailable"),
+        });
+
   const reviewManager = new ReviewManager({
     db: deps.db,
     log: deps.log,
-    runner: deps.ai?.runner ?? runInseaWorkflow,
+    runner,
     config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
   });
   app.route("/api/reviews", createReviewsRoutes({ manager: reviewManager, db: deps.db }));
@@ -87,7 +109,7 @@ export function createApp(deps: AppDependencies): Hono {
   const whatIfManager = new WhatIfManager({
     db: deps.db,
     log: deps.log,
-    runner: deps.ai?.runner ?? runInseaWorkflow,
+    runner,
     config: deps.ai?.config ?? { workflowUrl: null, apiKey: null },
   });
   app.route("/api/whatif", createWhatIfRoutes({ manager: whatIfManager }));

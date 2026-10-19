@@ -166,6 +166,29 @@ const fallbackRunner: WorkflowRunner = () => {
   throw new AiError("not-configured", "workflow URL or API key is missing");
 };
 
+/** Reads the fixture for real, then dies on synthesize — the degradation case. */
+const synthesizeTimeoutRunner: WorkflowRunner = async (request) => {
+  const stage = (JSON.parse(request.manifestJson) as { stage: string }).stage;
+  if (stage !== "synthesize") return await scriptedRunner(request);
+  throw new AiError("timeout", "Insea workflow timed out after 180000ms");
+};
+
+/** Reads the fixture for real, then hangs on synthesize so a cancel lands with readings kept. */
+const hangAtSynthesizeRunner: WorkflowRunner = async (request) => {
+  const stage = (JSON.parse(request.manifestJson) as { stage: string }).stage;
+  if (stage !== "synthesize") return await scriptedRunner(request);
+  if (request.signal?.aborted === true) {
+    throw new AiError("cancelled", "request was cancelled");
+  }
+  return await new Promise((_resolve, reject) => {
+    request.signal?.addEventListener(
+      "abort",
+      () => reject(new AiError("cancelled", "request was cancelled")),
+      { once: true },
+    );
+  });
+};
+
 let root = "";
 let projectId = "";
 let server: ReturnType<typeof serve>;
@@ -230,6 +253,16 @@ async function readStream(runId: string): Promise<string> {
   const res = await fetch(`${baseUrl}/api/reviews/${runId}/stream`);
   expect(res.status).toBe(200);
   return await res.text();
+}
+
+/** Wait until the mid-run checkpoint is persisted — the run itself stays `running`. */
+async function waitForPartial(runId: string): Promise<RunDetailResponse> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const detail = await getRun(runId);
+    if (detail.result !== null) return detail;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`run ${runId} never checkpointed a partial result`);
 }
 
 describe("review runs", () => {
@@ -313,6 +346,52 @@ describe("review runs", () => {
     const stream = await readStream(runId);
     expect(stream).toContain("event: completed");
     expect(stream).toContain('"fallbackReason":"AI review unavailable (not-configured)');
+  });
+
+  it("keeps the readings and finishes degraded when synthesize times out", async () => {
+    currentRunner = synthesizeTimeoutRunner;
+    const runId = await startRun({ projectId, baseRef: "HEAD", currentRef: "WORKTREE" });
+    const detail = await waitForStatus(runId, "completed");
+
+    expect(detail.result?.degradedReason).toContain("timeout");
+    expect(detail.result?.fallbackReason).toBeNull();
+    expect(detail.result?.passes.map((meta) => meta.pass)).toEqual(["map", "read"]);
+    expect(detail.result?.report.verdict).toBe("insufficient_evidence");
+    expect(detail.result?.report.findings.length).toBeGreaterThan(0);
+    expect(
+      detail.result?.verification.issues.some((issue) => issue.kind === "synthesize-timeout"),
+    ).toBe(true);
+
+    // The audit trail of the passes that did run survives too.
+    const manifestRows = app.db
+      .select()
+      .from(contextManifests)
+      .all()
+      .filter((row) => row.runId === runId);
+    expect(manifestRows.map((row) => row.passId).sort()).toEqual(["map", "read"]);
+
+    const stream = await readStream(runId);
+    expect(stream).toContain("event: completed");
+    expect(stream).toContain('"degradedReason"');
+  });
+
+  it("keeps the partial result when a run is cancelled after reading", async () => {
+    currentRunner = hangAtSynthesizeRunner;
+    const runId = await startRun({ projectId, baseRef: "HEAD", currentRef: "WORKTREE" });
+
+    // The checkpoint is a valid partial result on its own — it must land before the cancel does.
+    const partial = await waitForPartial(runId);
+    expect(partial.result?.degradedReason).toContain("chưa tổng hợp xong");
+    expect(partial.result?.passes.length).toBeGreaterThan(0);
+
+    const cancelRes = await app.instance.request(`/api/reviews/${runId}/cancel`, {
+      method: "POST",
+    });
+    expect(cancelRes.status).toBe(200);
+    const detail = await waitForStatus(runId, "cancelled");
+    expect(detail.result).not.toBeNull();
+    expect(detail.result?.degradedReason).toContain("huỷ");
+    expect(detail.result?.report.findings.length).toBeGreaterThan(0);
   });
 
   it("marks the run failed when the ref range cannot be resolved", async () => {

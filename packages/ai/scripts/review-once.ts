@@ -39,13 +39,22 @@ if (!response.ok) {
 const digest: DigestBundle = DigestBundleSchema.parse(await response.json());
 
 const startedAt = performance.now();
+const readConcurrency = configuredConcurrency();
 try {
-  const result = await runReviewPipeline(createReviewDeps({ workflowUrl, apiKey }), { digest });
+  const result = await runReviewPipeline(
+    createReviewDeps({
+      workflowUrl,
+      apiKey,
+      ...(readConcurrency === undefined ? {} : { readConcurrency }),
+    }),
+    { digest },
+  );
   const totalMs = Math.round(performance.now() - startedAt);
   console.log(
     JSON.stringify(
       {
         totalMs,
+        degradedReason: result.degradedReason,
         passes: result.passes,
         themes: result.themes.map((theme) => ({
           id: theme.id,
@@ -89,4 +98,16 @@ try {
     console.error(error);
   }
   process.exit(1);
+}
+
+/**
+ * Reading concurrency from `.env`, so the probe reproduces server behaviour instead of quietly
+ * running sequentially. Mirrors `AI_READ_CONCURRENCY` (server default 1); anything unusable means
+ * "let the pipeline decide".
+ */
+function configuredConcurrency(): number | undefined {
+  const raw = process.env.AI_READ_CONCURRENCY;
+  if (raw === undefined || raw.trim() === "") return 1;
+  const value = Number.parseInt(raw, 10);
+  return Number.isInteger(value) && value >= 1 ? value : undefined;
 }

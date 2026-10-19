@@ -7,7 +7,7 @@ import {
 import type { ReviewContext } from "../context/types.js";
 import { buildMapPrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import { parsePassOutput } from "./parse-output.js";
-import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
+import { type PassDeps, type PassMeta, runPassCall } from "./types.js";
 
 /**
  * The `map` pass (E7.2/E7.2.1, decision #28 mechanism d) — theme partition refinement.
@@ -84,23 +84,15 @@ export async function runMapPass(
   signal?: AbortSignal,
 ): Promise<MapPassResult> {
   const attachments = [serializeTaskFile(context), serializeSkeletonFile(context)];
-  const result = await deps.runner(
-    buildRunRequest(
-      deps,
-      buildMapPrompt(context, constraints),
-      buildPassManifestJson("map", context, attachments),
-      attachments,
-      signal,
-    ),
-  );
+  const { result, meta } = await runPassCall(deps, {
+    prompt: buildMapPrompt(context, constraints),
+    manifestJson: buildPassManifestJson("map", context, attachments),
+    attachments,
+    signal,
+  });
   return {
     output: parsePassOutput(MapOutputSchema, result, "map"),
-    meta: {
-      pass: "map",
-      promptVersion: PROMPT_VERSIONS.map,
-      latencyMs: result.latencyMs,
-      salvage: result.salvage,
-    },
+    meta: { pass: "map", promptVersion: PROMPT_VERSIONS.map, salvage: result.salvage, ...meta },
   };
 }
 

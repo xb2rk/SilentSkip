@@ -65,6 +65,23 @@ export const ReviewPassMetaSchema = z.object({
   chunks: z.number().int().min(1).optional(),
   /** 1-based coverage/revise round for passes re-run by the L1/L3 loops. */
   round: z.number().int().min(1).optional(),
+  /**
+   * True when the pass was answered from the call cache instead of the workflow — no AI time was
+   * spent on it and `latencyMs` is 0. Defaulted so runs recorded before the cache existed parse.
+   */
+  cached: z.boolean().default(false),
+  /**
+   * UTF-8 bytes the call sent (prompt + manifest + attachments). Defaulted to 0 so runs recorded
+   * before the measurement existed parse — 0 means "not measured", never "sent nothing".
+   */
+  payloadBytes: z.number().int().min(0).default(0),
+  /** Those bytes split by section, largest first; [] when the run predates the measurement. */
+  payloadSections: z
+    .array(z.object({ name: z.string().min(1), bytes: z.number().int().min(0) }))
+    .default([]),
+  /** Epoch-ms span of the call, cache lookup included; null when the run predates the measurement. */
+  startedAt: z.number().int().min(0).nullable().default(null),
+  finishedAt: z.number().int().min(0).nullable().default(null),
 });
 
 /** One verifier (linker) issue about a stripped or downgraded claim. */
@@ -83,6 +100,14 @@ export const VerifyIssueSchema = z.object({
     "read-invalid",
     "dig-invalid",
     "synthesize-invalid",
+    "map-timeout",
+    "read-timeout",
+    "dig-timeout",
+    "synthesize-timeout",
+    "map-unavailable",
+    "read-unavailable",
+    "dig-unavailable",
+    "synthesize-unavailable",
     "verdict-downgraded",
   ]),
   pass: z.enum(["map", "read", "dig", "synthesize", "whatif"]),
@@ -144,6 +169,12 @@ export const ReviewRunResultSchema = z.object({
   surfaces: SilentSkipSurfaceSchema.nullable().default(null),
   /** Non-null when the AI was unavailable and the deterministic fallback report was served. */
   fallbackReason: z.string().nullable(),
+  /**
+   * Non-null when the run ended with a **partial** report: the readings that survived are kept,
+   * but synthesis never completed (timeout, crash, cancel). Distinguishes a degraded run from a
+   * clean one at the same `completed` status; legacy rows default to `null`.
+   */
+  degradedReason: z.string().nullable().default(null),
 });
 
 /** Run summary — the projection used by status polls and future run lists. */
@@ -196,6 +227,8 @@ export const ReviewStreamEventSchema = z.discriminatedUnion("type", [
     qualityScore: z.number().int(),
     findings: z.number().int().min(0),
     fallbackReason: z.string().nullable(),
+    /** Set when the run ended with a partial report (see `ReviewRunResultSchema`). */
+    degradedReason: z.string().nullable().default(null),
   }),
   z.object({ type: z.literal("failed"), error: z.string() }),
   z.object({ type: z.literal("cancelled") }),

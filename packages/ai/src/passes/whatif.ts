@@ -10,7 +10,7 @@ import {
   type WhatIfContext,
 } from "../whatif/context.js";
 import { parsePassOutput } from "./parse-output.js";
-import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
+import { type PassDeps, type PassMeta, runPassCall } from "./types.js";
 
 /** Result of one What-If answer call. */
 export interface WhatIfPassResult {
@@ -47,17 +47,15 @@ export async function runWhatIfPass(
       byteSize: Buffer.byteLength(item.content, "utf8"),
     })),
   });
-  const result = await deps.runner(
-    buildRunRequest(deps, prompt, manifestJson, attachments, signal),
-  );
+  const { result, meta } = await runPassCall(deps, { prompt, manifestJson, attachments, signal });
   const output = parsePassOutput(WhatIfOutputSchema, result, "whatif");
   return {
     output,
     meta: {
       pass: "whatif",
       promptVersion: PROMPT_VERSIONS.whatif,
-      latencyMs: result.latencyMs,
       salvage: result.salvage,
+      ...meta,
     },
   };
 }

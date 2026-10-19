@@ -1,5 +1,6 @@
 import type { DigestBundle, SynthesizeOutput } from "@silentskip/contracts";
 import type { AiError } from "./errors.js";
+import type { StructuredFindings } from "./passes/digest-step.js";
 
 /**
  * Deterministic fallback report (E4.4).
@@ -39,6 +40,52 @@ export function buildFallbackReport(digest: DigestBundle, error: AiError): Fallb
       findings: [],
       recommendedTests: [],
       unknowns: [reason],
+    },
+  };
+}
+
+/** Input of a partial report — the readings that survived, plus why the run is partial. */
+export interface PartialReportInput {
+  readonly digest: DigestBundle;
+  readonly structured: StructuredFindings;
+  /** Human-readable reason the report is partial — surfaced as the run's `degradedReason`. */
+  readonly reason: string;
+}
+
+/**
+ * Partial report (Phase 1 / E4): the run kept its readings but never synthesised a report — the
+ * AI timed out, the process was interrupted, or the user cancelled.
+ *
+ * The findings are lifted from the merged readings exactly as the linker verified them; nothing
+ * is added, because `consequence` and `recommendation` are the synthesizer's job and no
+ * synthesizer finished. Honest by construction: verdict `insufficient_evidence`, score 0, and
+ * the reason recorded both as a final unknown and as `degradedReason`. Pure and deterministic.
+ */
+export function buildPartialReport(input: PartialReportInput): FallbackReport {
+  const { stats } = input.digest;
+  return {
+    reason: input.reason,
+    report: {
+      verdict: "insufficient_evidence",
+      qualityScore: 0,
+      executiveSummary:
+        `${input.reason} Readings completed up to that point are listed below. ` +
+        `Deterministic summary of the A/B change: ` +
+        `${stats.filesChanged} files changed — ${stats.scriptFilesChanged} scripts, ` +
+        `${stats.tableFilesChanged} tables; symbols +${stats.symbolsAdded}/−${stats.symbolsRemoved}/` +
+        `~${stats.symbolsChanged}; rows +${stats.rowsAdded}/−${stats.rowsRemoved}/~${stats.rowsChanged}.`,
+      topConcerns: [],
+      themes: [],
+      findings: input.structured.findings.map((finding) => ({
+        title: finding.title,
+        statement: finding.statement,
+        anchors: [...finding.anchors],
+        severity: finding.severity,
+        confidence: finding.confidence,
+        claims: finding.claims.map((claim) => ({ ...claim })),
+      })),
+      recommendedTests: [],
+      unknowns: [...input.structured.unknowns, input.reason],
     },
   };
 }

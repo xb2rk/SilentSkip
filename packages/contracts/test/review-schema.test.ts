@@ -4,6 +4,7 @@ import {
   RunDetailResponseSchema,
   RunSummarySchema,
   StartReviewRequestSchema,
+  VerifyIssueSchema,
 } from "../src/index";
 
 const SUMMARY = {
@@ -76,7 +77,23 @@ describe("review schemas", () => {
 
   it("roundtrips a run detail with a full result", () => {
     const detail = { ...SUMMARY, result: RESULT };
-    expect(RunDetailResponseSchema.parse(detail)).toEqual(detail);
+    // `degradedReason`, the per-pass `cached` flag and the payload/time accounting are defaulted,
+    // so a legacy result parses and gains them.
+    expect(RunDetailResponseSchema.parse(detail)).toEqual({
+      ...detail,
+      result: {
+        ...RESULT,
+        degradedReason: null,
+        passes: RESULT.passes.map((meta) => ({
+          ...meta,
+          cached: false,
+          payloadBytes: 0,
+          payloadSections: [],
+          startedAt: null,
+          finishedAt: null,
+        })),
+      },
+    });
     expect(RunDetailResponseSchema.parse({ ...SUMMARY, result: null }).result).toBeNull();
   });
 
@@ -96,7 +113,14 @@ describe("review schemas", () => {
         units: 8,
         round: 1,
       },
-      { type: "completed", verdict: "pass", qualityScore: 90, findings: 3, fallbackReason: null },
+      {
+        type: "completed",
+        verdict: "pass",
+        qualityScore: 90,
+        findings: 3,
+        fallbackReason: null,
+        degradedReason: null,
+      },
       { type: "failed", error: "boom" },
       { type: "cancelled" },
     ];
@@ -121,5 +145,37 @@ describe("review schemas", () => {
     expect(parsed.baseRef).toBe("main");
     expect(parsed.goal).toBeUndefined();
     expect(StartReviewRequestSchema.safeParse({ projectId: "p", baseRef: "" }).success).toBe(false);
+  });
+
+  it("carries degradation on the completed event and the pass failure kinds", () => {
+    const parsed = ReviewStreamEventSchema.parse({
+      type: "completed",
+      verdict: "insufficient_evidence",
+      qualityScore: 0,
+      findings: 2,
+      fallbackReason: null,
+      degradedReason: "AI review incomplete (timeout): Insea workflow timed out after 180000ms",
+    });
+    expect(parsed).toMatchObject({ type: "completed", findings: 2 });
+
+    const kinds = [
+      "map-timeout",
+      "read-timeout",
+      "dig-timeout",
+      "synthesize-timeout",
+      "map-unavailable",
+      "read-unavailable",
+      "dig-unavailable",
+      "synthesize-unavailable",
+    ];
+    for (const kind of kinds) {
+      expect(
+        VerifyIssueSchema.safeParse({ kind, pass: "read", target: "t", detail: "d" }).success,
+      ).toBe(true);
+    }
+    expect(
+      VerifyIssueSchema.safeParse({ kind: "read-exploded", pass: "read", target: "t", detail: "d" })
+        .success,
+    ).toBe(false);
   });
 });

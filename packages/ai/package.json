@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "canary": "tsx scripts/canary.ts",
+    "payload:probe": "tsx scripts/payload-probe.ts",
     "review:once": "tsx scripts/review-once.ts"
   },
   "dependencies": {

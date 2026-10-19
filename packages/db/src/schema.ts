@@ -53,6 +53,9 @@ export type ChangeClass = "value_only" | "contract";
 /** Developer verification workflow state for a finding. */
 export type VerifyState = "new" | "confirmed" | "false_positive" | "wontfix";
 
+/** Salvage rung of one workflow call's output text (mirror of the AI layer's ladder). */
+export type SalvageRung = "clean" | "stripped" | "fence" | "braces" | "text-fallback";
+
 /** Registered projects (roots allowed for analysis). */
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
@@ -321,4 +324,28 @@ export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   valueJson: text("value_json").notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
+ * Content-addressed cache of AI workflow calls (`withPassCache` in @silentskip/ai): one row per
+ * call the model has already answered, so re-running the same comparison replays the expensive
+ * passes instead of paying for them again — that is what makes "Chạy lại" a resume.
+ *
+ * - `key` is a sha-256 over everything the model saw for that call (prompt, manifest, attachment
+ *   names and bytes), so any changed input — a different unit, chunk, round or L1/L3 constraint —
+ *   is a miss. There is deliberately no `prompt_version` column: the prompt text is part of the
+ *   key, so a prompt change (version bump included) already misses.
+ * - Nothing here is project-scoped; the key encodes the inputs.
+ * - Rows are never expired. A workflow that changed behind the same URL (model swap) can replay
+ *   a stale answer; the escape hatches are bumping the prompt version or clearing this table.
+ */
+export const passCache = sqliteTable("pass_cache", {
+  key: text("key").primaryKey(),
+  pass: text("pass").notNull(),
+  outputJson: text("output_json").notNull(),
+  rawResultJson: text("raw_result_json").notNull(),
+  salvage: text("salvage").$type<SalvageRung>().notNull(),
+  /** Latency of the original live call — audit only; a cache hit reports 0. */
+  latencyMs: integer("latency_ms").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });

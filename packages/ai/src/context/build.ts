@@ -167,30 +167,36 @@ export function changeFileIds(context: ReviewContext): ChangeFileIds {
  * Serialize the change map as `skeleton.json` — every changed file (with its engine-issued id),
  * the import edges among them, the engine's base partition and the engine findings
  * (map/read passes read this).
+ *
+ * Compact JSON on purpose: this file rides along on every read call, and pretty-printing it spent
+ * ~30% of its bytes on whitespace the model never reads — bytes that count against the payload the
+ * endpoint has to carry (plan §7).
  */
 export function serializeSkeletonFile(context: ReviewContext): InseaAttachment {
   const ids = changeFileIds(context);
   return attachment(
     "skeleton.json",
     "application/json",
-    JSON.stringify(
-      {
-        stats: context.taskPack.stats,
-        files: context.plan.skeleton.files.map((file) => ({
-          id: ids.pathToId.get(file.path) ?? "",
-          ...file,
-        })),
-        importEdges: context.plan.skeleton.importEdges,
-        basePartition: context.plan.partition.clusters,
-        engineFindings: context.engineFindings,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      stats: context.taskPack.stats,
+      files: context.plan.skeleton.files.map((file) => ({
+        id: ids.pathToId.get(file.path) ?? "",
+        ...file,
+      })),
+      importEdges: context.plan.skeleton.importEdges,
+      basePartition: context.plan.partition.clusters,
+      engineFindings: context.engineFindings,
+    }),
   );
 }
 
-/** Serialize one reading unit as `unit.json` — the payload a `read` pass works on. */
+/**
+ * Serialize one reading unit as `unit.json` — the payload a `read` pass works on.
+ *
+ * Compact JSON on purpose: the chunk budget measures this material's compact size, so pretty-printing
+ * it inflated every read call by ~2-3x while the budget still counted the call as small. Compact keeps
+ * "budget bytes" and "bytes on the wire" the same number, which is what lets the budget rise safely.
+ */
 export function serializeUnitFile(unit: {
   readonly index: number;
   readonly files: readonly string[];
@@ -199,15 +205,11 @@ export function serializeUnitFile(unit: {
   return attachment(
     "unit.json",
     "application/json",
-    JSON.stringify(
-      {
-        index: unit.index,
-        files: unit.files,
-        entries: JSON.parse(unit.payload) as unknown,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      index: unit.index,
+      files: unit.files,
+      entries: JSON.parse(unit.payload) as unknown,
+    }),
   );
 }
 

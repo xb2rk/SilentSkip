@@ -39,11 +39,19 @@ export type InseaSalvage =
   | "braces" // JSON was extracted as the outermost `{…}` span
   | "text-fallback"; // no JSON anywhere — raw text kept under `executiveSummary`
 
-/** Result of one workflow run. `output` is always a JSON object — the salvage ladder guarantees it. */
+/**
+ * Result of one workflow run. `output` is always a JSON object — the salvage ladder guarantees it.
+ */
 export interface InseaRunResult {
   readonly output: Record<string, unknown>;
   /** The raw `outputs.result` string exactly as returned (for debugging and run records). */
   readonly rawResult: string;
   readonly salvage: InseaSalvage;
   readonly latencyMs: number;
+  /**
+   * True only when a cache answered instead of the network (`withPassCache`). Such a result
+   * reports `latencyMs: 0` on purpose: the run's own account must not claim AI time it did not
+   * spend, and callers mark the pass so the report can say so.
+   */
+  readonly cached?: boolean;
 }

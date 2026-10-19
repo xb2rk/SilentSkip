@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "runs:stats": "tsx scripts/runs-stats.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

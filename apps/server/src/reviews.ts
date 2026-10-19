@@ -2,14 +2,21 @@ import { randomUUID } from "node:crypto";
 import {
   AiError,
   buildFallbackReport,
+  buildPartialReport,
+  type FallbackReport,
   type PassConfig,
+  type PassMeta,
+  type PipelineCheckpoint,
   type PipelineStageEvent,
+  type PipelineVerification,
   runReviewPipeline,
   type WorkflowRunner,
 } from "@silentskip/ai";
 import {
   AppError,
+  type DigestBundle,
   ErrorCodes,
+  type ReviewContextManifest,
   type ReviewRunResult,
   type ReviewStreamEvent,
   type RunDetailResponse,
@@ -98,6 +105,27 @@ const ZERO_STATS: VerifyStats = {
 
 /** Cap of the run list endpoint — newest first; the History UI shows the latest slice. */
 const RUN_LIST_LIMIT = 100;
+
+/** Reason recorded on a mid-run checkpoint — also what a server restart leaves behind. */
+const CHECKPOINT_REASON =
+  "Lượt chạy chưa tổng hợp xong — đây là phần AI đã đọc được trước khi dừng.";
+
+/** Reason recorded when the user cancels a run that had already produced readings. */
+const CANCELLED_REASON = "Đã huỷ lượt chạy — đây là phần AI đã đọc được trước khi huỷ.";
+
+/**
+ * A checkpoint is only worth rescuing when it carries work the user would otherwise lose: at
+ * least one finished pass, or at least one verified reading. A checkpoint from a run whose very
+ * first call failed has nothing to keep — the deterministic fallback tells that story better.
+ */
+function hasCheckpointWork(
+  snapshot: PipelineCheckpoint | undefined,
+): snapshot is PipelineCheckpoint {
+  return (
+    snapshot !== undefined &&
+    (snapshot.passes.length > 0 || snapshot.structured.findings.length > 0)
+  );
+}
 
 export class ReviewManager {
   private readonly deps: ReviewManagerDeps;
@@ -189,6 +217,7 @@ export class ReviewManager {
         qualityScore: row.qualityScore ?? 0,
         findings: result?.report.findings.length ?? 0,
         fallbackReason: result?.fallbackReason ?? null,
+        degradedReason: result?.degradedReason ?? null,
       });
     } else if (row.status === "cancelled") {
       void channel.emit({ type: "cancelled" });
@@ -205,6 +234,8 @@ export class ReviewManager {
     if (channel === undefined || controller === undefined) return;
     const startedAt = Date.now();
     let digest: Awaited<ReturnType<typeof loadDigest>> | undefined;
+    /** Latest partial result — upgraded, not discarded, if the run never finishes. */
+    let checkpoint: PipelineCheckpoint | undefined;
     try {
       await channel.emit({ type: "stage", stage: "digest", state: "started" });
       digest = await loadDigest(
@@ -222,6 +253,15 @@ export class ReviewManager {
           ...(input.lens === undefined ? {} : { lens: input.lens }),
           signal: controller.signal,
           onEvent: (event) => this.relayStage(channel, event),
+          onCheckpoint: (snapshot) => {
+            checkpoint = snapshot;
+            if (digest === undefined) return;
+            // Write straight away: a crash between two calls must not lose the readings.
+            this.persistProgress(
+              runId,
+              JSON.stringify(this.partialResult(digest, snapshot, CHECKPOINT_REASON)),
+            );
+          },
         },
       );
       const persisted: ReviewRunResult = {
@@ -241,6 +281,7 @@ export class ReviewManager {
         surfaces: result.surfaces,
         engineFindings: result.engineFindings,
         fallbackReason: null,
+        degradedReason: result.degradedReason,
       };
       this.persist(runId, {
         status: "completed",
@@ -258,9 +299,10 @@ export class ReviewManager {
         qualityScore: result.report.qualityScore,
         findings: result.report.findings.length,
         fallbackReason: null,
+        degradedReason: result.degradedReason,
       });
     } catch (error) {
-      await this.failRun(runId, channel, controller, digest, error, startedAt);
+      await this.failRun(runId, channel, controller, digest, error, startedAt, checkpoint);
     } finally {
       this.controllers.delete(runId);
     }
@@ -273,73 +315,150 @@ export class ReviewManager {
     digest: Awaited<ReturnType<typeof loadDigest>> | undefined,
     error: unknown,
     startedAt: number,
+    checkpoint: PipelineCheckpoint | undefined,
   ): Promise<void> {
     const durationMs = Date.now() - startedAt;
     const statsJson = digest === undefined ? null : JSON.stringify(digest.stats);
+    /** The rescued partial result — null when there was nothing worth keeping. */
+    const rescued =
+      digest !== undefined && hasCheckpointWork(checkpoint) ? { digest, checkpoint } : null;
     const cancelled =
       controller.signal.aborted || (error instanceof AiError && error.code === "cancelled");
     if (cancelled) {
+      // The user asked to stop, not to lose the readings: keep them.
+      const partial =
+        rescued === null
+          ? null
+          : this.partialResult(rescued.digest, rescued.checkpoint, CANCELLED_REASON);
       this.persist(runId, {
         status: "cancelled",
         verdict: null,
         qualityScore: null,
-        reportJson: null,
+        reportJson: partial === null ? null : JSON.stringify(partial),
         diffSummaryJson: statsJson,
         error: "Run cancelled by user",
         durationMs,
       });
+      if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
       await channel.emit({ type: "cancelled" });
       return;
     }
     if (error instanceof AiError && digest !== undefined) {
-      const fallback = buildFallbackReport(digest, error);
+      // The pipeline degrades on its own, so arriving here with work done means the run was cut
+      // off mid-flight. Keep the readings; if nothing was read, the deterministic fallback states
+      // exactly what happened.
+      const reason = `AI review incomplete (${error.code}): ${error.message}`;
+      const persisted: ReviewRunResult =
+        rescued === null
+          ? this.fallbackResult(digest, buildFallbackReport(digest, error))
+          : this.partialResult(rescued.digest, rescued.checkpoint, reason);
       this.deps.log.warn(
-        { runId, code: error.code },
-        "review fell back to the deterministic report",
+        { runId, code: error.code, passes: persisted.passes.length },
+        "review ended without a synthesised report",
       );
-      const persisted: ReviewRunResult = {
-        report: fallback.report,
-        passes: [],
-        themes: [],
-        verification: { read: ZERO_STATS, dig: null, synthesize: ZERO_STATS, issues: [] },
-        contextManifest: {
-          counts: { changeFacts: 0, linked: 0, contextItems: 0, evidence: 0, evidenceDropped: 0 },
-          notes: [],
-        },
-        surfaces: digest.surfaces,
-        engineFindings: digest.findings,
-        fallbackReason: fallback.reason,
-      };
       this.persist(runId, {
         status: "completed",
-        verdict: fallback.report.verdict,
-        qualityScore: fallback.report.qualityScore,
+        verdict: persisted.report.verdict,
+        qualityScore: persisted.report.qualityScore,
         reportJson: JSON.stringify(persisted),
         diffSummaryJson: statsJson,
         error: null,
         durationMs,
       });
+      if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
       await channel.emit({
         type: "completed",
-        verdict: fallback.report.verdict,
-        qualityScore: fallback.report.qualityScore,
-        findings: 0,
-        fallbackReason: fallback.reason,
+        verdict: persisted.report.verdict,
+        qualityScore: persisted.report.qualityScore,
+        findings: persisted.report.findings.length,
+        fallbackReason: persisted.fallbackReason,
+        degradedReason: persisted.degradedReason,
       });
       return;
     }
     const message = error instanceof Error ? error.message : "review run failed";
     this.deps.log.error({ err: error, runId }, "review run failed");
+    // A genuine bug still shows what the AI had read — the run page renders partial results for
+    // failed runs too (E3).
+    const partial =
+      rescued === null
+        ? null
+        : this.partialResult(
+            rescued.digest,
+            rescued.checkpoint,
+            `Lượt chạy lỗi (${message}) — đây là phần AI đã đọc được trước khi dừng.`,
+          );
     this.persist(runId, {
       status: "failed",
       verdict: null,
       qualityScore: null,
-      reportJson: null,
+      reportJson: partial === null ? null : JSON.stringify(partial),
       diffSummaryJson: statsJson,
       error: message,
       durationMs,
     });
+    if (rescued !== null) this.persistManifests(runId, rescued.checkpoint);
     await channel.emit({ type: "failed", error: message });
+  }
+
+  /**
+   * Persist a mid-run checkpoint. Only `reportJson` is written — the row stays `running` until the
+   * run really ends, so status polling and the SSE channel are unaffected. A run that never comes
+   * back (process death) keeps this row: `reconcileInterruptedRuns` marks it failed, and the run
+   * page renders the partial report from it.
+   */
+  private persistProgress(runId: string, reportJson: string): void {
+    this.deps.db.update(runs).set({ reportJson }).where(eq(runs.id, runId)).run();
+  }
+
+  /** Deterministic fallback result — no pass ran, so the report is engine stats plus the reason. */
+  private fallbackResult(digest: DigestBundle, fallback: FallbackReport): ReviewRunResult {
+    return {
+      report: fallback.report,
+      passes: [],
+      themes: [],
+      verification: { read: ZERO_STATS, dig: null, synthesize: ZERO_STATS, issues: [] },
+      contextManifest: {
+        counts: { changeFacts: 0, linked: 0, contextItems: 0, evidence: 0, evidenceDropped: 0 },
+        notes: [],
+      },
+      surfaces: digest.surfaces,
+      engineFindings: digest.findings,
+      fallbackReason: fallback.reason,
+      degradedReason: null,
+    };
+  }
+
+  /**
+   * Partial result of an unfinished run: the passes and readings that happened are kept verbatim
+   * and the report is the honest partial one (readings lifted 1:1, verdict `insufficient_evidence`,
+   * `degradedReason` set). `fallbackReason` stays null — a model did run here.
+   */
+  private partialResult(
+    digest: DigestBundle,
+    snapshot: PipelineCheckpoint,
+    reason: string,
+  ): ReviewRunResult {
+    const partial = buildPartialReport({ digest, structured: snapshot.structured, reason });
+    return {
+      report: partial.report,
+      passes: [...snapshot.passes],
+      themes: [...snapshot.themes],
+      verification: {
+        read: snapshot.verification.read,
+        dig: snapshot.verification.dig,
+        synthesize: snapshot.verification.synthesize,
+        issues: [...snapshot.verification.issues],
+      },
+      contextManifest: {
+        counts: snapshot.contextManifest.counts,
+        notes: [...snapshot.contextManifest.notes],
+      },
+      surfaces: digest.surfaces,
+      engineFindings: digest.findings,
+      fallbackReason: null,
+      degradedReason: reason,
+    };
   }
 
   private relayStage(channel: RunChannel, event: PipelineStageEvent): Promise<void> {
@@ -360,7 +479,14 @@ export class ReviewManager {
   /** One `context_manifests` row per executed pass — what was sent, the call stats, linker counts. */
   private persistManifests(
     runId: string,
-    result: Awaited<ReturnType<typeof runReviewPipeline>>,
+    result: {
+      readonly passes: readonly PassMeta[];
+      readonly verification: PipelineVerification;
+      readonly contextManifest: {
+        readonly counts: ReviewContextManifest["counts"];
+        readonly notes: readonly string[];
+      };
+    },
   ): void {
     const sectionsJson = JSON.stringify(result.contextManifest);
     const totalBytes = Buffer.byteLength(sectionsJson, "utf8");
@@ -386,6 +512,7 @@ export class ReviewManager {
           aiCallJson: JSON.stringify({
             latencyMs: meta.latencyMs,
             salvage: meta.salvage,
+            cached: meta.cached,
             ...(meta.unit === undefined ? {} : { unit: meta.unit }),
             ...(meta.chunk === undefined ? {} : { chunk: meta.chunk }),
             ...(meta.chunks === undefined ? {} : { chunks: meta.chunks }),

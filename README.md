@@ -28,9 +28,13 @@ technical docs are English.
 - **Silent-skip surface** — a deterministic panel of loader mechanisms that quietly drop or
   default data at runtime: length guards, parse failures, duplicate keys, missing bindings, empty
   required cells, enum fallbacks and broken foreign keys.
-- **Review runs that never fail flakily** — background execution with live SSE progress, cancel
-  support and SQLite persistence. When the AI is unavailable, the run still completes with an
-  honest deterministic fallback report instead of a flaky failure.
+- **Review runs that never fail flakily, and never lose progress** — background execution with live
+  SSE progress, cancel support and SQLite persistence. A timeout on any pass degrades instead of
+  killing the run: it still completes, keeps every reading it already verified, and says so
+  (`degradedReason`) rather than flakily failing. Only a run that read nothing at all falls back to
+  the honest deterministic report (`fallbackReason`). Byte-identical workflow calls are cached
+  (`pass_cache`), so "Chạy lại" on the same comparison replays the passes it already paid for and
+  marks them `cached` instead of starting from zero.
 - **What-If chat** — ask questions about a single A/B comparison; sessions and pins survive new
   runs of the same pair, and answers separate verified evidence (clickable, pinnable anchors) from
   labelled speculation and unknowns.
@@ -70,6 +74,8 @@ Everything runs without configuration; copy `.env.example` to `.env` to override
 | `AI_WORKFLOW_URL` | — | Insea workflow run endpoint |
 | `AI_WORKFLOW_API_KEY` | — | Bearer token for the endpoint |
 | `AI_WORKFLOW_TIMEOUT_MS` | `180000` | Per-request AI timeout |
+| `AI_PASS_CACHE` | `on` | Reuse workflow answers for byte-identical calls (rerun = resume); `off` disables |
+| `AI_READ_CONCURRENCY` | `1` | Max `read` calls in flight (1–16); overlapping buys no wall time on this endpoint |
 
 AI is optional: without `AI_WORKFLOW_URL`/`AI_WORKFLOW_API_KEY` reviews still complete with the
 deterministic fallback report. Verify connectivity with
@@ -103,7 +109,12 @@ deterministic fallback report. Verify connectivity with
 
 Diagnostic probes worth knowing:
 
-- `pnpm --filter @silentskip/ai canary` — one real Insea round-trip (latency, salvage rung).
+- `pnpm --filter @silentskip/ai canary [--parallel <n>]` — one (or `n` simultaneous) real Insea
+  round-trip(s): latency, salvage rung, and whether the endpoint *accepts* concurrency. The canary
+  payload is tiny, so it is no evidence of a speedup — `payload:probe` measures real payloads.
+- `pnpm --filter @silentskip/ai payload:probe <projectId> <base> <current>` — real read payloads
+  against the live workflow: per-section byte sizes and latency per variant (full, no-skeleton,
+  merged units, byte ladder), so payload cuts are decided on measured cost.
 - `pnpm --filter @silentskip/ai review:once <projectId> <base> <current>` — the full review
   pipeline against a running dev server.
 - `pnpm --filter @silentskip/engine probe:project <root>` / `probe:delta <root> <base> <current>`
@@ -134,8 +145,11 @@ through `packages/contracts` (Zod), so the wire shape can never drift silently.
 A review run starts from a deterministic **digest** (change facts, linked journeys, engine
 findings, context — plus an anchor registry) and drives the Insea pipeline: `map` (theme partition
 over engine-issued file ids) → `read` × N reading units → optional `dig` → `synthesize`, with the
-linker gating every pass boundary and repair rounds for schema drift. Results, verification stats
-and per-pass manifests persist to SQLite; SSE relays per-unit progress to the UI.
+linker gating every pass boundary and repair rounds for schema drift. Reading units go through a
+bounded pool (`AI_READ_CONCURRENCY`, default 1 — this endpoint queues overlapping calls, so more
+than one in flight buys no wall time); outcomes fold in unit order, so pool size never changes the
+report. Results, verification stats and per-pass manifests persist to SQLite (including the bytes
+each call sent and how long it took); SSE relays per-unit progress to the UI.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for topology, runtime flows, invariants and extension
 recipes.

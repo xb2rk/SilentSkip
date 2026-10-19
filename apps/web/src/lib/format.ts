@@ -35,3 +35,11 @@ export function formatDateTime(iso: string): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+/** Compact payload size for pass rows: "512 B", "18.4 KB", "1.75 MB" (binary units). */
+export function formatBytes(bytes: number): string {
+  const value = Math.max(0, bytes);
+  if (value < 1024) return `${Math.round(value)} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}

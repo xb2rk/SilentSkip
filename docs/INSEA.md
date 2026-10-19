@@ -36,12 +36,34 @@ How SilentSkip talks to the Insea workflow engine (workflow `25537`). The client
 A run never fails flakily: AI unavailability produces the deterministic fallback report
 (`buildFallbackReport`) persisted as a normal `completed` run carrying `fallbackReason`.
 
+## Result cache
+
+Successful calls are stored in `pass_cache` (SQLite) and keyed by a sha-256 over everything the
+model saw for that call — prompt, manifest, attachment names and bytes. A later call with identical
+inputs is answered from the row instead of the network (`cached: true`, `latencyMs: 0`); errors are
+never cached, and a cache fault falls through to a live call. This is what makes "Chạy lại" a resume
+after a timeout or an interruption: finished passes replay, the unfinished one is retried.
+
+Because the key is content, a workflow that changes **behind the same URL** (a model swap on the
+Insea side) can replay an answer that no longer matches it. Escape hatches, in order of preference:
+bump the pass prompt version (changes the prompt, hence the key), or clear the `pass_cache` table.
+`AI_PASS_CACHE=off` disables the cache entirely for a run.
+
 ## Configuration & probes
 
-`AI_WORKFLOW_URL`, `AI_WORKFLOW_API_KEY`, `AI_WORKFLOW_TIMEOUT_MS` — repo-root `.env`
-(gitignored). Probes:
+`AI_WORKFLOW_URL`, `AI_WORKFLOW_API_KEY`, `AI_WORKFLOW_TIMEOUT_MS`, `AI_READ_CONCURRENCY` — repo-root
+`.env` (gitignored). Probes:
 
 ```sh
 pnpm --filter @silentskip/ai canary                       # strict-JSON canary, latency + salvage
+pnpm --filter @silentskip/ai canary -- --parallel 3       # 3 simultaneous calls: does it tolerate them?
+pnpm --filter @silentskip/ai payload:probe <projectId> <base> <current>  # real payload cost, per variant
 pnpm --filter @silentskip/ai review:once <projectId> <base> <current>   # full pipeline (server must be up)
 ```
+
+`--parallel <n>` fires `n` probes at once and reports per-slot latency/errors plus the batch wall
+time. Measured 2026-10-19 (project 25537, ~200-byte canary payload): `n=3` → 2.2 s wall for 6.4 s of
+latency (2.8x), `n=6` → 3.3 s for 16.5 s (5.0x), no errors in either. That proves the endpoint
+**accepts** concurrent calls; it does **not** prove a speedup on real payloads. A real 72-file run
+was no faster at K=3 than at K=1 (1152 s vs 1070 s) with per-call latency inflated 2-8x, so
+`AI_READ_CONCURRENCY` defaults to 1 — measure with `payload:probe` (real bytes) before raising it.

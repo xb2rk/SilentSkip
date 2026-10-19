@@ -26,6 +26,14 @@ export type LinkIssueKind =
   | "read-invalid"
   | "dig-invalid"
   | "synthesize-invalid"
+  | "map-timeout"
+  | "read-timeout"
+  | "dig-timeout"
+  | "synthesize-timeout"
+  | "map-unavailable"
+  | "read-unavailable"
+  | "dig-unavailable"
+  | "synthesize-unavailable"
   | "verdict-downgraded";
 
 /** One linker issue — kind, pass, target and a human-readable detail. */

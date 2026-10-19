@@ -91,11 +91,12 @@ describe("what-if pass", () => {
   it("sends the reconstructed context and records the transport facts", async () => {
     const scripted = scriptedRunner({ whatif: OUTPUT });
     const result = await runWhatIfPass({ runner: scripted.runner, config: CONFIG }, build());
-    expect(result.meta).toEqual({
+    expect(result.meta).toMatchObject({
       pass: "whatif",
       promptVersion: PROMPT_VERSIONS.whatif,
       latencyMs: 7,
       salvage: "clean",
+      cached: false,
     });
     expect(result.output).toEqual(OUTPUT);
     const call = firstCall(scripted.calls);

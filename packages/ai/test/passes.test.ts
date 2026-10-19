@@ -5,6 +5,7 @@ import {
   buildReviewContext,
   mergeStructured,
   normalizeThemes,
+  payloadAccounting,
   runDigPass,
   runMapPass,
   runReadPass,
@@ -58,12 +59,14 @@ describe("map pass", () => {
     const { deps, calls } = depsFor({ map: output as unknown as ScriptValue });
     const result = await runMapPass(deps, CONTEXT, []);
     expect(result.output).toEqual(output);
-    expect(result.meta).toEqual({
+    expect(result.meta).toMatchObject({
       pass: "map",
       promptVersion: "2.1.1",
       latencyMs: 7,
       salvage: "clean",
+      cached: false,
     });
+    expect(result.meta.finishedAt).toBeGreaterThanOrEqual(result.meta.startedAt);
     expect(calls.map((call) => call.prompt.length > 0)).toEqual([true]);
     expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
       "task.json",
@@ -138,7 +141,7 @@ describe("read pass", () => {
       chunks: 1,
     });
     expect(result.output.findings).toHaveLength(1);
-    expect(result.meta).toEqual({
+    expect(result.meta).toMatchObject({
       pass: "read",
       promptVersion: "2.2.1",
       latencyMs: 7,
@@ -147,6 +150,7 @@ describe("read pass", () => {
       chunk: 1,
       chunks: 1,
       round: 1,
+      cached: false,
     });
     expect(firstCall(calls).attachments.map((item) => item.uploadName)).toEqual([
       "task.json",
@@ -279,5 +283,40 @@ describe("synthesize pass", () => {
       round: 1,
     });
     await expect(attempt).rejects.toThrowError(AiError);
+  });
+});
+
+describe("payload accounting", () => {
+  it("counts what the model is sent and lists the biggest section first", () => {
+    const accounting = payloadAccounting("prompt", '{"stage":"map"}', [
+      { uploadName: "small.json", mimeType: "application/json", content: "ab" },
+      { uploadName: "big.json", mimeType: "application/json", content: "x".repeat(500) },
+    ]);
+    expect(accounting.payloadBytes).toBe(6 + 15 + 2 + 500);
+    expect(accounting.payloadSections.map((section) => section.name)).toEqual([
+      "big.json",
+      "manifest",
+      "prompt",
+      "small.json",
+    ]);
+    expect(accounting.payloadSections.reduce((sum, section) => sum + section.bytes, 0)).toBe(
+      accounting.payloadBytes,
+    );
+  });
+
+  it("keeps equal sizes in a stable order, so the same call always accounts the same", () => {
+    const attachments = [
+      { uploadName: "b.json", mimeType: "application/json", content: "xy" },
+      { uploadName: "a.json", mimeType: "application/json", content: "xy" },
+    ];
+    const first = payloadAccounting("p", "{}", attachments);
+    const second = payloadAccounting("p", "{}", attachments);
+    expect(first.payloadSections).toEqual(second.payloadSections);
+    expect(first.payloadSections.map((section) => section.name)).toEqual([
+      "a.json",
+      "b.json",
+      "manifest",
+      "prompt",
+    ]);
   });
 });

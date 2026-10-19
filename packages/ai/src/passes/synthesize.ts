@@ -10,7 +10,7 @@ import type { InseaAttachment } from "../insea/types.js";
 import { buildSynthesizePrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import type { StructuredFindings } from "./digest-step.js";
 import { parsePassOutput } from "./parse-output.js";
-import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
+import { type PassDeps, type PassMeta, runPassCall } from "./types.js";
 
 /** Input of one writer call. */
 export interface SynthesizePassInput {
@@ -57,29 +57,26 @@ export async function runSynthesizePass(
       content: serializeAnchorsJsonl(context.evidence),
     },
   ];
-  const result = await deps.runner(
-    buildRunRequest(
-      deps,
-      buildSynthesizePrompt(
-        context,
-        structured.findings.length,
-        themes,
-        structured.unknowns.length,
-        constraints,
-      ),
-      buildPassManifestJson("synthesize", context, attachments),
-      attachments,
-      signal,
+  const { result, meta } = await runPassCall(deps, {
+    prompt: buildSynthesizePrompt(
+      context,
+      structured.findings.length,
+      themes,
+      structured.unknowns.length,
+      constraints,
     ),
-  );
+    manifestJson: buildPassManifestJson("synthesize", context, attachments),
+    attachments,
+    signal,
+  });
   return {
     output: parsePassOutput(SynthesizeOutputSchema, result, "synthesize"),
     meta: {
       pass: "synthesize",
       promptVersion: PROMPT_VERSIONS.synthesize,
-      latencyMs: result.latencyMs,
       salvage: result.salvage,
       round,
+      ...meta,
     },
   };
 }

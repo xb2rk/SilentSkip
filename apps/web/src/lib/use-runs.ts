@@ -1,6 +1,7 @@
 import {
   AttributionResponseSchema,
   ReviewCompareResponseSchema,
+  type ReviewLens,
   RunDetailResponseSchema,
   RunListResponseSchema,
   StartReviewRequestSchema,
@@ -106,6 +107,7 @@ export function useStartReview() {
       readonly baseRef: string;
       readonly currentRef: string;
       readonly goal?: string;
+      readonly lens?: ReviewLens;
     }) => {
       const body: Record<string, unknown> = {
         projectId: input.projectId,
@@ -114,6 +116,9 @@ export function useStartReview() {
       };
       if (input.goal !== undefined && input.goal.trim() !== "") {
         body.goal = input.goal.trim();
+      }
+      if (input.lens !== undefined) {
+        body.lens = input.lens;
       }
       return StartReviewResponseSchema.parse(
         await fetchJson<unknown>("/api/reviews", {

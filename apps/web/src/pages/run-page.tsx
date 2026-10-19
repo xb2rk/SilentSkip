@@ -1,9 +1,10 @@
-import type {
-  Anchor,
-  ReviewPassMeta,
-  ReviewRunResult,
-  ReviewStreamEvent,
-  Verdict,
+import {
+  type Anchor,
+  type ReviewLens,
+  ReviewLensSchema,
+  type ReviewPassMeta,
+  type ReviewRunResult,
+  type Verdict,
 } from "@silentskip/contracts";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { cn } from "cn";
@@ -15,6 +16,7 @@ import {
   Info,
   Loader2,
   MessageCircleQuestion,
+  RotateCcw,
   TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,10 +36,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProject } from "@/contexts/project-context";
-import { formatDateTime, formatDuration } from "@/lib/format";
+import { formatBytes, formatDateTime, formatDuration } from "@/lib/format";
+import { STAGE_ORDER, type StageName, stageStates, stageTotals } from "@/lib/stage-progress";
 import { useDigest } from "@/lib/use-projects";
 import { useRunStream } from "@/lib/use-run-stream";
-import { useAttribution, useCancelReview, useRun } from "@/lib/use-runs";
+import { useAttribution, useCancelReview, useRun, useStartReview } from "@/lib/use-runs";
 
 const VERDICT_STYLES: Record<Verdict, string> = {
   pass: "bg-positive/15 text-positive dark:text-positive",
@@ -55,9 +58,6 @@ const VERDICT_LABEL_KEYS: Record<Verdict, string> = {
   insufficient_evidence: "run.verdictInsufficient",
 };
 
-const STAGE_ORDER = ["digest", "map", "read", "dig", "synthesize"] as const;
-type StageName = (typeof STAGE_ORDER)[number];
-
 const STAGE_LABEL_KEYS: Record<StageName, string> = {
   digest: "run.stageDigest",
   map: "run.stageMap",
@@ -66,46 +66,19 @@ const STAGE_LABEL_KEYS: Record<StageName, string> = {
   synthesize: "run.stageSynthesize",
 };
 
-interface StageState {
-  readonly state: "pending" | "active" | "done";
-  readonly latencyMs?: number;
-  readonly unit?: number;
-  readonly units?: number;
-  readonly chunk?: number;
-  readonly chunks?: number;
-  readonly round?: number;
-}
+/** One line per stage saying what that stage does — the pipeline used to be a black box (R2). */
+const STAGE_HINT_KEYS: Record<StageName, string> = {
+  digest: "run.stageDigestHint",
+  map: "run.stageMapHint",
+  read: "run.stageReadHint",
+  dig: "run.stageDigHint",
+  synthesize: "run.stageSynthesizeHint",
+};
 
-/** Fold the streamed stage events into one state per pipeline stage. */
-function stageStates(events: readonly ReviewStreamEvent[]): Record<StageName, StageState> {
-  const states: Record<StageName, StageState> = {
-    digest: { state: "pending" },
-    map: { state: "pending" },
-    read: { state: "pending" },
-    dig: { state: "pending" },
-    synthesize: { state: "pending" },
-  };
-  for (const event of events) {
-    if (event.type !== "stage") continue;
-    const progress = {
-      ...(event.unit === undefined || event.units === undefined
-        ? {}
-        : { unit: event.unit, units: event.units }),
-      ...(event.chunk === undefined || event.chunks === undefined
-        ? {}
-        : { chunk: event.chunk, chunks: event.chunks }),
-      ...(event.round === undefined ? {} : { round: event.round }),
-    };
-    states[event.stage] =
-      event.state === "started"
-        ? { state: "active", ...progress }
-        : {
-            state: "done",
-            ...progress,
-            ...(event.latencyMs === undefined ? {} : { latencyMs: event.latencyMs }),
-          };
-  }
-  return states;
+/** The run's stored lens, only when it still parses — a stale row must not block "Chạy lại". */
+function rerunLensOf(lens: string | null): ReviewLens | undefined {
+  const parsed = ReviewLensSchema.safeParse(lens);
+  return parsed.success ? parsed.data : undefined;
 }
 
 interface VerificationSummary {
@@ -162,25 +135,52 @@ const ISSUE_KIND_LABEL_KEYS: Record<string, string> = {
   "dig-invalid": "run.issueKindDigInvalid",
   "synthesize-invalid": "run.issueKindSynthesizeInvalid",
   "verdict-downgraded": "run.issueKindVerdictDowngraded",
+  "map-timeout": "run.issueKindMapTimeout",
+  "read-timeout": "run.issueKindReadTimeout",
+  "dig-timeout": "run.issueKindDigTimeout",
+  "synthesize-timeout": "run.issueKindSynthesizeTimeout",
+  "map-unavailable": "run.issueKindMapUnavailable",
+  "read-unavailable": "run.issueKindReadUnavailable",
+  "dig-unavailable": "run.issueKindDigUnavailable",
+  "synthesize-unavailable": "run.issueKindSynthesizeUnavailable",
 };
 
 interface PassGroup {
   readonly pass: ReviewPassMeta["pass"];
   readonly salvage: ReviewPassMeta["salvage"];
+  readonly cached: boolean;
   readonly calls: number;
   readonly ms: number;
+  /** Payload bytes the group's calls sent; 0 for runs recorded before the measurement existed. */
+  readonly bytes: number;
 }
 
-/** Group the per-call pass log by pass + salvage rung so the summary shows one row per kind. */
+/**
+ * Group the per-call pass log by pass + salvage rung (+ cache) so the summary shows one row per
+ * kind. Cached calls are grouped apart on purpose: they cost no AI time, and mixing them into a
+ * live group would misreport what the workflow actually did.
+ */
 function groupPasses(passes: readonly ReviewPassMeta[]): PassGroup[] {
   const groups = new Map<string, PassGroup>();
   for (const meta of passes) {
-    const key = `${meta.pass}|${meta.salvage}`;
+    const key = `${meta.pass}|${meta.salvage}|${meta.cached ? "cached" : "live"}`;
     const current = groups.get(key);
     if (current === undefined) {
-      groups.set(key, { pass: meta.pass, salvage: meta.salvage, calls: 1, ms: meta.latencyMs });
+      groups.set(key, {
+        pass: meta.pass,
+        salvage: meta.salvage,
+        cached: meta.cached,
+        calls: 1,
+        ms: meta.latencyMs,
+        bytes: meta.payloadBytes,
+      });
     } else {
-      groups.set(key, { ...current, calls: current.calls + 1, ms: current.ms + meta.latencyMs });
+      groups.set(key, {
+        ...current,
+        calls: current.calls + 1,
+        ms: current.ms + meta.latencyMs,
+        bytes: current.bytes + meta.payloadBytes,
+      });
     }
   }
   return [...groups.values()];
@@ -264,13 +264,15 @@ function RunSummaryCard({ result }: { readonly result: ReviewRunResult }) {
               <div className="flex flex-wrap gap-1.5">
                 {groups.map((group) => (
                   <Badge
-                    key={`${group.pass}:${group.salvage}`}
+                    key={`${group.pass}:${group.salvage}:${group.cached ? "cached" : "live"}`}
                     variant="secondary"
                     className="font-normal"
                   >
                     {t(PASS_LABEL_KEYS[group.pass])}
                     {group.calls > 1 ? ` ×${group.calls}` : ""} · {group.ms} ms ·{" "}
+                    {group.bytes > 0 ? `${formatBytes(group.bytes)} · ` : ""}
                     {t(SALVAGE_LABEL_KEYS[group.salvage])}
+                    {group.cached ? ` · ${t("run.passCached")}` : ""}
                   </Badge>
                 ))}
               </div>
@@ -310,6 +312,7 @@ export function RunPage() {
   const attributionQuery = useAttribution(runId);
   const { events, streamError } = useRunStream(runId);
   const cancelRun = useCancelReview();
+  const startReview = useStartReview();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [tab, setTab] = useState("findings");
   const [expandAll, setExpandAll] = useState(false);
@@ -321,6 +324,15 @@ export function RunPage() {
     run === undefined
       ? null
       : (projects.find((project) => project.id === run.projectId)?.name ?? null);
+
+  const isLive = run?.status === "queued" || run?.status === "running";
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  /** Live elapsed clock: a run that takes fifteen minutes needs a number that moves, not a spinner. */
+  useEffect(() => {
+    if (!isLive) return;
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isLive]);
 
   const lastStatusRef = useRef<string | null>(null);
   /**
@@ -339,8 +351,10 @@ export function RunPage() {
     else if (status === "cancelled") toast(t("run.cancelledToast"));
   }, [run, t]);
 
+  // The digest backs the change map, engine findings and every anchor tooltip, so it is loaded
+  // whenever a result exists — a degraded, cancelled or failed run keeps those tabs useful (E3).
   const digestQuery = useDigest(
-    run !== undefined && run.status === "completed" ? run.projectId : null,
+    run?.result != null ? run.projectId : null,
     run?.baseRef ?? null,
     run?.currentRef ?? null,
   );
@@ -448,8 +462,13 @@ export function RunPage() {
   }
 
   const result = run.result;
-  const running = run.status === "queued" || run.status === "running";
+  const running = isLive;
   const states = stageStates(events);
+  const totals = stageTotals(states);
+  /** Elapsed wall clock: ticking while the run is live, frozen to the stored duration after. */
+  const elapsedMs = running
+    ? Math.max(0, nowTick - new Date(run.createdAt).getTime())
+    : (run.durationMs ?? 0);
   const verification = result === null ? null : summarizeVerification(result);
 
   const themeFilterName =
@@ -473,12 +492,34 @@ export function RunPage() {
     base: run.baseRef,
     current: run.currentRef,
   };
+  /** "Chạy lại" inputs, resolved here where `run` is narrowed to a real summary. */
+  const rerunGoal = run.goal === null || run.goal === "" ? undefined : run.goal;
+  const rerunLens = rerunLensOf(run.lens);
 
   function handleAskAbout(title: string): void {
     void navigate({
       to: "/what-if",
       search: { ...runRefs, q: title },
     });
+  }
+
+  /** Re-run the same comparison as a new run — the honest answer to "can I rerun this?". */
+  function handleRerun(): void {
+    startReview.mutate(
+      {
+        projectId: runRefs.projectId,
+        baseRef: runRefs.base,
+        currentRef: runRefs.current,
+        ...(rerunGoal === undefined ? {} : { goal: rerunGoal }),
+        ...(rerunLens === undefined ? {} : { lens: rerunLens }),
+      },
+      {
+        onSuccess: (response) => {
+          void navigate({ to: "/runs/$runId", params: { runId: response.runId } });
+        },
+        onError: () => toast.error(t("run.failedToast")),
+      },
+    );
   }
 
   return (
@@ -488,6 +529,17 @@ export function RunPage() {
         description={t("run.description")}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={startReview.isPending}
+              title={t("run.rerunHint")}
+              onClick={handleRerun}
+            >
+              <RotateCcw className="size-4" />
+              {t("run.rerun")}
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link
                 to="/what-if"
@@ -542,16 +594,24 @@ export function RunPage() {
 
       {running && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Loader2 className="size-4 animate-spin text-primary" />
-              {run.status === "queued" ? t("run.statusQueued") : t("run.statusRunning")}
-            </CardTitle>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Loader2 className="size-4 animate-spin text-primary" />
+                {run.status === "queued" ? t("run.statusQueued") : t("run.statusRunning")}
+              </CardTitle>
+              <span className="text-meta text-muted-foreground tabular-nums">
+                {t("run.progressElapsed", { elapsed: formatDuration(elapsedMs) })} ·{" "}
+                {t("run.progressCalls", { calls: totals.calls })} ·{" "}
+                {t("run.progressAiTime", { duration: formatDuration(totals.totalMs) })}
+              </span>
+            </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={cancelRun.isPending}
+              title={t("run.cancelKeepsPartial")}
               onClick={() => {
                 cancelRun.mutate(runId, {
                   onError: () => toast.error(t("run.failedToast")),
@@ -566,8 +626,10 @@ export function RunPage() {
             {STAGE_ORDER.map((stage) => {
               const state = states[stage];
               const metas: string[] = [];
-              if (stage === "read" && state.unit !== undefined) {
-                metas.push(t("run.stageReadProgress", { unit: state.unit, units: state.units }));
+              if (stage === "read" && state.units !== undefined) {
+                metas.push(
+                  t("run.stageReadProgress", { done: state.doneRegions, units: state.units }),
+                );
               }
               if (
                 stage === "read" &&
@@ -577,18 +639,21 @@ export function RunPage() {
               ) {
                 metas.push(t("run.chunkProgress", { chunk: state.chunk, chunks: state.chunks }));
               }
-              if (
-                (stage === "read" || stage === "synthesize") &&
-                state.round !== undefined &&
-                state.round > 1
-              ) {
+              if (state.round !== undefined && state.round > 1) {
                 metas.push(t("run.roundProgress", { round: state.round }));
               }
-              if (state.latencyMs !== undefined) {
-                metas.push(t("run.passLatency", { ms: state.latencyMs }));
+              if (stage !== "digest" && state.calls > 0) {
+                metas.push(t("run.stageCalls", { calls: state.calls }));
+              }
+              if (state.totalMs > 0) {
+                metas.push(t("run.stageTotal", { duration: formatDuration(state.totalMs) }));
               }
               return (
-                <div key={stage} className="flex items-center gap-2 text-body">
+                <div
+                  key={stage}
+                  className="flex items-center gap-2 text-body"
+                  title={t(STAGE_HINT_KEYS[stage])}
+                >
                   {state.state === "done" ? (
                     <CheckCircle2 className="size-4 text-positive dark:text-positive" />
                   ) : state.state === "active" ? (
@@ -608,6 +673,33 @@ export function RunPage() {
               );
             })}
             <p className="pt-1 text-meta text-muted-foreground">{t("run.progressNote")}</p>
+            <details className="pt-1 text-meta text-muted-foreground">
+              <summary className="cursor-pointer select-none">{t("run.whySlowTitle")}</summary>
+              <div className="space-y-1 pt-2">
+                <p>
+                  {t("run.whySlowSummary", {
+                    calls: totals.calls,
+                    duration: formatDuration(totals.totalMs),
+                  })}
+                </p>
+                {totals.slowestStage !== null && (
+                  <p>
+                    {t("run.whySlowSlowest", {
+                      duration: formatDuration(totals.slowestMs),
+                      stage: t(STAGE_LABEL_KEYS[totals.slowestStage]),
+                    })}
+                  </p>
+                )}
+                {STAGE_ORDER.map((stage) => (
+                  <p key={stage}>
+                    <span className="text-foreground">{t(STAGE_LABEL_KEYS[stage])}</span> —{" "}
+                    {t(STAGE_HINT_KEYS[stage])}
+                  </p>
+                ))}
+                <p>{t("run.noPauseNote")}</p>
+                <p>{t("run.cancelKeepsPartial")}</p>
+              </div>
+            </details>
             {streamError && (
               <p className="text-meta text-warning dark:text-warning">
                 {t("run.streamReconnecting")}
@@ -633,13 +725,21 @@ export function RunPage() {
         </Alert>
       )}
 
-      {run.status === "completed" && result !== null && verification !== null && (
+      {result !== null && verification !== null && !running && (
         <>
           {result.fallbackReason !== null && (
             <Alert>
               <Info className="size-4" />
               <AlertTitle>{t("run.fallbackTitle")}</AlertTitle>
               <AlertDescription>{result.fallbackReason}</AlertDescription>
+            </Alert>
+          )}
+
+          {result.degradedReason !== null && (
+            <Alert>
+              <Info className="size-4" />
+              <AlertTitle>{t("run.degradedTitle")}</AlertTitle>
+              <AlertDescription>{result.degradedReason}</AlertDescription>
             </Alert>
           )}
 
@@ -784,6 +884,12 @@ export function RunPage() {
                   {expandAll ? t("run.collapseAll") : t("run.expandAll")}
                 </Button>
               </div>
+              {result.degradedReason !== null &&
+                !result.passes.some((meta) => meta.pass === "synthesize") && (
+                  <p className="text-meta leading-relaxed text-warning dark:text-warning">
+                    {t("run.degradedFindingsHint")}
+                  </p>
+                )}
               {visibleAi.length === 0 ? (
                 <p className="text-body text-muted-foreground">{t("run.findingsEmpty")}</p>
               ) : (

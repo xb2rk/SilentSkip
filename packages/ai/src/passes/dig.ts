@@ -8,7 +8,7 @@ import type { EvidenceAnchor, ReviewContext } from "../context/types.js";
 import type { InseaAttachment } from "../insea/types.js";
 import { buildDigPrompt, PROMPT_VERSIONS } from "../prompts/registry.js";
 import { parsePassOutput } from "./parse-output.js";
-import { buildRunRequest, type PassDeps, type PassMeta } from "./types.js";
+import { type PassDeps, type PassMeta, runPassCall } from "./types.js";
 
 /** Cap of anchors sent to the focused follow-up — attention quality, recorded in the manifest. */
 export const MAX_FOCUSED_ANCHORS = 40;
@@ -90,23 +90,15 @@ export async function runDigPass(
       content: serializeAnchorsJsonl(focused.anchors),
     },
   ];
-  const result = await deps.runner(
-    buildRunRequest(
-      deps,
-      buildDigPrompt(context, focused.queries, focused.anchors),
-      buildPassManifestJson("dig", context, attachments),
-      attachments,
-      signal,
-    ),
-  );
+  const { result, meta } = await runPassCall(deps, {
+    prompt: buildDigPrompt(context, focused.queries, focused.anchors),
+    manifestJson: buildPassManifestJson("dig", context, attachments),
+    attachments,
+    signal,
+  });
   return {
     output: parsePassOutput(DigOutputSchema, result, "dig"),
-    meta: {
-      pass: "dig",
-      promptVersion: PROMPT_VERSIONS.dig,
-      latencyMs: result.latencyMs,
-      salvage: result.salvage,
-    },
+    meta: { pass: "dig", promptVersion: PROMPT_VERSIONS.dig, salvage: result.salvage, ...meta },
     focused,
   };
 }

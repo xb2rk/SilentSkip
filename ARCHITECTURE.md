@@ -80,18 +80,48 @@ Query key conventions: `["projects"]`, `["projects", id, "refs"]`,
 2. The manager loads the digest (shared `digest-input.ts`), then runs `runReviewPipeline` (v2,
    decision #28): `map` (file-id partition) → `read` × N reading units → **L1** coverage re-reads
    → one `dig` round → `synthesize` → **L3** verify→revise, with the linker on every boundary and
-   repair rounds for schema drift (map/read/dig/synthesize). Progress relays as SSE events
-   through the run's channel (replay buffer + live subscribers; `unit`/`units`/`round` on stage
-   events; the channel closes after the terminal event).
+   repair rounds for schema drift (map/read/dig/synthesize). **L1 re-reads only two kinds of unit**:
+   one whose call never answered, and one owning an engine finding no reading has cited yet (capped
+   to `MAX_COVERAGE_UNITS` per round, worst case first); a unit that merely answered with nothing to
+   report is not re-read, and findings left uninterpreted past the cap are reported as unknowns.
+   **Reading units are read through a bounded pool** (`AI_READ_CONCURRENCY`, default 1: this endpoint
+   queues overlapping calls, and a real 72-file run was no faster at 3 than at 1, so the pool is built
+   for an endpoint that does overlap rather than because this one does). Each call returns what it
+   contributed and the round folds those outcomes in unit order, so the pool size cannot change the
+   report or the pass order; checkpoints land at the end of each reading round instead of after
+   every unit (a cancelled round still keeps the calls that answered).
+   **L3 re-runs `synthesize` only when an
+   issue makes the report substantively wrong** (`BLOCKING_SYNTHESIZE_ISSUE_KINDS`: a finding that
+   lost its evidence, a claim the engine proved false, a narrative for a theme that does not
+   exist); cosmetic strips are accepted as-is because the audit trail already records them.
+   Progress relays as SSE events through the run's channel (replay buffer + live subscribers;
+   `unit`/`units`/`round` on stage events; the channel closes after the terminal event).
 3. Result, verification stats and per-pass manifests persist to `runs` + `contextManifests`.
-   Cancel aborts in-flight calls via `AbortController` and persists `cancelled`. AI failure falls
-   back to the deterministic report (run still `completed`, carrying `fallbackReason`).
+   Cancel aborts in-flight calls via `AbortController`.
+   A timeout or dead transport on **any** pass **degrades** instead of killing the run: the failure
+   is recorded as `map|read|dig|synthesize-timeout|unavailable`, and the run still ends `completed`
+   with a **partial report** (`degradedReason` set, findings lifted 1:1 from the verified readings,
+   verdict `insufficient_evidence`). Only a run that produced no reading at all falls back to the
+   deterministic report (also `completed`, carrying `fallbackReason`). `onCheckpoint` (a
+   `PipelineCheckpoint` after `map`, after every reading unit and after `dig`) is persisted straight
+   into `runs.reportJson` while the row stays `running`, so a cancel, a crash or a server restart
+   (`reconcileInterruptedRuns`) leaves the readings to render instead of losing them. Cancellation
+   always propagates and is never degraded.
+   Workflow calls are answered through the **pass cache** (`pass_cache` table, `AI_PASS_CACHE`, on by
+   default): a runner decorator keys each call by everything the model sees — prompt, manifest,
+   attachment names and bytes — and replays a stored answer for a byte-identical call, reporting it
+   as `cached: true` with 0 ms so the run never claims time it did not spend. Re-running the same
+   comparison therefore *resumes* instead of paying again, and any changed input (a different unit,
+   chunk, round or L1/L3 constraint line) simply misses. Only successful calls are stored; a broken
+   cache falls through to the live workflow.
 4. The web starts runs from Compare, navigates to `/runs/$runId`, consumes the SSE stream (with
    2 s polling as a converging fallback) and renders report v2: the theme change map
    (`themes` persisted with the run — engine-validated partition; AI names/narratives labelled
    interpretation) over the raw change facts, the findings tab split FACT (engine checks) /
    INTERPRETATION (linked AI findings, unverified ones labelled "Cần xác minh" and sorted
-   last), and the AI notes tab with the audit trail.
+   last), and the AI notes tab with the audit trail. The live progress card folds the append-only
+   stream into per-stage totals — calls, summed latency, slowest call, regions read — with a
+   "Vì sao lâu?" explainer per stage, and "Chạy lại" starts a fresh run of the same comparison.
 
 ### What-If chat (server + AI)
 
