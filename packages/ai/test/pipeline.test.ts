@@ -266,6 +266,7 @@ describe("runReviewPipeline v2", () => {
     const synthesizeCall = scripted.calls.find((call) => stageOf(call) === "synthesize");
     expect(synthesizeCall).toBeDefined();
     const attachment = attachmentOf(synthesizeCall as never, "engine-findings.jsonl");
+    if (attachment === undefined) throw new Error("engine-findings.jsonl attachment missing");
     const lineCount = (attachment.content.match(/\n/gu)?.length ?? 0) + 1;
     expect(attachment.content.length).toBeGreaterThan(0);
     expect(lineCount).toBe(makeDigest().findings.length);
