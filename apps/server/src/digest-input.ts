@@ -31,9 +31,7 @@ async function loadSideSources(
   const currentCommit = currentIsWorktree ? null : await resolveCommit(rootPath, current);
   const [baseSources, currentSources] = await Promise.all([
     readFilesAtRef(rootPath, base),
-    currentIsWorktree
-      ? readProjectFilesFromDisk(rootPath)
-      : readFilesAtRef(rootPath, current),
+    currentIsWorktree ? readProjectFilesFromDisk(rootPath) : readFilesAtRef(rootPath, current),
   ]);
   return { baseCommit, currentCommit, baseSources, currentSources };
 }
@@ -73,9 +71,7 @@ export async function loadDigest(
 
   const [baseSources, currentSources] = await Promise.all([
     readFilesAtRef(rootPath, base),
-    currentIsWorktree
-      ? readProjectFilesFromDisk(rootPath)
-      : readFilesAtRef(rootPath, current),
+    currentIsWorktree ? readProjectFilesFromDisk(rootPath) : readFilesAtRef(rootPath, current),
   ]);
 
   const digest = buildDigest({

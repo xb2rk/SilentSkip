@@ -20,7 +20,12 @@ import { checkLocalization } from "./localization.js";
 import { checkReaderProfile } from "./readers.js";
 import { checkForeignKeys, checkStructuredReferences } from "./references.js";
 import { checkCallArity, checkDanglingReferences, checkOrphanAdditions } from "./scripts.js";
-import { checkHeaderDrift, checkHeaderHygiene, checkRowKeys, checkTableWidths } from "./structure.js";
+import {
+  checkHeaderDrift,
+  checkHeaderHygiene,
+  checkRowKeys,
+  checkTableWidths,
+} from "./structure.js";
 import type { CheckFinding, CheckInput } from "./types.js";
 import { checkTypeRows } from "./types-check.js";
 
@@ -30,7 +35,12 @@ export { checkLocalization } from "./localization.js";
 export { checkReaderProfile } from "./readers.js";
 export { checkForeignKeys, checkStructuredReferences } from "./references.js";
 export { checkCallArity, checkDanglingReferences, checkOrphanAdditions } from "./scripts.js";
-export { checkHeaderDrift, checkHeaderHygiene, checkRowKeys, checkTableWidths } from "./structure.js";
+export {
+  checkHeaderDrift,
+  checkHeaderHygiene,
+  checkRowKeys,
+  checkTableWidths,
+} from "./structure.js";
 export { checkTypeRows } from "./types-check.js";
 
 /**

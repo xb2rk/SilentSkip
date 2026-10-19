@@ -15,7 +15,9 @@ function createDummyDigest(title: string): DigestBundle {
 
 describe("DigestCache", () => {
   it("computes deterministic keys based on arguments", () => {
-    const dummyProfile = { conventions: [] } as unknown as import("@silentskip/contracts").ProjectProfile;
+    const dummyProfile = {
+      conventions: [],
+    } as unknown as import("@silentskip/contracts").ProjectProfile;
     const key1 = DigestCache.computeKey("/repo", "c1", "c2", dummyProfile);
     const key2 = DigestCache.computeKey("/repo", "c1", "c2", dummyProfile);
     const key3 = DigestCache.computeKey("/repo", "c1", "c3", dummyProfile);

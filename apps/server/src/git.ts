@@ -341,10 +341,14 @@ function canonicalSource(source: string): string {
  */
 function runGitCatFileBatch(rootPath: string, input: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn("git", ["-c", "core.quotepath=false", "-C", rootPath, "cat-file", "--batch"], {
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const child = spawn(
+      "git",
+      ["-c", "core.quotepath=false", "-C", rootPath, "cat-file", "--batch"],
+      {
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
 
     const chunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
@@ -459,11 +463,7 @@ export async function readProjectFilesFromDisk(rootPath: string): Promise<Source
     "--exclude-standard",
   ]);
   const paths = [
-    ...new Set(
-      listed
-        .split("\0")
-        .filter((path) => path !== "" && SOURCE_EXTENSIONS.test(path)),
-    ),
+    ...new Set(listed.split("\0").filter((path) => path !== "" && SOURCE_EXTENSIONS.test(path))),
   ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   const files: SourceInput[] = [];

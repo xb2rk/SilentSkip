@@ -15,7 +15,7 @@ import {
   Microscope,
   Terminal,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,11 +120,12 @@ export function RunLiveProgress({
   // Keep timestamp fixed at the exact moment each entry is first recorded
   const logTimestampsRef = useRef<Map<string, string>>(new Map());
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runId is a reset trigger for the ref cache, not a value read by the effect
   useEffect(() => {
     logTimestampsRef.current.clear();
   }, [runId]);
 
-  const getLogTime = (id: string): string => {
+  const getLogTime = useCallback((id: string): string => {
     let tStr = logTimestampsRef.current.get(id);
     if (!tStr) {
       tStr = new Date().toLocaleTimeString("vi-VN", {
@@ -135,7 +136,7 @@ export function RunLiveProgress({
       logTimestampsRef.current.set(id, tStr);
     }
     return tStr;
-  };
+  }, []);
 
   // Generate logs from events with fixed append-time timestamps
   const consoleLogs = useMemo<readonly ConsoleLogEntry[]>(() => {
@@ -198,7 +199,7 @@ export function RunLiveProgress({
       }
     }
     return logs;
-  }, [events, t, runId]);
+  }, [events, t, getLogTime]);
 
   // Auto-scroll terminal
   useEffect(() => {

@@ -720,21 +720,19 @@ export async function runReviewPipeline(
       const targets = selectCoverageTargets({ units, retryUnits, unaddressed, anchorFiles });
       if (targets.length === 0) break;
       const anchorMap = new Map(digest.anchors.map((anchor) => [anchor.id, anchor] as const));
-      const constraints = unaddressed
-        .slice(0, MAX_CONSTRAINT_LINES)
-        .map((finding) => {
-          const anchorHints = finding.anchors
-            .slice(0, 3)
-            .map((id) => {
-              const a = anchorMap.get(id);
-              if (!a?.snippet) return id;
-              const snippet = a.snippet.replace(/\r?\n|\r/g, " ").trim();
-              const preview = snippet.length > 50 ? `${snippet.slice(0, 47)}...` : snippet;
-              return `${id} ("${preview}" L${a.lineStart})`;
-            })
-            .join("; ");
-          return `${finding.ruleId}: ${finding.title} — anchors: ${anchorHints}`;
-        });
+      const constraints = unaddressed.slice(0, MAX_CONSTRAINT_LINES).map((finding) => {
+        const anchorHints = finding.anchors
+          .slice(0, 3)
+          .map((id) => {
+            const a = anchorMap.get(id);
+            if (!a?.snippet) return id;
+            const snippet = a.snippet.replace(/\r?\n|\r/g, " ").trim();
+            const preview = snippet.length > 50 ? `${snippet.slice(0, 47)}...` : snippet;
+            return `${id} ("${preview}" L${a.lineStart})`;
+          })
+          .join("; ");
+        return `${finding.ruleId}: ${finding.title} — anchors: ${anchorHints}`;
+      });
       await readRound(targets, round, constraints);
     }
     const finalReadAnchors = new Set(collectedFindings.flatMap((finding) => finding.anchors));
